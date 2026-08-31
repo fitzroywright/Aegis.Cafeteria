@@ -62,3 +62,5 @@ jobs:
           git add src/Aegis.Cafeteria.Services/Program.cs src/Aegis.Cafeteria.UI/MainForm.cs src/Aegis.Cafeteria.UI.Linux/MainWindow.cs
           git commit -m "Integrate and verify Aegis Engineering Diagnostics v7"
           git push origin HEAD:chatgpt/aegis-engineering-diagnostics-v7
+
+# Retry after removing stale pre-v6 payroll artifact.
