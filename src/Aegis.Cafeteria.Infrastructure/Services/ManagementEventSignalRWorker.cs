@@ -62,8 +62,6 @@ public sealed class ManagementEventSignalRWorker : BackgroundService
             }
         );
 
-
-
         connection.Reconnected += connectionId =>
         {
             this.logger.LogInformation
@@ -78,7 +76,7 @@ public sealed class ManagementEventSignalRWorker : BackgroundService
 
         connection.Closed += exception =>
         {
-            if (exception is not null)
+            if (exception is not null && !stoppingToken.IsCancellationRequested)
             {
                 this.logger.LogWarning
                 (
@@ -109,6 +107,12 @@ public sealed class ManagementEventSignalRWorker : BackgroundService
 
                         this.wakeSignal.Pulse();
                     }
+
+                    await Task.Delay
+                    (
+                          TimeSpan.FromSeconds(this.options.RealtimeReconnectSeconds)
+                        , stoppingToken
+                    );
                 }
                 catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
@@ -121,18 +125,36 @@ public sealed class ManagementEventSignalRWorker : BackgroundService
                           exception
                         , "Cafeteria Services real-time connection unavailable; POS will continue using durable polling"
                     );
-                }
 
-                await Task.Delay
-                (
-                      TimeSpan.FromSeconds(this.options.RealtimeReconnectSeconds)
-                    , stoppingToken
-                );
+                    try
+                    {
+                        await Task.Delay
+                        (
+                              TimeSpan.FromSeconds(this.options.RealtimeReconnectSeconds)
+                            , stoppingToken
+                        );
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                }
             }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Normal host shutdown. BackgroundService cancellation must not surface as an application error.
         }
         finally
         {
-            await connection.DisposeAsync();
+            try
+            {
+                await connection.DisposeAsync();
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // SignalR may observe the host cancellation while disposing. This is also normal shutdown.
+            }
         }
     }
 
