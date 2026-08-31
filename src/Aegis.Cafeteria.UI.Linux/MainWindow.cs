@@ -344,18 +344,11 @@ public sealed class MainWindow : Window
         MenuItem priceMaintenance = new() { Header = "Price Maintenance..." };
         priceMaintenance.Click += async (_, _) => await OpenProductMaintenanceAsync();
         administration.Items.Add(priceMaintenance);
-        menu.Items.Add(administration);
-
-        MenuItem engineering = new()
-        {
-              Header = "Engineering"
-            , FontWeight = FontWeight.Bold
-            , Foreground = new SolidColorBrush(Color.FromRgb(24, 45, 68))
-        };
-        MenuItem diagnostics = new() { Header = "Aegis Engineering Diagnostics..." };
+        administration.Items.Add(new Separator());
+        MenuItem diagnostics = new() { Header = "Diagnostics" };
         diagnostics.Click += (_, _) => OpenEngineeringDiagnostics();
-        engineering.Items.Add(diagnostics);
-        menu.Items.Add(engineering);
+        administration.Items.Add(diagnostics);
+        menu.Items.Add(administration);
 
         return menu;
     }

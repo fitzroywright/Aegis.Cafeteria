@@ -392,16 +392,11 @@ public sealed class MainForm : Form
         ToolStripMenuItem cafeteriaAdministration = new("Price Maintenance...");
         cafeteriaAdministration.Click += async (_, _) => await OpenCafeteriaAdministrationAsync();
         administration.DropDownItems.Add(cafeteriaAdministration);
-        menu.Items.Add(administration);
-
-        ToolStripMenuItem engineering = new("Engineering")
-        {
-            Font = new Font("Segoe UI", 10, FontStyle.Bold)
-        };
-        ToolStripMenuItem diagnostics = new("Aegis Engineering Diagnostics...");
+        administration.DropDownItems.Add(new ToolStripSeparator());
+        ToolStripMenuItem diagnostics = new("Diagnostics");
         diagnostics.Click += (_, _) => OpenEngineeringDiagnostics();
-        engineering.DropDownItems.Add(diagnostics);
-        menu.Items.Add(engineering);
+        administration.DropDownItems.Add(diagnostics);
+        menu.Items.Add(administration);
 
         return menu;
     }
