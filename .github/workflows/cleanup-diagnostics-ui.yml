@@ -64,7 +64,10 @@ jobs:
         shell: pwsh
         run: |
           $dashboard = Get-Content src/Aegis.Cafeteria.Services/Engineering/Diagnostics/LcarsDiagnosticsDashboard.cs -Raw
-          if ($dashboard -match 'Aegis') { throw 'Diagnostics dashboard still contains Aegis.' }
+          $htmlStart = $dashboard.IndexOf('<!doctype html>')
+          if ($htmlStart -lt 0) { throw 'Dashboard HTML not found.' }
+          $html = $dashboard.Substring($htmlStart)
+          if ($html -match 'Aegis') { throw 'Diagnostics dashboard HTML still contains Aegis.' }
           $windows = Get-Content src/Aegis.Cafeteria.UI/MainForm.cs -Raw
           if ($windows -match 'Aegis Engineering Diagnostics') { throw 'Windows diagnostics label still contains Aegis.' }
           $linux = Get-Content src/Aegis.Cafeteria.UI.Linux/MainWindow.cs -Raw
