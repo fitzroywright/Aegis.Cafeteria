@@ -258,839 +258,479 @@ public sealed class MainForm : Form
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        var menu = BuildMenu();
-        MainMenuStrip = menu;
-        root.Controls.Add(menu, 0, 0);
-        root.Controls.Add(BuildHeader(), 0, 1);
+        this.Controls.Add(root);
 
-        var body = new SplitContainer
+        root.Controls.Add(BuildMenu(), 0, 0);
+        root.Controls.Add(BuildTopBar(), 0, 1);
+
+        this.mainSplit = new SplitContainer
         {
             Dock = DockStyle.Fill,
+            Orientation = Orientation.Vertical,
+            SplitterWidth = 6,
             BackColor = Canvas,
-            BorderStyle = BorderStyle.None
+            Panel1MinSize = 360,
+            Panel2MinSize = 360
         };
-        this.mainSplit = body;
-        body.SizeChanged += (_, _) => ApplyMainSplitLayout();
-        body.Panel1.Padding = new Padding(18, 18, 8, 18);
-        body.Panel2.Padding = new Padding(8, 18, 18, 18);
+        this.mainSplit.Panel1.Padding = new Padding(14);
+        this.mainSplit.Panel2.Padding = new Padding(14);
+        this.mainSplit.Panel1.Controls.Add(BuildCustomerArea());
+        this.mainSplit.Panel2.Controls.Add(BuildOrderArea());
+        root.Controls.Add(this.mainSplit, 0, 2);
 
-        var customerHost = new Panel { Dock = DockStyle.Fill, BackColor = Surface };
-        customerHost.Controls.Add(this.customerPanel);
-        customerHost.Controls.Add(this.idlePanel);
-        BuildIdlePanel();
-        BuildCustomerPanel();
-        body.Panel1.Controls.Add(customerHost);
-        body.Panel2.Controls.Add(BuildOrderPanel());
-        root.Controls.Add(body, 0, 2);
         root.Controls.Add(BuildStatusBar(), 0, 3);
-        Controls.Add(root);
-    }
-
-    private void ApplyMainSplitLayout()
-    {
-        if (this.mainSplit is null || this.mainSplit.IsDisposed)
-            return;
-
-        int width = this.mainSplit.ClientSize.Width;
-        if (width <= this.mainSplit.SplitterWidth + 2)
-            return;
-
-        // WinForms creates a SplitContainer at a very small temporary width before
-        // the maximized form is laid out. Applying the production minimum sizes or
-        // SplitterDistance at that point throws InvalidOperationException.
-        // Use the full production minimums only when they fit; otherwise degrade
-        // gracefully until normal layout gives us the real screen width.
-        const int desiredTransactionPanel1Min = 420;
-        const int desiredTransactionPanel2Min = 420;
-
-        int available = width - this.mainSplit.SplitterWidth;
-        if (available < 100)
-            return;
-
-        // Keep the cashier workspace balanced. The customer/financial panel contains
-        // enough information that the old narrow transaction layout clipped or
-        // crowded controls on common POS resolutions. Use an even 50/50 split in
-        // both idle and transaction modes.
-        int desiredLeft = available / 2;
-        int desiredPanel1Min = desiredTransactionPanel1Min;
-        int desiredPanel2Min = desiredTransactionPanel2Min;
-        bool fullMinimumsFit = available >= desiredPanel1Min + desiredPanel2Min;
-
-        int panel1Min = fullMinimumsFit
-            ? desiredPanel1Min
-            : Math.Min(desiredPanel1Min, Math.Max(25, available / 3));
-        int panel2Min = fullMinimumsFit
-            ? desiredPanel2Min
-            : Math.Min(desiredPanel2Min, Math.Max(25, available - panel1Min - 1));
-
-        int minimumDistance = panel1Min;
-        int maximumDistance = Math.Max(minimumDistance, available - panel2Min);
-        int distance = Math.Clamp(desiredLeft, minimumDistance, maximumDistance);
-
-        // Reset the minimums before changing SplitterDistance so the current
-        // dimensions can never conflict with stale constraints during a resize.
-        this.mainSplit.Panel1MinSize = 0;
-        this.mainSplit.Panel2MinSize = 0;
-        this.mainSplit.SplitterDistance = Math.Clamp(distance, 0, Math.Max(0, available));
-        this.mainSplit.Panel1MinSize = Math.Min(panel1Min, this.mainSplit.SplitterDistance);
-        this.mainSplit.Panel2MinSize = Math.Min(panel2Min, Math.Max(0, available - this.mainSplit.SplitterDistance));
     }
 
     private MenuStrip BuildMenu()
     {
-        var menu = new MenuStrip
-        {
-            Dock = DockStyle.Top,
-            BackColor = Color.White,
-            ForeColor = Navy,
-            Font = new Font("Segoe UI", 10)
-        };
-
-        var reports = new ToolStripMenuItem("Reports") { Font = new Font("Segoe UI", 10, FontStyle.Bold) };
-        var reportCenter = ReportMenuItem("Report Center...   Preview • Excel • PDF", CafeteriaReportKind.ExecutiveSummary);
-        reportCenter.Font = new Font("Segoe UI", 10, FontStyle.Bold);
-        reportCenter.ForeColor = Blue;
-        reports.DropDownItems.Add(reportCenter);
-        reports.DropDownItems.Add(new ToolStripSeparator());
-
-        var overview = ReportCategory("Overview & KPIs");
-        overview.DropDownItems.Add(ReportMenuItem("Executive Summary", CafeteriaReportKind.ExecutiveSummary));
-
-        var sales = ReportCategory("Sales & Purchases");
-        sales.DropDownItems.Add(ReportMenuItem("Daily Sales", CafeteriaReportKind.DailySales));
-        sales.DropDownItems.Add(ReportMenuItem("Sales Trend", CafeteriaReportKind.SalesTrend));
-        sales.DropDownItems.Add(ReportMenuItem("Tender Mix", CafeteriaReportKind.TenderMix));
-        sales.DropDownItems.Add(ReportMenuItem("Product Sales", CafeteriaReportKind.ProductSales));
-        sales.DropDownItems.Add(new ToolStripSeparator());
-        sales.DropDownItems.Add(ReportMenuItem("Itemized Purchases by Customer", CafeteriaReportKind.PurchaseItemDetail));
-        sales.DropDownItems.Add(ReportMenuItem("Purchases Summarized by Person", CafeteriaReportKind.PurchaseByPerson));
-
-        var employee = ReportCategory("Employee & Credit");
-        employee.DropDownItems.Add(ReportMenuItem("Canteen Summary", CafeteriaReportKind.CanteenSummary));
-        employee.DropDownItems.Add(ReportMenuItem("Employee Statement", CafeteriaReportKind.EmployeeStatement));
-        employee.DropDownItems.Add(ReportMenuItem("Monthly Allocations", CafeteriaReportKind.MonthlyAllocations));
-        employee.DropDownItems.Add(ReportMenuItem("Subsidy Utilization", CafeteriaReportKind.SubsidyUtilization));
-        employee.DropDownItems.Add(ReportMenuItem("Customer Responsibility", CafeteriaReportKind.CustomerResponsibility));
-        employee.DropDownItems.Add(ReportMenuItem("Outstanding Debt", CafeteriaReportKind.OutstandingDebt));
-
-        var audit = ReportCategory("Audit & Reconciliation");
-        audit.DropDownItems.Add(ReportMenuItem("Refund && Void Audit", CafeteriaReportKind.RefundVoidAudit));
-        audit.DropDownItems.Add(ReportMenuItem("Additional Credit Audit", CafeteriaReportKind.AdditionalCreditAudit));
-        audit.DropDownItems.Add(ReportMenuItem("FFP Reconciliation", CafeteriaReportKind.FfpReconciliation));
-
-        reports.DropDownItems.Add(overview);
-        reports.DropDownItems.Add(sales);
-        reports.DropDownItems.Add(employee);
-        reports.DropDownItems.Add(audit);
-        menu.Items.Add(reports);
-
-        ToolStripMenuItem administration = new("Administration")
-        {
-            Font = new Font("Segoe UI", 10, FontStyle.Bold)
-        };
-
-        ToolStripMenuItem cafeteriaAdministration = new("Price Maintenance...");
-        cafeteriaAdministration.Click += async (_, _) => await OpenCafeteriaAdministrationAsync();
-        administration.DropDownItems.Add(cafeteriaAdministration);
+        var menu = new MenuStrip { BackColor = Surface, ForeColor = Navy, Padding = new Padding(6, 4, 0, 4) };
+        var administration = new ToolStripMenuItem("Administration");
+        var priceMaintenance = new ToolStripMenuItem("Price Maintenance...");
+        priceMaintenance.Click += async (_, _) => await OpenProductMaintenanceAsync();
+        administration.DropDownItems.Add(priceMaintenance);
         administration.DropDownItems.Add(new ToolStripSeparator());
-        ToolStripMenuItem diagnostics = new("Diagnostics");
+        var diagnostics = new ToolStripMenuItem("Diagnostics");
         diagnostics.Click += (_, _) => OpenEngineeringDiagnostics();
         administration.DropDownItems.Add(diagnostics);
+        var reports = new ToolStripMenuItem("Reports");
+        PopulateReportsMenu(reports);
         menu.Items.Add(administration);
-
+        menu.Items.Add(reports);
         return menu;
     }
 
-    private void OpenEngineeringDiagnostics()
+    private Control BuildTopBar()
     {
-        CafeteriaServicesOptions cafeteriaServices = this.services.GetRequiredService<CafeteriaServicesOptions>();
-        string diagnosticsUrl = cafeteriaServices.BaseUrl.TrimEnd('/') + "/engineering/diagnostics";
-        Process.Start
-        (
-            new ProcessStartInfo
-            {
-                  FileName = diagnosticsUrl
-                , UseShellExecute = true
-            }
-        );
+        var panel = new Panel { Dock = DockStyle.Top, Height = 66, BackColor = Navy, Padding = new Padding(14, 12, 14, 10) };
+        var title = new Label { Text = "CAFETERIA", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI", 17, FontStyle.Bold) };
+        panel.Controls.Add(title);
+
+        var searchPanel = new FlowLayoutPanel { AutoSize = true, BackColor = Color.Transparent, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
+        this.lookup.Height = 36;
+        searchPanel.Controls.Add(this.lookup);
+        searchPanel.Controls.Add(this.find);
+        searchPanel.Controls.Add(this.cashCustomer);
+        searchPanel.Location = new Point(panel.Width - searchPanel.Width - 14, 14);
+        searchPanel.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        panel.Controls.Add(searchPanel);
+        return panel;
     }
 
-    private async Task OpenCafeteriaAdministrationAsync()
+    private Control BuildCustomerArea()
     {
-        OperatorIdentity? manager = await AuthorizeManagerAsync("Cafeteria price maintenance");
+        var host = new Panel { Dock = DockStyle.Fill, BackColor = Surface };
+        host.Controls.Add(this.customerPanel);
+        host.Controls.Add(this.idlePanel);
+        this.idlePanel.BringToFront();
 
-        if (manager is null)
-        {
-            return;
-        }
-
-        IProductCatalogMaintenance maintenance = this.services.GetRequiredService<IProductCatalogMaintenance>();
-        using CafeteriaAdministrationDialog dialog = new(maintenance);
-        dialog.ShowDialog(this);
-        await LoadProductsAsync();
+        BuildIdleDashboard();
+        BuildCustomerPanel();
+        return host;
     }
 
-    private static ToolStripMenuItem ReportCategory(string text) => new(text)
+    private void BuildIdleDashboard()
     {
-        Font = new Font("Segoe UI", 10, FontStyle.Bold),
-        ForeColor = Navy
-    };
-
-    private ToolStripMenuItem ReportMenuItem(string text, CafeteriaReportKind kind)
-    {
-        var metadata = CafeteriaReportCatalog.All.Single(x => x.Kind == kind);
-        var item = new ToolStripMenuItem(text)
-        {
-            ToolTipText = metadata.Description,
-            Padding = new Padding(4, 3, 4, 3)
-        };
-        item.Click += (_, _) => OpenReportRunner(kind);
-        return item;
-    }
-
-    private void OpenReportRunner(CafeteriaReportKind kind)
-    {
-        var reportService = this.services.GetRequiredService<ICafeteriaReportService>();
-        var exporters = this.services.GetServices<IReportExporter>();
-        using var dialog = new ReportRunnerDialog(reportService, this.identification, this.products, exporters, kind);
-        dialog.ShowDialog(this);
-        RegisterActivity();
-    }
-
-    private Control BuildHeader()
-    {
-        var header = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, BackColor = Navy, Padding = new Padding(20, 14, 20, 14) };
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-
-        var brand = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
-        brand.Controls.Add(new Label { Text = "CAFETERIA", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI", 18, FontStyle.Bold) });
-        brand.Controls.Add(new Label { Text = "Food For The Poor Jamaica", AutoSize = true, ForeColor = Color.FromArgb(193, 210, 225), Font = new Font("Segoe UI", 9) });
-        header.Controls.Add(brand, 0, 0);
-
-        var identify = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Anchor = AnchorStyles.Right, Padding = new Padding(0, 5, 0, 0) };
-        identify.Controls.Add(this.lookup);
-        identify.Controls.Add(this.find);
-        identify.Controls.Add(this.cashCustomer);
-        header.Controls.Add(identify, 1, 0);
-        return header;
-    }
-
-    private void BuildIdlePanel()
-    {
-        this.idlePanel.Padding = new Padding(26);
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 5, ColumnCount = 1 };
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1, Padding = new Padding(14) };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-
         root.Controls.Add(new Label
         {
-            Text = "TODAY'S SALES DASHBOARD",
+            Text = "TODAY",
             AutoSize = true,
             ForeColor = Navy,
-            Font = new Font("Segoe UI", 12, FontStyle.Bold),
-            Margin = new Padding(0, 0, 0, 4)
+            Font = new Font("Segoe UI", 18, FontStyle.Bold),
+            Margin = new Padding(0, 0, 0, 12)
         }, 0, 0);
-        root.Controls.Add(new Label
-        {
-            Text = "Live summary for today from the local Cafeteria database.",
-            AutoSize = true,
-            ForeColor = Muted,
-            Font = new Font("Segoe UI", 10),
-            Margin = new Padding(0, 0, 0, 18)
-        }, 0, 1);
 
-        var metrics = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, RowCount = 3 };
-        metrics.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        metrics.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        metrics.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        metrics.Controls.Add(DashboardMetricCard("NET SALES", this.todayNetSales), 0, 0);
-        metrics.Controls.Add(DashboardMetricCard("TRANSACTIONS", this.todayTransactions), 0, 1);
-        metrics.Controls.Add(DashboardMetricCard("REFUNDS", this.todayRefunds), 0, 2);
-        root.Controls.Add(metrics, 0, 2);
+        var cards = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 3, RowCount = 1 };
+        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
+        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33f));
+        cards.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34f));
+        cards.Controls.Add(DashboardCard("NET SALES", this.todayNetSales), 0, 0);
+        cards.Controls.Add(DashboardCard("TRANSACTIONS", this.todayTransactions), 1, 0);
+        cards.Controls.Add(DashboardCard("REFUNDS", this.todayRefunds), 2, 0);
+        root.Controls.Add(cards, 0, 1);
 
-        var dashboardBody = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Margin = new Padding(0, 8, 0, 0) };
-        dashboardBody.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        dashboardBody.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-
-        var charts = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, MinimumSize = new Size(0, 225) };
+        var charts = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, Margin = new Padding(0, 14, 0, 0) };
         charts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         charts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        this.todayItemsByQuantity.Dock = DockStyle.Fill;
-        this.todayItemsByQuantity.Margin = new Padding(0, 0, 6, 0);
-        this.todayItemsByValue.Dock = DockStyle.Fill;
-        this.todayItemsByValue.Margin = new Padding(6, 0, 0, 0);
-        charts.Controls.Add(this.todayItemsByQuantity, 0, 0);
-        charts.Controls.Add(this.todayItemsByValue, 1, 0);
-        dashboardBody.Controls.Add(charts, 0, 0);
-
-        var readyStack = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Margin = new Padding(0, 10, 0, 0) };
-        readyStack.Controls.Add(new Label { Text = "Ready for customer", AutoSize = true, Font = new Font("Segoe UI", 16, FontStyle.Bold), ForeColor = Navy });
-        readyStack.Controls.Add(new Label { Text = "Scan a card, enter an identifier, or press Find with an empty search box to browse customers.", AutoSize = true, MaximumSize = new Size(430, 0), ForeColor = Muted, Font = new Font("Segoe UI", 9) });
-        dashboardBody.Controls.Add(readyStack, 0, 1);
-        root.Controls.Add(dashboardBody, 0, 3);
-
-        var footer = new TableLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, ColumnCount = 2, Margin = new Padding(0, 16, 0, 0) };
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        footer.Controls.Add(this.todayDashboardStatus, 0, 0);
-        var openReport = ActionButton("Open Daily Sales Report", Blue, 185, 38);
-        openReport.Click += (_, _) => OpenReportRunner(CafeteriaReportKind.DailySales);
-        footer.Controls.Add(openReport, 1, 0);
-        root.Controls.Add(footer, 0, 4);
-
+        charts.Controls.Add(DashboardChartCard("ITEMS SOLD", this.todayItemsByQuantity), 0, 0);
+        charts.Controls.Add(DashboardChartCard("SALES VALUE", this.todayItemsByValue), 1, 0);
+        root.Controls.Add(charts, 0, 2);
+        root.Controls.Add(this.todayDashboardStatus, 0, 3);
         this.idlePanel.Controls.Add(root);
-    }
-
-    private static Control DashboardMetricCard(string caption, Label value)
-    {
-        var card = new Panel
-        {
-            Dock = DockStyle.Top,
-            Height = 82,
-            BackColor = Color.FromArgb(244, 247, 250),
-            Padding = new Padding(16, 10, 16, 8),
-            Margin = new Padding(0, 0, 0, 10)
-        };
-        var stack = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
-        stack.Controls.Add(new Label { Text = caption, AutoSize = true, ForeColor = Muted, Font = new Font("Segoe UI", 9, FontStyle.Bold) });
-        stack.Controls.Add(value);
-        card.Controls.Add(stack);
-        return card;
     }
 
     private void BuildCustomerPanel()
     {
-        this.customerPanel.Padding = new Padding(22);
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 5, ColumnCount = 1 };
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(14) };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        var identity = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, Margin = new Padding(0, 0, 0, 16) };
+        var identity = new TableLayoutPanel { AutoSize = true, Dock = DockStyle.Top, ColumnCount = 2, RowCount = 1 };
         identity.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         identity.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         identity.Controls.Add(this.photo, 0, 0);
-        var info = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(16, 0, 0, 0) };
-        info.Controls.Add(this.customerName);
-        info.Controls.Add(this.eligibility);
-        info.Controls.Add(this.period);
-        info.Controls.Add(this.fundingStatus);
-        identity.Controls.Add(info, 1, 0);
+        var details = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false, Padding = new Padding(14, 0, 0, 0) };
+        details.Controls.Add(this.customerName);
+        details.Controls.Add(this.eligibility);
+        details.Controls.Add(this.period);
+        details.Controls.Add(this.fundingStatus);
+        identity.Controls.Add(details, 1, 0);
         root.Controls.Add(identity, 0, 0);
 
-        var highlight = new Panel { Dock = DockStyle.Top, Height = 106, BackColor = Color.FromArgb(234, 243, 252), Padding = new Padding(18, 14, 18, 12), Margin = new Padding(0, 0, 0, 12) };
-        var availableStack = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
-        availableStack.Controls.Add(new Label { Text = "AVAILABLE TO SPEND", AutoSize = true, ForeColor = Blue, Font = new Font("Segoe UI", 9, FontStyle.Bold) });
-        availableStack.Controls.Add(this.available);
-        highlight.Controls.Add(availableStack);
-        root.Controls.Add(highlight, 0, 1);
-
-        var finances = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, Padding = new Padding(0, 2, 0, 14) };
-        finances.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62));
-        finances.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38));
-        AddFinancialRow(finances, "Monthly cafeteria credit", this.creditLimit);
-        AddFinancialRow(finances, "Company subsidy remaining", this.subsidyRemaining);
-        AddFinancialRow(finances, "Employee-funded remaining", this.nonSubsidyRemaining);
-        AddFinancialRow(finances, "Debt brought forward", this.carriedDebt);
-        AddFinancialRow(finances, "Customer Responsibility (before payments)", this.customerLiability);
-        AddFinancialRow(finances, "Customer Payments", this.customerPaymentsValue);
-        AddFinancialRow(finances, "Employee Amount Due", this.employeeAmountDue);
-        root.Controls.Add(finances, 0, 2);
-
-        var paymentAction = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, BackColor = Color.FromArgb(240, 248, 243), Padding = new Padding(12, 9, 12, 9), Margin = new Padding(0, 0, 0, 10) };
-        paymentAction.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        paymentAction.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        paymentAction.Controls.Add(new Label { Text = "CUSTOMER PAYMENT", AutoSize = true, ForeColor = Green, Font = new Font("Segoe UI", 9, FontStyle.Bold) }, 0, 0);
-        paymentAction.Controls.Add(new Label { Text = "Record money received from the employee to reduce the Employee Amount Due shown above.", AutoSize = true, MaximumSize = new Size(330, 0), ForeColor = Muted, Font = new Font("Segoe UI", 9) }, 0, 1);
-        paymentAction.Controls.Add(this.customerPaymentButton, 1, 0);
-        paymentAction.SetRowSpan(this.customerPaymentButton, 2);
-        root.Controls.Add(paymentAction, 0, 3);
-
-        // Keep the transaction/refund history large enough to show five complete rows.
-        // This grid is also the quickest path for selecting a completed sale to refund.
-        this.transactions.RowTemplate.Height = 28;
-        this.transactions.MinimumSize = new Size(0, this.transactions.ColumnHeadersHeight + (5 * this.transactions.RowTemplate.Height) + 4);
-
-        var history = new Panel
-        {
-            Dock = DockStyle.Fill,
-            MinimumSize = new Size(0, 38 + this.transactions.MinimumSize.Height)
-        };
-        var historyHeader = new TableLayoutPanel { Dock = DockStyle.Top, Height = 38, ColumnCount = 2 };
-        historyHeader.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        historyHeader.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        historyHeader.Controls.Add(new Label { Text = "THIS MONTH", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, ForeColor = Navy, Font = new Font("Segoe UI", 9, FontStyle.Bold) }, 0, 0);
-        historyHeader.Controls.Add(this.refundButton, 1, 0);
-        history.Controls.Add(this.transactions);
-        history.Controls.Add(historyHeader);
-        root.Controls.Add(history, 0, 4);
+        var money = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, RowCount = 0, Margin = new Padding(0, 14, 0, 14) };
+        money.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 62));
+        money.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 38));
+        AddFinancialRow(money, "Monthly Credit Limit", this.creditLimit);
+        AddFinancialRow(money, "Company Subsidy Remaining", this.subsidyRemaining);
+        AddFinancialRow(money, "Employee-funded Capacity", this.nonSubsidyRemaining);
+        AddFinancialRow(money, "Available to Spend", this.available);
+        AddFinancialRow(money, "Carried Debt", this.carriedDebt);
+        AddFinancialRow(money, "Customer Responsibility", this.customerLiability);
+        AddFinancialRow(money, "Customer Payments", this.customerPaymentsValue);
+        AddFinancialRow(money, "Employee Amount Due", this.employeeAmountDue);
+        root.Controls.Add(money, 0, 1);
+        root.Controls.Add(this.transactions, 0, 2);
         this.customerPanel.Controls.Add(root);
     }
 
-    private Control BuildOrderPanel()
+    private Control BuildOrderArea()
     {
-        var card = new Panel { Dock = DockStyle.Fill, BackColor = Surface, Padding = new Padding(22) };
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1 };
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 42));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 34));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 24));
 
-        // Preserve the original transaction workspace exactly. Recent terminal activity
-        // is a separate idle-only view layered over this workspace rather than another
-        // row that changes product/cart proportions during an active sale.
-        var workspace = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 5, ColumnCount = 1 };
-        this.transactionWorkspace = workspace;
-        workspace.RowStyles.Add(new RowStyle(SizeType.Percent, 42));
-        workspace.RowStyles.Add(new RowStyle(SizeType.Percent, 38));
-        workspace.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        workspace.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        workspace.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        var productsPanel = new Panel { Dock = DockStyle.Fill, BackColor = Surface };
+        productsPanel.Controls.Add(this.productGrid);
+        productsPanel.Controls.Add(this.productSearch);
+        root.Controls.Add(productsPanel, 0, 0);
 
-        var products = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 30, 0, 0) };
-        products.Controls.Add(this.productGrid);
-        products.Controls.Add(this.productSearch);
-        products.Controls.Add(new Label { Text = "PRODUCTS", Dock = DockStyle.Top, Height = 28, ForeColor = Navy, Font = new Font("Segoe UI", 9, FontStyle.Bold) });
-        workspace.Controls.Add(products, 0, 0);
+        var cartPanel = new Panel { Dock = DockStyle.Fill, BackColor = Surface, Padding = new Padding(0, 12, 0, 8) };
+        cartPanel.Controls.Add(this.cartGrid);
+        root.Controls.Add(cartPanel, 0, 1);
 
-        var cart = new Panel { Dock = DockStyle.Fill, Padding = new Padding(0, 30, 0, 0) };
-        cart.Controls.Add(this.cartGrid);
-        cart.Controls.Add(new Label { Text = "CURRENT ORDER  •  Double-click an item to remove", Dock = DockStyle.Top, Height = 28, ForeColor = Navy, Font = new Font("Segoe UI", 9, FontStyle.Bold) });
-        workspace.Controls.Add(cart, 0, 1);
+        this.transactionWorkspace = BuildCheckoutPanel();
+        this.recentTransactionsPanel = BuildRecentTransactionsPanel();
 
-        var total = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Padding = new Padding(0, 14, 0, 6) };
+        var workspace = new Panel { Dock = DockStyle.Fill, BackColor = Surface };
+        workspace.Controls.Add(this.transactionWorkspace);
+        workspace.Controls.Add(this.recentTransactionsPanel);
+        this.recentTransactionsPanel.Visible = false;
+        root.Controls.Add(workspace, 0, 2);
+        return root;
+    }
+
+    private Control BuildCheckoutPanel()
+    {
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3 };
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var total = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
         total.Controls.Add(this.cartCaption);
         total.Controls.Add(this.cartTotal);
-        workspace.Controls.Add(total, 0, 2);
+        root.Controls.Add(total, 0, 0);
 
-        var hint = new Label { Text = "Account credit and cash can be split automatically at checkout.", AutoSize = true, ForeColor = Muted, Margin = new Padding(0, 0, 0, 10) };
-        workspace.Controls.Add(hint, 0, 3);
-
-        var actions = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            AutoSize = false,
-            Height = 62,
-            MinimumSize = new Size(520, 62),
-            FlowDirection = FlowDirection.RightToLeft,
-            WrapContents = false,
-            Padding = new Padding(0, 4, 0, 4)
-        };
+        var actions = new FlowLayoutPanel { Dock = DockStyle.Top, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, Margin = new Padding(0, 8, 0, 0) };
         actions.Controls.Add(this.checkoutButton);
         actions.Controls.Add(this.voidButton);
         actions.Controls.Add(this.clearButton);
-        var actionHost = new TableLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, RowCount = 2, ColumnCount = 1 };
-        actionHost.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        actionHost.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        actionHost.Controls.Add(this.voidAvailability, 0, 0);
-        actionHost.Controls.Add(actions, 0, 1);
-        workspace.Controls.Add(actionHost, 0, 4);
-
-        var recent = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Surface,
-            Padding = new Padding(0, 28, 0, 6),
-            Visible = this.uiOptions.RecentTransactionCount > 0
-        };
-        this.recentTransactionsPanel = recent;
-        recent.Controls.Add(this.recentTransactionGrid);
-        recent.Controls.Add(new Label { Text = "RECENT TRANSACTIONS - TODAY", Dock = DockStyle.Top, Height = 32, ForeColor = Navy, Font = new Font("Segoe UI", 11, FontStyle.Bold) });
-
-        card.Controls.Add(workspace);
-        card.Controls.Add(recent);
-        recent.BringToFront();
-        return card;
+        actions.Controls.Add(this.customerPaymentButton);
+        root.Controls.Add(actions, 0, 1);
+        root.Controls.Add(this.voidAvailability, 0, 2);
+        return root;
     }
 
-    private Control BuildStatusBar()
+    private Panel BuildRecentTransactionsPanel()
     {
-        var bar = new TableLayoutPanel { Dock = DockStyle.Bottom, AutoSize = true, ColumnCount = 2, BackColor = Color.FromArgb(234, 238, 242), Padding = new Padding(18, 8, 18, 8) };
-        bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        var left = new FlowLayoutPanel { AutoSize = true, WrapContents = false };
-        left.Controls.Add(this.operatorStatus);
-        left.Controls.Add(this.posStatus);
-        left.Controls.Add(this.syncStatus);
-        left.Controls.Add(this.cacheStatus);
-        bar.Controls.Add(left, 0, 0);
-        bar.Controls.Add(new Label { Text = "Secure identification • Name search", AutoSize = true, ForeColor = Muted, Anchor = AnchorStyles.Right }, 1, 0);
-        return bar;
+        var panel = new Panel { Dock = DockStyle.Fill, BackColor = Surface, Padding = new Padding(0, 4, 0, 0) };
+        var header = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 38, FlowDirection = FlowDirection.LeftToRight, WrapContents = false };
+        header.Controls.Add(new Label { Text = "RECENT TRANSACTIONS", AutoSize = true, Font = new Font("Segoe UI", 11, FontStyle.Bold), ForeColor = Navy, Margin = new Padding(0, 8, 16, 0) });
+        header.Controls.Add(this.refundButton);
+        panel.Controls.Add(this.recentTransactionGrid);
+        panel.Controls.Add(header);
+        return panel;
     }
 
-
-    private async Task UpdateCacheStatusAsync()
+    private StatusStrip BuildStatusBar()
     {
-        try
-        {
-            var status = await this.cacheStatusProvider.GetAsync();
-            var age = status.Age(DateTimeOffset.UtcNow);
-            var ageMinutes = age?.TotalMinutes;
-
-            if (status.RefreshInProgress)
-            {
-                this.cacheStatus.Text = $"● Employee cache: refreshing • {status.EmployeeCount:N0} employees";
-                this.cacheStatus.LinkColor = Blue;
-                return;
-            }
-
-            if (status.EmployeeCount == 0 || !status.CacheUpdatedAtUtc.HasValue)
-            {
-                this.cacheStatus.Text = "● Employee cache: EMPTY";
-                this.cacheStatus.LinkColor = Red;
-                return;
-            }
-
-            var ageText = FormatCacheAge(age);
-            this.cacheStatus.Text = $"● Employee cache: {status.EmployeeCount:N0} • {ageText}";
-            this.cacheStatus.LinkColor = ageMinutes >= this.healthOptions.EmployeeCacheCriticalMinutes
-                ? Red
-                : ageMinutes >= this.healthOptions.EmployeeCacheWarningMinutes
-                    ? Color.DarkOrange
-                    : Green;
-
-            if (!string.IsNullOrWhiteSpace(status.LastError))
-            {
-                this.cacheStatus.Text += " • last refresh failed";
-                if (this.cacheStatus.LinkColor == Green) this.cacheStatus.LinkColor = Color.DarkOrange;
-            }
-        }
-        catch (Exception ex)
-        {
-            this.logger.LogWarning(ex, "Could not read FFP employee cache status");
-            this.cacheStatus.Text = "● Employee cache: status unavailable";
-            this.cacheStatus.LinkColor = Red;
-        }
+        var strip = new StatusStrip { SizingGrip = false, BackColor = Surface };
+        strip.Items.Add(new ToolStripControlHost(this.posStatus));
+        strip.Items.Add(new ToolStripControlHost(this.operatorStatus));
+        strip.Items.Add(new ToolStripControlHost(this.syncStatus));
+        strip.Items.Add(new ToolStripControlHost(this.cacheStatus));
+        return strip;
     }
 
-    private async Task ShowCacheStatusAsync()
+    private static Control DashboardCard(string title, Label value)
     {
-        var refresh = this.services.GetService<ReferenceDataRefreshService>();
-        using var dialog = new CacheStatusDialog(
-            this.cacheStatusProvider,
-            refresh is null ? null : async () =>
-            {
-                await refresh.RefreshAsync(DateOnly.FromDateTime(DateTime.Today));
-                await LoadProductsAsync();
-                return 0;
-            });
-        dialog.ShowDialog(this);
-        await UpdateCacheStatusAsync();
+        var panel = new Panel { Dock = DockStyle.Fill, Height = 92, BackColor = Color.FromArgb(247, 249, 251), Padding = new Padding(12), Margin = new Padding(0, 0, 10, 0) };
+        panel.Controls.Add(value);
+        value.Location = new Point(12, 38);
+        panel.Controls.Add(new Label { Text = title, AutoSize = true, ForeColor = Muted, Font = new Font("Segoe UI", 9, FontStyle.Bold), Location = new Point(12, 12) });
+        return panel;
     }
 
-    private static string FormatCacheAge(TimeSpan? age)
+    private static Control DashboardChartCard(string title, Control chart)
     {
-        if (!age.HasValue) return "age unknown";
-        if (age.Value.TotalMinutes < 1) return "updated just now";
-        if (age.Value.TotalHours < 1) return $"updated {(int)age.Value.TotalMinutes}m ago";
-        if (age.Value.TotalDays < 1) return $"updated {age.Value.TotalHours:0.0}h ago";
-        return $"updated {age.Value.TotalDays:0.0}d ago";
+        var panel = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(247, 249, 251), Padding = new Padding(12), Margin = new Padding(0, 0, 10, 0) };
+        panel.Controls.Add(chart);
+        chart.Dock = DockStyle.Fill;
+        panel.Controls.Add(new Label { Text = title, AutoSize = true, ForeColor = Muted, Font = new Font("Segoe UI", 9, FontStyle.Bold), Dock = DockStyle.Top, Height = 28 });
+        return panel;
+    }
+
+    private void ApplyMainSplitLayout()
+    {
+        if (this.mainSplit is null) return;
+        int usable = Math.Max(0, this.mainSplit.ClientSize.Width - this.mainSplit.SplitterWidth);
+        if (usable <= 0) return;
+        this.mainSplit.SplitterDistance = usable / 2;
     }
 
     private void ConfigureGrids()
     {
-        this.transactions.DataSource = this.transactionSource;
         this.productGrid.DataSource = this.productSource;
         this.cartGrid.DataSource = this.cartSource;
+        this.transactions.DataSource = this.transactionSource;
         this.recentTransactionGrid.DataSource = this.recentTransactionSource;
-        this.transactions.AutoGenerateColumns = true;
 
-        // Product/source identifiers are internal integration details and are not
-        // useful or appropriate on the cashier-facing catalog. Show only the
-        // product name and current selling price.
-        this.productGrid.AutoGenerateColumns = false;
         this.productGrid.Columns.Clear();
-        this.productGrid.Columns.Add(new DataGridViewTextBoxColumn
-        {
-            DataPropertyName = nameof(ProductCatalogItem.Name),
-            HeaderText = "Item",
-            AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill,
-            MinimumWidth = 180
-        });
-        this.productGrid.Columns.Add(new DataGridViewTextBoxColumn
-        {
-            DataPropertyName = nameof(ProductCatalogItem.Price),
-            HeaderText = "Price",
-            Width = 110,
-            DefaultCellStyle = new DataGridViewCellStyle
-            {
-                Alignment = DataGridViewContentAlignment.MiddleRight,
-                Format = "C2"
-            }
-        });
+        this.productGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Name", HeaderText = "Product", FillWeight = 60 });
+        this.productGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Price", HeaderText = "Price", FillWeight = 20, DefaultCellStyle = { Format = "C2", Alignment = DataGridViewContentAlignment.MiddleRight } });
+        this.productGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Code", HeaderText = "Code", FillWeight = 20 });
 
-        this.recentTransactionGrid.AutoGenerateColumns = false;
+        this.cartGrid.Columns.Clear();
+        this.cartGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "ProductName", HeaderText = "Item", FillWeight = 52 });
+        this.cartGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "UnitPrice", HeaderText = "Price", FillWeight = 16, DefaultCellStyle = { Format = "C2", Alignment = DataGridViewContentAlignment.MiddleRight } });
+        this.cartGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Quantity", HeaderText = "Qty", FillWeight = 12, DefaultCellStyle = { Alignment = DataGridViewContentAlignment.MiddleCenter } });
+        this.cartGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Total", HeaderText = "Total", FillWeight = 20, DefaultCellStyle = { Format = "C2", Alignment = DataGridViewContentAlignment.MiddleRight } });
+
+        this.transactions.Columns.Clear();
+        this.transactions.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "OccurredAt", HeaderText = "Date", FillWeight = 24, DefaultCellStyle = { Format = "g" } });
+        this.transactions.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Kind", HeaderText = "Type", FillWeight = 18 });
+        this.transactions.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Description", HeaderText = "Description", FillWeight = 40 });
+        this.transactions.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Amount", HeaderText = "Amount", FillWeight = 18, DefaultCellStyle = { Format = "C2", Alignment = DataGridViewContentAlignment.MiddleRight } });
+
         this.recentTransactionGrid.Columns.Clear();
-        this.recentTransactionGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Time", HeaderText = "Time", Width = 72 });
-        this.recentTransactionGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Customer", HeaderText = "Customer", AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill, MinimumWidth = 150 });
-        this.recentTransactionGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Total", HeaderText = "Total", Width = 95, DefaultCellStyle = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleRight, Format = "C2" } });
-        this.recentTransactionGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Tender", HeaderText = "Tender", Width = 115 });
-        this.recentTransactionGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Cashier", HeaderText = "Cashier", Width = 110 });
-
-        this.cartGrid.AutoGenerateColumns = true;
-
-        SyncGridHeaderAlignment(this.productGrid);
-        SyncGridHeaderAlignment(this.recentTransactionGrid);
-        SyncGridHeaderAlignment(this.transactions);
-        SyncGridHeaderAlignment(this.cartGrid);
-    }
-
-    private static void SyncGridHeaderAlignment(DataGridView grid)
-    {
-        void Apply()
-        {
-            foreach (DataGridViewColumn column in grid.Columns)
-            {
-                var alignment = column.DefaultCellStyle.Alignment;
-                if (alignment == DataGridViewContentAlignment.NotSet)
-                    alignment = grid.DefaultCellStyle.Alignment;
-                if (alignment == DataGridViewContentAlignment.NotSet)
-                    alignment = DataGridViewContentAlignment.MiddleLeft;
-
-                column.HeaderCell.Style.Alignment = alignment;
-            }
-        }
-
-        Apply();
-        grid.ColumnAdded += (_, _) => Apply();
-        grid.DataBindingComplete += (_, _) => Apply();
-    }
-
-    private async Task BrowseCustomersAsync()
-    {
-        using var dialog = new CustomerSearchDialog(this.identification);
-        if (dialog.ShowDialog(this) != DialogResult.OK || dialog.SelectedCustomer is null) return;
-        var account = await this.identification.LoadAsync(dialog.SelectedCustomer.CustomerId);
-        if (account is not null) ShowCustomer(account);
-    }
-
-    private async Task IdentifyAsync()
-    {
-        var value = this.lookup.Text.Trim();
-        if (value.Length == 0)
-        {
-            await BrowseCustomersAsync();
-            FocusCustomerLookup();
-            return;
-        }
-
-        try
-        {
-            UseWaitCursor = true;
-            var result = await this.identification.ResolveAsync(value, 50);
-            CustomerAccountView? account = result.Account;
-
-            if (account is null && result.Candidates.Count > 0)
-            {
-                var chosen = ChooseCustomer(result.Candidates, value);
-                if (chosen is null) return;
-                account = await this.identification.LoadAsync(chosen.CustomerId);
-            }
-
-            if (account is null)
-            {
-                MessageBox.Show(this, "No matching employee was found in the local FFP cache.", "Cafeteria", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                FocusCustomerLookup(selectAll: true);
-                return;
-            }
-
-            this.lookup.Clear();
-            ShowCustomer(account);
-            this.productSearch.Focus();
-        }
-        catch (Exception ex)
-        {
-            this.logger.LogError(ex, "Universal customer identification failed");
-            MessageBox.Show(this, ex.Message, "Customer Identification Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            FocusCustomerLookup(selectAll: true);
-        }
-        finally { UseWaitCursor = false; }
-    }
-
-    private void FocusCustomerLookup(bool selectAll = false)
-    {
-        if (this.currentCustomer is not null) return;
-        this.lookup.Focus();
-        if (selectAll) this.lookup.SelectAll();
-    }
-
-    private CustomerSearchCandidate? ChooseCustomer(IReadOnlyList<CustomerSearchCandidate> candidates, string? searchText = null)
-    {
-        using var dialog = new CustomerSearchDialog(this.identification, candidates, searchText);
-        return dialog.ShowDialog(this) == DialogResult.OK ? dialog.SelectedCustomer : null;
-    }
-
-    private void ShowCustomer(CustomerAccountView account)
-    {
-        RegisterActivity();
-        this.currentCustomer = account;
-        UpdateRecentTransactionsVisibility();
-        this.idlePanel.Visible = false;
-        this.customerPanel.Visible = true;
-        this.customerPanel.BringToFront();
-
-        this.customerName.Text = account.Customer.Name;
-        this.eligibility.Text = account.Customer.IsCashCustomer
-            ? "CASH CUSTOMER"
-            : account.Customer.IsEligibleForCredit ? "ELIGIBLE FOR CAFETERIA CREDIT" : "NOT ELIGIBLE FOR CAFETERIA CREDIT";
-        this.eligibility.ForeColor = account.Customer.IsEligibleForCredit ? Green : account.Customer.IsCashCustomer ? Blue : Red;
-        this.eligibility.BackColor = account.Customer.IsEligibleForCredit ? Color.FromArgb(226, 246, 236) : account.Customer.IsCashCustomer ? Color.FromArgb(234, 243, 252) : Color.FromArgb(255, 232, 232);
-        this.period.Text = account.Customer.IsCashCustomer ? "Cash-only sale" : $"{new DateTime(account.Period.Year, account.Period.Month, 1):MMMM yyyy}  •  {account.Period.EligibleWorkingDays} eligible work days";
-        var funding = account.Funding;
-        if (account.Customer.IsCashCustomer || !account.Customer.IsEligibleForCredit)
-        {
-            this.fundingStatus.Text = account.Customer.IsCashCustomer
-                ? "● Cash customer  •  Cash tender only"
-                : "● Not eligible for cafeteria credit  •  Cash purchases only";
-            this.fundingStatus.ForeColor = Red;
-            this.fundingStatus.BackColor = Color.FromArgb(255, 232, 232);
-            SetFinancialValuesUnavailable();
-        }
-        else
-        {
-            if (funding?.IsAuthoritative == true)
-            {
-                this.fundingStatus.Text = "● Funding current";
-                this.fundingStatus.ForeColor = Green;
-                this.fundingStatus.BackColor = Color.FromArgb(226, 246, 236);
-            }
-            else
-            {
-                this.fundingStatus.Text = $"● Funding unavailable  •  {funding?.StatusMessage ?? "Reference data not loaded"}";
-                this.fundingStatus.ForeColor = Red;
-                this.fundingStatus.BackColor = Color.FromArgb(255, 232, 232);
-            }
-            this.creditLimit.Text = Money(account.FinancialStatus.CreditLimit);
-            this.subsidyRemaining.Text = Money(account.FinancialStatus.SubsidyAmountRemaining);
-            this.nonSubsidyRemaining.Text = Money(account.FinancialStatus.NonSubsidyAmountRemaining);
-            this.available.Text = Money(account.FinancialStatus.TotalAvailableToSpend);
-            this.carriedDebt.Text = Money(account.FinancialStatus.CarriedForwardDebt);
-            this.customerLiability.Text = Money(account.FinancialStatus.GrossCustomerLiability);
-            this.customerPaymentsValue.Text = Money(account.FinancialStatus.CustomerPayments);
-            this.employeeAmountDue.Text = Money(account.FinancialStatus.EmployeeAmountDue);
-        }
-        this.transactionSource.DataSource = account.Transactions.Select(x => new
-        {
-            Date = x.OccurredAt.LocalDateTime,
-            x.Kind,
-            x.Description,
-            Amount = x.Amount,
-            Account = x.CafeteriaAccountAmount,
-            Cash = x.CashAmount,
-            x.ReferenceId
-        }).ToList();
-        if (this.transactions.Columns[nameof(CustomerMonthlyTransactionView.ReferenceId)] is DataGridViewColumn referenceColumn)
-            referenceColumn.Visible = false;
-        SetPhoto(account.Customer.Photo);
-
-        if (account.Customer.IsCashCustomer)
-        {
-            this.syncStatus.Text = "● Cash sale ready";
-            this.syncStatus.ForeColor = Green;
-        }
-        else
-        {
-            this.syncStatus.Text = account.FfpPublication.Enabled
-                ? $"● FFP publication  •  Pending {account.FfpPublication.PendingOperations}  •  Requires attention {account.FfpPublication.PoisonedOperations}"
-                : "● FFP publication disabled";
-            this.syncStatus.ForeColor = account.FfpPublication.PoisonedOperations == 0 ? Green : Color.DarkOrange;
-        }
-        this.customerPaymentButton.Enabled = !account.Customer.IsCashCustomer && account.Customer.IsEligibleForCredit && !account.Period.IsClosed && account.FinancialStatus.EmployeeAmountDue > 0m;
-        UpdateCheckoutState();
-        _ = UpdateCustomerDisplayAsync(account);
-    }
-
-    private void InitializeCustomerDisplay()
-    {
-        var selected = CustomerDisplayPolicy.SelectCustomerMonitor(
-            Screen.AllScreens.Select(screen => new CustomerDisplayMonitor(screen.DeviceName, screen.Primary)));
-        this.customerDisplayScreen = selected is null
-            ? null
-            : Screen.AllScreens.First(screen => screen.DeviceName == selected.DeviceName);
-        if (this.customerDisplayScreen is null)
-        {
-            this.logger.LogInformation("No secondary monitor detected. Customer-facing display is disabled.");
-            return;
-        }
-
-        this.customerDisplay = new CustomerDisplayForm();
-        this.customerDisplay.PlaceOn(this.customerDisplayScreen);
-        this.logger.LogInformation(
-            "Customer-facing display enabled on monitor {DeviceName} at {Bounds}",
-            this.customerDisplayScreen.DeviceName,
-            this.customerDisplayScreen.Bounds);
-    }
-
-    private async Task UpdateCustomerDisplayAsync(CustomerAccountView account)
-    {
-        if (this.customerDisplay is null || this.customerDisplayScreen is null) return;
-
-        try
-        {
-            IReadOnlyList<CustomerMonthlyTransactionView> history = account.Customer.IsCashCustomer
-                ? Array.Empty<CustomerMonthlyTransactionView>()
-                : await this.accountQuery.GetTransactionsAsync(
-                    account.Customer.Id,
-                    account.Period.Year,
-                    account.Period.Month);
-
-            // Identification can change while the history query is running. Never show stale
-            // customer data on the public-facing display.
-            if (this.currentCustomer?.Customer.Id != account.Customer.Id) return;
-
-            void ShowOnDisplay()
-            {
-                if (this.customerDisplay is null || this.customerDisplayScreen is null) return;
-                this.customerDisplay.PlaceOn(this.customerDisplayScreen);
-                this.customerDisplay.ShowCustomer(account, history, account.Period.Year, account.Period.Month);
-                if (!this.customerDisplay.Visible) this.customerDisplay.Show();
-                this.customerDisplay.BringToFront();
-            }
-
-            if (InvokeRequired) BeginInvoke((Action)ShowOnDisplay);
-            else ShowOnDisplay();
-        }
-        catch (Exception ex)
-        {
-            this.logger.LogWarning(ex, "Could not update the customer-facing display for customer {CustomerId}", account.Customer.Id);
-        }
-    }
-
-    private void SetFinancialValuesUnavailable()
-    {
-        foreach (var label in new[] { this.creditLimit, this.subsidyRemaining, this.nonSubsidyRemaining, this.available, this.carriedDebt, this.customerLiability, this.customerPaymentsValue, this.employeeAmountDue })
-            label.Text = "—";
+        this.recentTransactionGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "OccurredAt", HeaderText = "Date", FillWeight = 22, DefaultCellStyle = { Format = "g" } });
+        this.recentTransactionGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "CustomerName", HeaderText = "Customer", FillWeight = 28 });
+        this.recentTransactionGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Kind", HeaderText = "Type", FillWeight = 16 });
+        this.recentTransactionGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Description", HeaderText = "Description", FillWeight = 22 });
+        this.recentTransactionGrid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Amount", HeaderText = "Amount", FillWeight = 12, DefaultCellStyle = { Format = "C2", Alignment = DataGridViewContentAlignment.MiddleRight } });
     }
 
     private async Task LoadProductsAsync(string? search = null)
     {
         try
         {
-            var rows = string.IsNullOrWhiteSpace(search)
-                ? await this.products.GetAllAsync()
-                : await this.products.SearchAsync(search, 50);
-            this.productSource.DataSource = rows.ToList();
+            this.productSource.DataSource = await this.products.SearchAsync(search ?? string.Empty);
+            this.syncStatus.Text = "● Product list ready";
+            this.syncStatus.ForeColor = Green;
         }
         catch (Exception ex)
         {
-            this.logger.LogError(ex, "Product catalog load failed");
-            this.syncStatus.Text = "● Product catalog unavailable";
+            this.logger.LogError(ex, "Could not load Cafeteria products");
+            this.productSource.DataSource = Array.Empty<ProductCatalogItem>();
+            this.syncStatus.Text = "● Product list unavailable";
             this.syncStatus.ForeColor = Red;
         }
     }
 
+    private async Task LoadRecentTransactionsAsync()
+    {
+        try
+        {
+            var rows = await this.recentTransactions.GetTodayAsync(this.persistenceOptions.TerminalId, this.uiOptions.RecentTransactionCount);
+            this.recentTransactionSource.DataSource = rows;
+            UpdateRecentTransactionsVisibility();
+        }
+        catch (Exception ex)
+        {
+            this.logger.LogWarning(ex, "Could not load today's recent POS transactions");
+            this.recentTransactionSource.DataSource = Array.Empty<RecentTransactionRow>();
+            UpdateRecentTransactionsVisibility();
+        }
+    }
+
+    private async Task LoadIdleDashboardAsync()
+    {
+        try
+        {
+            var today = DateOnly.FromDateTime(DateTime.Today);
+            var reportSource = this.services.GetRequiredService<IReportSource>();
+            var report = await reportSource.BuildAsync(ReportKind.DailyDashboard, today, today);
+            var productReport = await reportSource.BuildAsync(ReportKind.ProductSales, today, today);
+            var summary = report.Rows.FirstOrDefault();
+            this.todayNetSales.Text = summary is null ? "$0.00" : Money(summary.Total);
+            this.todayTransactions.Text = summary is null ? "0" : summary.Count.ToString("N0");
+            this.todayRefunds.Text = summary is null ? "$0.00" : Money(summary.Refunds);
+            this.todayItemsByQuantity.SetSlices
+            (
+                productReport.Rows
+                    .Where(row => row.Quantity > 0)
+                    .Select(row => new PieChartSlice(row.Label, row.Quantity))
+                    .ToArray()
+            );
+            this.todayItemsByValue.SetSlices
+            (
+                productReport.Rows
+                    .Where(row => row.Total > 0m)
+                    .Select(row => new PieChartSlice(row.Label, row.Total))
+                    .ToArray()
+            );
+            this.todayDashboardStatus.Text = $"Updated {DateTime.Now:t}";
+        }
+        catch (Exception ex)
+        {
+            this.logger.LogWarning(ex, "Could not load POS daily dashboard");
+            this.todayNetSales.Text = "$0.00";
+            this.todayTransactions.Text = "0";
+            this.todayRefunds.Text = "$0.00";
+            this.todayItemsByQuantity.SetSlices([]);
+            this.todayItemsByValue.SetSlices([]);
+            this.todayDashboardStatus.Text = "Dashboard data unavailable.";
+        }
+    }
+
+    private async Task IdentifyAsync()
+    {
+        RegisterActivity();
+        var term = this.lookup.Text.Trim();
+        if (string.IsNullOrWhiteSpace(term))
+        {
+            var browse = await this.identification.SearchAsync(string.Empty, 50);
+            if (browse.Count == 0)
+            {
+                MessageBox.Show(this, "No eligible Cafeteria employees are available to browse.", "Find Customer", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                FocusCustomerLookup();
+                return;
+            }
+
+            using var dialog = new CustomerSelectionDialog(browse);
+            if (dialog.ShowDialog(this) == DialogResult.OK && dialog.SelectedCustomerId is int customerId)
+            {
+                var selected = await this.identification.LoadAsync(customerId);
+                if (selected is not null) ShowCustomer(selected);
+            }
+            FocusCustomerLookup();
+            return;
+        }
+        this.posStatus.Text = "● Searching...";
+        try
+        {
+            var result = await this.identification.IdentifyAsync(term);
+            if (result.Status == CustomerIdentificationStatus.Found && result.Customer is not null)
+            {
+                ShowCustomer(result.Customer);
+                return;
+            }
+            if (result.Status == CustomerIdentificationStatus.MultipleMatches)
+            {
+                using var dialog = new CustomerSelectionDialog(result.Candidates);
+                if (dialog.ShowDialog(this) == DialogResult.OK && dialog.SelectedCustomerId is int id)
+                {
+                    var selected = await this.identification.LoadAsync(id);
+                    if (selected is not null) ShowCustomer(selected);
+                }
+                FocusCustomerLookup();
+                return;
+            }
+            this.posStatus.Text = "● Customer not found";
+            this.posStatus.ForeColor = Red;
+            FocusCustomerLookup();
+        }
+        catch (Exception ex)
+        {
+            this.logger.LogError(ex, "Customer lookup failed for {SearchTerm}", term);
+            this.posStatus.Text = "● Customer lookup unavailable";
+            this.posStatus.ForeColor = Red;
+            MessageBox.Show(this, ex.GetBaseException().Message, "Find Customer", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            FocusCustomerLookup();
+        }
+    }
+
+    private void ShowCustomer(CustomerAccountView customer)
+    {
+        this.currentCustomer = customer;
+        RegisterActivity();
+        this.idlePanel.Visible = false;
+        this.customerPanel.Visible = true;
+        this.customerPanel.BringToFront();
+        UpdateRecentTransactionsVisibility();
+        this.customerName.Text = customer.Customer.Name;
+        this.eligibility.Text = customer.Customer.IsCashCustomer
+            ? "CASH CUSTOMER"
+            : customer.Customer.IsEligibleForCredit ? "ELIGIBLE" : "NOT ELIGIBLE";
+        this.eligibility.BackColor = customer.Customer.IsCashCustomer ? Color.FromArgb(231, 237, 242) : customer.Customer.IsEligibleForCredit ? Color.FromArgb(221, 242, 231) : Color.FromArgb(252, 225, 225);
+        this.eligibility.ForeColor = customer.Customer.IsCashCustomer ? Navy : customer.Customer.IsEligibleForCredit ? Green : Red;
+        this.period.Text = customer.Customer.IsCashCustomer ? "No employee account" : $"Period: {customer.Period.Year}-{customer.Period.Month:00}";
+        SetFundingStatus(customer);
+        this.creditLimit.Text = Money(customer.FinancialStatus.MonthlyCreditLimit);
+        this.subsidyRemaining.Text = Money(customer.FinancialStatus.SubsidyAmountRemaining);
+        this.nonSubsidyRemaining.Text = Money(customer.FinancialStatus.EmployeeFundedCapacityRemaining);
+        this.available.Text = Money(customer.FinancialStatus.TotalAvailableToSpend);
+        this.carriedDebt.Text = Money(customer.FinancialStatus.CarriedDebt);
+        this.customerLiability.Text = Money(customer.FinancialStatus.CustomerResponsibility);
+        this.customerPaymentsValue.Text = Money(customer.FinancialStatus.CustomerPayments);
+        this.employeeAmountDue.Text = Money(customer.FinancialStatus.EmployeeAmountDue);
+        this.transactionSource.DataSource = customer.Transactions.OrderByDescending(x => x.OccurredAt).ToArray();
+        this.customerPaymentButton.Enabled = !customer.Customer.IsCashCustomer && customer.Customer.IsEligibleForCredit && !customer.Period.IsClosed && customer.FinancialStatus.EmployeeAmountDue > 0m;
+        SetPhoto(customer.Customer.Photo);
+        this.customerDisplay?.ShowCustomer(customer);
+        this.posStatus.Text = $"● Customer: {customer.Customer.Name}";
+        this.posStatus.ForeColor = Green;
+        UpdateCheckoutState();
+        this.productSearch.Focus();
+    }
+
+    private void SetFundingStatus(CustomerAccountView customer)
+    {
+        if (customer.Customer.IsCashCustomer)
+        {
+            this.fundingStatus.Text = "Cash-only sale • No Cafeteria Account or company subsidy";
+            this.fundingStatus.ForeColor = Muted;
+            return;
+        }
+        if (!customer.Customer.IsEligibleForCredit)
+        {
+            this.fundingStatus.Text = "Not eligible for Cafeteria Account purchases";
+            this.fundingStatus.ForeColor = Red;
+            return;
+        }
+        if (customer.Period.IsClosed)
+        {
+            this.fundingStatus.Text = "Period closed • New Cafeteria Account charges are blocked";
+            this.fundingStatus.ForeColor = Red;
+            return;
+        }
+        this.fundingStatus.Text = customer.FinancialStatus.EmployeeAmountDue > 0m
+            ? $"Employee Amount Due: {Money(customer.FinancialStatus.EmployeeAmountDue)} • Cash/customer payment can reduce the balance"
+            : "Cafeteria Account available • Company subsidy applies only to Cafeteria Account charges";
+        this.fundingStatus.ForeColor = customer.FinancialStatus.EmployeeAmountDue > 0m ? Color.DarkOrange : Green;
+    }
+
     private void AddSelectedProduct(int rowIndex)
     {
-        if (rowIndex < 0 || this.productGrid.Rows[rowIndex].DataBoundItem is not ProductCatalogItem product) return;
-        var existing = this.cart.FirstOrDefault(x => x.ProductId == product.Id);
-        if (existing is null) this.cart.Add(new CartRow(product.Id, product.Name, product.Price, 1));
-        else existing.Quantity++;
+        RegisterActivity();
+        if (rowIndex < 0 || this.productSource[rowIndex] is not ProductCatalogItem item) return;
+        var existing = this.cart.FirstOrDefault(x => x.ProductId == item.Id);
+        if (existing is null)
+            this.cart.Add(new CartRow(item.Id, item.Name, item.Price, 1));
+        else
+            existing.Quantity++;
         RefreshCart();
     }
 
     private void RemoveCartRow(int rowIndex)
     {
+        RegisterActivity();
         if (rowIndex < 0 || rowIndex >= this.cart.Count) return;
         this.cart.RemoveAt(rowIndex);
         RefreshCart();
@@ -1098,164 +738,65 @@ public sealed class MainForm : Form
 
     private void RefreshCart()
     {
-        this.cartSource.DataSource = this.cart.Select(x => new { x.ProductName, x.UnitPrice, x.Quantity, x.Total }).ToList();
-        this.cartTotal.Text = Money(this.cart.Sum(x => x.Total));
+        this.cartSource.DataSource = this.cart.ToArray();
+        var total = this.cart.Sum(x => x.Total);
+        this.cartTotal.Text = Money(total);
+        UpdatePaymentState(total);
         UpdateCheckoutState();
-    }
-
-    private async Task LoadIdleDashboardAsync()
-    {
-        try
-        {
-            var reportService = this.services.GetRequiredService<ICafeteriaReportService>();
-            var today = DateOnly.FromDateTime(DateTime.Today);
-            var report = await reportService.GenerateAsync(
-                CafeteriaReportKind.DailySales,
-                new ReportFilter(today, today));
-
-            decimal Metric(string label)
-                => report.Metrics.FirstOrDefault(x => string.Equals(x.Label, label, StringComparison.OrdinalIgnoreCase))?.Value ?? 0m;
-
-            this.todayNetSales.Text = Money(Metric("Net sales"));
-            this.todayTransactions.Text = Metric("Transactions").ToString("N0");
-            this.todayRefunds.Text = Money(Metric("Refunds"));
-
-            var productReport = await reportService.GenerateAsync(
-                CafeteriaReportKind.ProductSales,
-                new ReportFilter(today, today));
-            var productRows = productReport.Tables
-                .FirstOrDefault(x => string.Equals(x.Title, "Product detail", StringComparison.OrdinalIgnoreCase))?
-                .Rows ?? [];
-            var productSales = productRows.Select(row => new
-            {
-                Name = Convert.ToString(row.GetValueOrDefault("product")) ?? "Unknown",
-                Quantity = Convert.ToDecimal(row.GetValueOrDefault("quantity") ?? 0m),
-                Value = Convert.ToDecimal(row.GetValueOrDefault("sales") ?? 0m)
-            }).ToArray();
-
-            this.todayItemsByQuantity.SetData("ITEMS SOLD — QUANTITY", DashboardPieBuckets(productSales.Select(x => (x.Name, x.Quantity))), "N0");
-            this.todayItemsByValue.SetData("ITEMS SOLD — VALUE", DashboardPieBuckets(productSales.Select(x => (x.Name, x.Value))), "C0");
-            this.todayDashboardStatus.Text = $"Updated {DateTime.Now:HH:mm}";
-        }
-        catch (Exception ex)
-        {
-            this.logger.LogWarning(ex, "Could not load today's idle sales dashboard");
-            this.todayNetSales.Text = "—";
-            this.todayTransactions.Text = "—";
-            this.todayRefunds.Text = "—";
-            this.todayItemsByQuantity.SetData("ITEMS SOLD — QUANTITY", [], "N0");
-            this.todayItemsByValue.SetData("ITEMS SOLD — VALUE", [], "C0");
-            this.todayDashboardStatus.Text = "Dashboard temporarily unavailable";
-        }
-    }
-
-
-    private static IReadOnlyList<(string Label, decimal Value)> DashboardPieBuckets(IEnumerable<(string Label, decimal Value)> source)
-    {
-        var ordered = source.Where(x => x.Value > 0m).OrderByDescending(x => x.Value).ToArray();
-        if (ordered.Length <= 6) return ordered;
-        return ordered.Take(5).Append(("Other", ordered.Skip(5).Sum(x => x.Value))).ToArray();
-    }
-
-    private async Task LoadRecentTransactionsAsync()
-    {
-        if (this.uiOptions.RecentTransactionCount <= 0)
-        {
-            this.recentTransactionSource.DataSource = null;
-            return;
-        }
-
-        try
-        {
-            var rows = await this.recentTransactions.GetTodayAsync(this.uiOptions.RecentTransactionCount);
-            this.recentTransactionSource.DataSource = rows.Select(x => new
-            {
-                x.OrderId,
-                Time = x.CompletedAt.LocalDateTime.ToString("HH:mm"),
-                Customer = x.CustomerName,
-                x.Total,
-                Tender = x.TenderSummary,
-                Cashier = x.CashierUserId
-            }).ToList();
-        }
-        catch (Exception ex)
-        {
-            this.logger.LogWarning(ex, "Could not load recent POS transactions");
-        }
     }
 
     private async Task CheckoutAsync()
     {
         if (this.currentCustomer is null || this.cart.Count == 0) return;
         var total = this.cart.Sum(x => x.Total);
-        var accountAvailable = this.currentCustomer.Customer.IsEligibleForCredit
-            ? this.currentCustomer.FinancialStatus.TotalAvailableToSpend
-            : 0m;
-
-        var subsidyRemaining = this.currentCustomer.Customer.IsEligibleForCredit
-            ? this.currentCustomer.FinancialStatus.SubsidyAmountRemaining
-            : 0m;
-        using var dialog = new TenderDialog(total, accountAvailable, subsidyRemaining);
+        using var dialog = new PaymentDialog(this.currentCustomer, total);
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
         try
         {
             this.checkoutButton.Enabled = false;
-            var operatorIdentity = RequireOperator();
-            await this.checkout.CompleteAsync(
+            var operatorId = this.operatorSession.Current?.UserId ?? throw new UnauthorizedAccessException("An authenticated cafeteria operator is required.");
+            var result = await this.checkout.CompleteAsync(
                 this.currentCustomer,
                 this.cart.Select(x => new PosOrderLine(x.ProductId, x.ProductName, x.UnitPrice, x.Quantity)).ToArray(),
                 dialog.CafeteriaAccountAmount,
-                dialog.CashAmount,
-                operatorIdentity.UserId,
+                dialog.CashReceived,
+                operatorId,
                 this.persistenceOptions.TerminalId);
+            this.posStatus.Text = $"● Sale completed • Change {Money(result.ChangeDue)}";
+            this.posStatus.ForeColor = Green;
             this.cart.Clear();
             RefreshCart();
-            if (!this.currentCustomer.Customer.IsCashCustomer)
-            {
-                this.currentCustomer = await this.identification.LoadAsync(this.currentCustomer.Customer.Id);
-                if (this.currentCustomer is not null) ShowCustomer(this.currentCustomer);
-            }
-            else
-            {
-                ShowCustomer(CashCustomerAccountViewFactory.Create(DateOnly.FromDateTime(DateTime.Today)));
-            }
-            this.posStatus.Text = "● Sale completed";
-            this.posStatus.ForeColor = Green;
+            var refreshed = await this.identification.LoadAsync(this.currentCustomer.Customer.Id);
+            if (refreshed is not null) ShowCustomer(refreshed);
             await LoadRecentTransactionsAsync();
             await LoadIdleDashboardAsync();
         }
         catch (Exception ex)
         {
             this.logger.LogError(ex, "Checkout failed for customer {CustomerId}", this.currentCustomer.Customer.Id);
-            MessageBox.Show(this, ex.Message, "Checkout Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, ex.GetBaseException().Message, "Complete Sale", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-        finally { UpdateCheckoutState(); }
-    }
-
-    private OperatorIdentity RequireOperator()
-        => this.operatorSession.Current ?? throw new UnauthorizedAccessException("An authenticated cafeteria operator is required.");
-
-    private void UpdateOperatorStatus()
-    {
-        var current = this.operatorSession.Current;
-        this.operatorStatus.Text = current is null
-            ? "● Operator: not signed in"
-            : $"● Operator: {current.DisplayName} ({current.UserId})" + (current.IsManager ? " • Manager" : string.Empty);
-        this.operatorStatus.ForeColor = current is null ? Red : Green;
-        UpdateCheckoutState();
-    }
-
-    private async Task<OperatorIdentity?> AuthorizeManagerAsync(string action)
-    {
-        var current = this.operatorSession.Current;
-        if (current?.IsManager == true)
+        finally
         {
-            this.managerAuthorization.Grant(current);
-            return current;
+            UpdateCheckoutState();
         }
+    }
 
-        using var dialog = new ManagerAuthorizationDialog(this.operatorAuthenticator, this.managerAuthorization, action);
-        return dialog.ShowDialog(this) == DialogResult.OK ? dialog.AuthorizedManager : null;
+    private void UpdatePaymentState(decimal? totalOverride = null)
+    {
+        decimal total = totalOverride ?? this.cart.Sum(item => item.Total);
+        decimal accountAmount = 0m;
+        decimal subsidy = 0m;
+        if (this.currentCustomer?.Customer.IsEligibleForCredit == true && !this.currentCustomer.Period.IsClosed)
+        {
+            accountAmount = Math.Min(total, this.currentCustomer.FinancialStatus.TotalAvailableToSpend);
+            subsidy = this.currentCustomer.FinancialStatus.SubsidyAmountRemaining;
+        }
+        var employeeResponsibility = Math.Max(0m, accountAmount - subsidy);
+        this.voidAvailability.Text = total <= 0m
+            ? "Add an item to begin the sale."
+            : $"Account {Money(accountAmount)} • New Customer Responsibility {Money(employeeResponsibility)}";
+        this.voidAvailability.ForeColor = employeeResponsibility > 0m ? Color.DarkOrange : Muted;
     }
 
     private async Task VoidCurrentSaleAsync()
@@ -1264,8 +805,7 @@ public sealed class MainForm : Form
         var manager = await AuthorizeManagerAsync("Void current sale");
         if (manager is null) return;
         using var reasonDialog = new ReasonDialog("Void Sale", "Reason for voiding this sale:");
-        if (reasonDialog.ShowDialog(this) != DialogResult.OK) return;
-
+        if (reasonDialog.ShowDialog(this) != DialogResult.OK || string.IsNullOrWhiteSpace(reasonDialog.Reason)) return;
         try
         {
             await this.voidService.VoidCurrentSaleAsync(
@@ -1277,43 +817,99 @@ public sealed class MainForm : Form
             this.cart.Clear();
             RefreshCart();
             this.posStatus.Text = $"● Sale voided by {manager.UserId}";
-            this.posStatus.ForeColor = Color.DarkOrange;
+            this.posStatus.ForeColor = Red;
         }
         catch (Exception ex)
         {
             this.logger.LogError(ex, "Void failed for operator {ManagerUserId}", manager.UserId);
-            MessageBox.Show(this, ex.Message, "Void Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, ex.GetBaseException().Message, "Void Sale", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+    }
+
+    private async Task<OperatorIdentity?> AuthorizeManagerAsync(string action)
+    {
+        var current = this.operatorSession.Current;
+        if (current?.IsManager == true)
+        {
+            this.managerAuthorization.Grant(current);
+            return current;
+        }
+        using var dialog = new ManagerAuthorizationDialog(this.operatorAuthenticator, this.managerAuthorization, action);
+        return dialog.ShowDialog(this) == DialogResult.OK ? dialog.AuthorizedManager : null;
+    }
+
+    private async Task RefundSelectedAsync()
+    {
+        if (this.currentCustomer is null) return;
+
+        if (this.transactions.CurrentRow?.DataBoundItem is TransactionRow selected &&
+            selected.Kind.Equals("Refund", StringComparison.OrdinalIgnoreCase))
+        {
+            MessageBox.Show
+            (
+                  this
+                , "Refund entries cannot be refunded. Select the original purchase instead."
+                , "Refund"
+                , MessageBoxButtons.OK
+                , MessageBoxIcon.Information
+            );
+            return;
+        }
+
+        var order = await SelectRefundOrderAsync();
+        if (order is null) return;
+        var refunded = await this.refundService.GetRefundedQuantitiesAsync(order.Id);
+        using var dialog = new RefundDialog(order, refunded);
+        if (dialog.ShowDialog(this) != DialogResult.OK || dialog.Requests.Count == 0) return;
+        try
+        {
+            var operatorId = this.operatorSession.Current?.UserId ?? throw new UnauthorizedAccessException("An authenticated cafeteria operator is required.");
+            var result = await this.refundService.RefundAsync(order, dialog.Requests, operatorId, dialog.Reason);
+            this.posStatus.Text = $"● Refunded {Money(result.RefundedAmount)}";
+            this.posStatus.ForeColor = Red;
+            var refreshed = await this.identification.LoadAsync(this.currentCustomer.Customer.Id);
+            if (refreshed is not null) ShowCustomer(refreshed);
+            await LoadRecentTransactionsAsync();
+            await LoadIdleDashboardAsync();
+        }
+        catch (Exception ex)
+        {
+            this.logger.LogError(ex, "Refund failed for order {OrderId}", order.Id);
+            MessageBox.Show(this, ex.GetBaseException().Message, "Refund", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
     private async Task RecordCustomerPaymentAsync()
     {
-        if (this.currentCustomer is null || this.currentCustomer.Customer.IsCashCustomer || !this.currentCustomer.Customer.IsEligibleForCredit) return;
+        if (this.currentCustomer is null || this.currentCustomer.Customer.IsCashCustomer) return;
+        if (this.currentCustomer.Period.IsClosed)
+        {
+            MessageBox.Show(this, "Customer payments are blocked because this account period is closed.", "Customer Payment", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
         var due = this.currentCustomer.FinancialStatus.EmployeeAmountDue;
         if (due <= 0m)
         {
             MessageBox.Show(this, "This customer has no outstanding cafeteria responsibility to pay.", "Customer Payment", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
-
         using var dialog = new CustomerPaymentDialog(this.currentCustomer.Customer.Name, due);
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
-
         try
         {
             this.customerPaymentButton.Enabled = false;
             var operatorId = this.operatorSession.Current?.UserId ?? throw new UnauthorizedAccessException("An authenticated cafeteria operator is required.");
-            await this.customerPayments.RecordAsync(this.currentCustomer, dialog.Amount, dialog.PaymentMethod, operatorId, dialog.Reference);
+            await this.customerPayments.RecordAsync(this.currentCustomer, dialog.PaymentAmount, dialog.PaymentMethod, operatorId, dialog.Reference);
             var customerId = this.currentCustomer.Customer.Id;
             var refreshed = await this.identification.LoadAsync(customerId);
             if (refreshed is not null) ShowCustomer(refreshed);
-            this.posStatus.Text = $"Customer payment recorded: {dialog.Amount:C2}";
+            this.posStatus.Text = $"● Customer payment recorded: {Money(dialog.PaymentAmount)}";
             this.posStatus.ForeColor = Green;
         }
         catch (Exception ex)
         {
             this.logger.LogError(ex, "Customer payment failed for customer {CustomerId}", this.currentCustomer.Customer.Id);
-            MessageBox.Show(this, ex.Message, "Customer Payment", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            MessageBox.Show(this, ex.GetBaseException().Message, "Customer Payment", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
@@ -1322,131 +918,15 @@ public sealed class MainForm : Form
         }
     }
 
-    private Task OnCustomerAccountChangedAsync
-    (
-        int customerId
-    )
-    {
-        if (this.currentCustomer?.Customer.Id != customerId)
-        {
-            return Task.CompletedTask;
-        }
-
-        if (IsDisposed || Disposing)
-        {
-            return Task.CompletedTask;
-        }
-
-        BeginInvoke
-        (
-            async () =>
-            {
-                try
-                {
-                    CustomerAccountView? refreshed = await this.identification.LoadAsync(customerId);
-
-                    if (refreshed is not null)
-                    {
-                        ShowCustomer(refreshed);
-                    }
-                }
-                catch (Exception exception)
-                {
-                    this.logger.LogWarning
-                    (
-                          exception
-                        , "Could not refresh displayed customer {CustomerId}"
-                        , customerId
-                    );
-                }
-            }
-        );
-
-        return Task.CompletedTask;
-    }
-
-    private async Task RefundSelectedAsync()
-    {
-        if (this.currentCustomer is null) return;
-        var order = await SelectRefundOrderAsync();
-        if (order is null) return;
-        var orderId = order.Id;
-
-        if (order.Status != OrderStatus.Completed || order.RefundedAmount >= order.Total)
-        {
-            MessageBox.Show(this, "The selected order is not refundable.", "Refund", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
-
-        using var refundDialog = new RefundDialog(order);
-        if (refundDialog.ShowDialog(this) != DialogResult.OK) return;
-
-        var manager = await AuthorizeManagerAsync("Refund completed sale");
-        if (manager is null) return;
-        string defaultReason = RefundReasonGenerator.Generate(order, refundDialog.SelectedItems);
-        using ReasonDialog reasonDialog = new("Refund Sale", "Reason for refund:", defaultReason);
-        if (reasonDialog.ShowDialog(this) != DialogResult.OK) return;
-
-        try
-        {
-            var accountBeforeRefund = this.currentCustomer;
-            var refund = this.refundService.Refund(
-                order,
-                refundDialog.SelectedItems,
-                refundDialog.CafeteriaAccountAmount,
-                refundDialog.CashAmount,
-                manager.UserId,
-                DateTimeOffset.Now,
-                reasonDialog.Reason);
-            await this.persistenceStore.SaveOrderAsync(order);
-            var externalProjection = this.services.GetService<IExternalLedgerProjectionService>();
-            if (externalProjection is not null && !accountBeforeRefund.Customer.IsCashCustomer)
-                await externalProjection.PublishRefundAsync(accountBeforeRefund, order, refund);
-
-            if (!accountBeforeRefund.Customer.IsCashCustomer)
-            {
-                this.currentCustomer = await this.identification.LoadAsync(accountBeforeRefund.Customer.Id);
-                if (this.currentCustomer is not null) ShowCustomer(this.currentCustomer);
-            }
-            this.posStatus.Text = $"● Refund completed by {manager.UserId}";
-            this.posStatus.ForeColor = Color.DarkOrange;
-            await LoadRecentTransactionsAsync();
-            await LoadIdleDashboardAsync();
-        }
-        catch (Exception ex)
-        {
-            this.logger.LogError(ex, "Refund failed for order {OrderId} by {ManagerUserId}", orderId, manager.UserId);
-            MessageBox.Show(this, ex.Message, "Refund Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-        }
-    }
-
     private async Task<Order?> SelectRefundOrderAsync()
     {
         if (this.currentCustomer is null) return null;
-
-        if (!this.currentCustomer.Customer.IsCashCustomer && this.transactions.CurrentRow?.DataBoundItem is { } selectedRow)
+        if (this.transactions.CurrentRow?.DataBoundItem is TransactionRow selected &&
+            selected.Kind.Equals("Purchase", StringComparison.OrdinalIgnoreCase))
         {
-            Type rowType = selectedRow.GetType();
-            string? kind = rowType.GetProperty("Kind")?.GetValue(selectedRow)?.ToString();
-            object? referenceValue = rowType.GetProperty("ReferenceId")?.GetValue(selectedRow);
-
-            if (string.Equals(kind, "Refund", StringComparison.OrdinalIgnoreCase))
-            {
-                MessageBox.Show
-                (
-                      this
-                    , "Refund entries cannot be refunded. Select the original purchase instead."
-                    , "Refund"
-                    , MessageBoxButtons.OK
-                    , MessageBoxIcon.Information
-                );
-                return null;
-            }
-
-            if (string.Equals(kind, "Purchase", StringComparison.OrdinalIgnoreCase) && referenceValue is Guid orderId)
-            {
-                return await this.orderQuery.GetAsync(orderId);
-            }
+            var matching = await this.orderQuery.GetRecentCompletedAsync(this.currentCustomer.Customer.Id, 50);
+            var exact = matching.FirstOrDefault(x => x.Id == selected.ReferenceId && x.RefundedAmount < x.Total);
+            if (exact is not null) return exact;
         }
 
         // Search enough recent completed orders to find up to five that still have refundable value.
@@ -1597,7 +1077,7 @@ public sealed class MainForm : Form
 
     private static string Money(decimal value) => value.ToString("C2");
 
-    private static Button ActionButton(string text, Color backColor, int width, int height = 36) => new()
+    private static Button ActionButton(string text, Color backColor, int width, int height = 36) => new WhiteTextActionButton
     {
         Text = text,
         Width = width,
@@ -1605,6 +1085,7 @@ public sealed class MainForm : Form
         FlatStyle = FlatStyle.Flat,
         BackColor = backColor,
         ForeColor = Color.White,
+        UseVisualStyleBackColor = false,
         Font = new Font("Segoe UI", 10, FontStyle.Bold),
         Cursor = Cursors.Hand,
         Margin = new Padding(5, 0, 0, 0)
