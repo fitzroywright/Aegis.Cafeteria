@@ -1,0 +1,55 @@
+--- a/src/Aegis.Cafeteria.Services/Program.cs
++++ b/src/Aegis.Cafeteria.Services/Program.cs
+@@
+ using Aegis.Cafeteria.Services.Email;
+ using Aegis.Cafeteria.Services.Development;
++using Aegis.Cafeteria.Services.Engineering;
+ using Aegis.Cafeteria.Services.Persistence;
+@@
+ builder.Services.AddScoped<StipendService>();
+ builder.Services.AddSingleton<StipendAccountSnapshotFactory>();
++builder.Services.AddSingleton<EngineeringDiagnosticRunStore>();
++builder.Services.AddSingleton<CafeteriaEngineeringDiagnosticService>();
+@@
+ app.MapGet("/health", () => Results.Ok(new { status="running", application="Aegis.Cafeteria.Services", timeUtc=DateTimeOffset.UtcNow }));
++
++app.MapGet("/engineering/diagnostics", () => Results.Content(LcarsDiagnosticsDashboard.Html, "text/html"))
++    .RequireAuthorization("CafeteriaManagement");
++
++app.MapGet("/api/engineering/diagnostics/runs", async (int? take, EngineeringDiagnosticRunStore store, CancellationToken ct) =>
++{
++    IReadOnlyList<EngineeringDiagnosticRun> runs = await store.GetRecentAsync(take ?? 25, ct);
++    return Results.Ok(runs);
++}).RequireAuthorization("CafeteriaManagement");
++
++app.MapGet("/api/engineering/diagnostics/runs/{runId:guid}", async (Guid runId, EngineeringDiagnosticRunStore store, CancellationToken ct) =>
++{
++    EngineeringDiagnosticRun? run = await store.GetAsync(runId, ct);
++    return run is null ? Results.NotFound() : Results.Ok(run);
++}).RequireAuthorization("CafeteriaManagement");
++
++app.MapPost("/api/engineering/diagnostics/runs/{runId:guid}/resolve", async (Guid runId, EngineeringDiagnosticResolutionRequest request, HttpContext http, EngineeringDiagnosticRunStore store, CancellationToken ct) =>
++{
++    try
++    {
++        EngineeringDiagnosticRun? run = await store.ResolveAsync(runId, RequireActor(http), request.Resolution, ct);
++        return run is null ? Results.NotFound() : Results.Ok(run);
++    }
++    catch (ArgumentException exception)
++    {
++        return Results.BadRequest(new { error = exception.Message });
++    }
++}).RequireAuthorization("CafeteriaManagement");
++
++app.MapPost("/api/engineering/diagnostics/run", async (EngineeringDiagnosticRunRequest request, HttpContext http, CafeteriaEngineeringDiagnosticService diagnostics, CancellationToken ct) =>
++{
++    try
++    {
++        EngineeringDiagnosticRun run = await diagnostics.RunAsync(request.Level, RequireActor(http), request.Reason, ct);
++        return Results.Ok(run);
++    }
++    catch (ArgumentException exception)
++    {
++        return Results.BadRequest(new { error = exception.Message });
++    }
++}).RequireAuthorization("CafeteriaManagement");
