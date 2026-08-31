@@ -16,6 +16,7 @@ using Aegis.Cafeteria.Services.Workers;
 
 using Aegis.Engineering.Diagnostics;
 
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.EntityFrameworkCore;
 
@@ -225,8 +226,40 @@ app.Use(async (context, next) =>
 
 app.MapGet("/health", () => Results.Ok(new { status="running", application="Aegis.Cafeteria.Services", timeUtc=DateTimeOffset.UtcNow }));
 
-app.MapGet("/engineering/diagnostics", () => Results.Content(LcarsDiagnosticsDashboard.Html, "text/html"))
-    .RequireAuthorization("EngineeringDiagnostics");
+app.MapGet("/engineering/login", (HttpContext http) =>
+{
+    if (http.User.Identity?.IsAuthenticated == true)
+    {
+        return Results.Redirect("/engineering/diagnostics");
+    }
+
+    return Results.Content
+    (
+          EngineeringDiagnosticsLoginPage.Html
+        , "text/html"
+    );
+});
+
+app.MapGet("/engineering/signin", async (HttpContext http) =>
+{
+    if (http.User.Identity?.IsAuthenticated == true)
+    {
+        http.Response.Redirect("/engineering/diagnostics");
+        return;
+    }
+
+    await http.ChallengeAsync(NegotiateDefaults.AuthenticationScheme);
+});
+
+app.MapGet("/engineering/diagnostics", (HttpContext http) =>
+{
+    if (http.User.Identity?.IsAuthenticated != true)
+    {
+        return Results.Redirect("/engineering/login");
+    }
+
+    return Results.Content(LcarsDiagnosticsDashboard.Html, "text/html");
+}).RequireAuthorization("EngineeringDiagnostics");
 
 app.MapGet("/api/engineering/diagnostics/runs", async (int? take, EngineeringDiagnosticRunStore store, CancellationToken ct) =>
 {
