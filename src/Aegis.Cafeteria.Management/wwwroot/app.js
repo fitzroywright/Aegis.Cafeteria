@@ -52,6 +52,16 @@ function wire(id, handler) {
     });
 }
 
+function selectTab(tabName) {
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.tab === tabName);
+    });
+
+    document.querySelectorAll('.tab-panel').forEach(panel => {
+        panel.classList.toggle('active', panel.dataset.panel === tabName);
+    });
+}
+
 async function searchEmployees() {
     const search = document.getElementById('employeeSearch').value.trim();
     if (search.length < 2) {
@@ -110,6 +120,10 @@ async function initialize() {
     }
 }
 
+document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => selectTab(tab.dataset.tab));
+});
+
 document.getElementById('employeeSearch').addEventListener('keydown', event => {
     if (event.key === 'Enter') {
         event.preventDefault();
@@ -160,7 +174,7 @@ wire('loadFunding', async () => {
     const policy = await api('/api/management/funding-policy');
     document.getElementById('dailyCreditRate').value = policy.dailyCreditLimitRate ?? '';
     document.getElementById('dailySubsidyRate').value = policy.dailyCompanySubsidyRate ?? '';
-    showResult('Funding Policy', policy);
+    showResult('Rates', policy);
 });
 wire('saveFunding', async () => {
     const dailyCreditLimitRate = Number(document.getElementById('dailyCreditRate').value);
@@ -169,7 +183,7 @@ wire('saveFunding', async () => {
         method: 'PUT',
         body: JSON.stringify({ dailyCreditLimitRate, dailyCompanySubsidyRate })
     });
-    showResult('Funding Policy saved', response);
+    showResult('Rates saved', response);
 });
 wire('runMonthOpening', async () => {
     const year = Number(document.getElementById('monthYear').value);
@@ -189,15 +203,6 @@ wire('loadPayrollReport', async () => {
     const report = await api(`/api/management/payroll-report?year=${year}&month=${month}`);
     document.getElementById('payrollReport').textContent = JSON.stringify(report, null, 2);
     showResult('Employee Amount Due report loaded', { year, month });
-});
-wire('resetDevelopment', async () => {
-    if (!confirm('Reset Development cafeteria financial/service data?')) return;
-    const response = await api('/api/development/reset', { method: 'POST', body: '{}' });
-    selectedCustomerId = null;
-    selectedCustomerName = null;
-    selectedEmployee.textContent = 'No employee selected';
-    document.getElementById('employeeResults').innerHTML = '';
-    showResult('Development data reset', response);
 });
 wire('diagnosticsButton', async () => {
     window.open(`${servicesBaseUrl}/engineering/diagnostics`, '_blank', 'noopener');
