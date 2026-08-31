@@ -1,0 +1,59 @@
+name: Verify Aegis Engineering Diagnostics v7 retry
+
+on:
+  push:
+    branches:
+      - chatgpt/aegis-engineering-diagnostics-v7
+    paths:
+      - .github/workflows/verify-v7-retry.yml
+
+permissions:
+  contents: write
+
+jobs:
+  verify-v7:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply prepared v7 integration
+        shell: pwsh
+        run: |
+          $lines = Get-Content .github/workflows/apply-and-verify-v7.yml
+          $start = [Array]::IndexOf($lines, "          @'") + 1
+          $end = [Array]::IndexOf($lines, "          '@ | python -")
+          if ($start -le 0 -or $end -le $start) { throw 'Unable to locate prepared integration script.' }
+          $python = $lines[$start..($end - 1)] | ForEach-Object { $_ -replace '^          ', '' }
+          $python | python -
+
+      - name: Verify application naming and static audit
+        shell: pwsh
+        run: |
+          $forbidden = git grep -ni 'starfleet' -- src RELEASE_NOTES.v7.md 2>$null
+          if ($LASTEXITCODE -eq 0) { Write-Error "Forbidden application terminology found:`n$forbidden"; exit 1 }
+          python scripts/static-audit.py
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore Aegis.Cafeteria.sln
+
+      - name: Build
+        run: dotnet build Aegis.Cafeteria.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test Aegis.Cafeteria.sln --configuration Release --no-build
+
+      - name: Commit verified v7 integration
+        shell: pwsh
+        run: |
+          git rm .github/workflows/apply-and-verify-v7.yml .github/workflows/verify-v7-retry.yml
+          git config user.name "ChatGPT"
+          git config user.email "noreply@openai.com"
+          git add src/Aegis.Cafeteria.Services/Program.cs src/Aegis.Cafeteria.UI/MainForm.cs src/Aegis.Cafeteria.UI.Linux/MainWindow.cs
+          git commit -m "Integrate and verify Aegis Engineering Diagnostics v7"
+          git push origin HEAD:chatgpt/aegis-engineering-diagnostics-v7
