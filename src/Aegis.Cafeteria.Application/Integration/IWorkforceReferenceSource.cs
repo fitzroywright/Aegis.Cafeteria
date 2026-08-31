@@ -16,7 +16,10 @@ public sealed record ExternalCustomerSnapshot(
     string? Trn,
     byte[]? Photo,
     string Department = "",
-    decimal AdditionalCreditLimit = 0m);
+    decimal AdditionalCreditLimit = 0m,
+    string Manager = "",
+    string EmailAddress = "",
+    string Extension = "");
 
 public interface IWorkforceReferenceCache
 {
