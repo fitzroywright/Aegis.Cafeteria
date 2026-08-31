@@ -11,7 +11,10 @@ internal sealed class CustomerSearchDialog : Form
     private readonly DataGridView grid = CreateGrid();
     private readonly PictureBox photo = new() { Dock = DockStyle.Top, Height = 190, SizeMode = PictureBoxSizeMode.Zoom };
     private readonly Label name = new() { AutoSize = true, Font = new Font("Segoe UI", 18, FontStyle.Bold), MaximumSize = new Size(330, 0) };
-    private readonly Label eligibility = new() { AutoSize = true, Font = new Font("Segoe UI", 11, FontStyle.Bold), Padding = new Padding(10, 5, 10, 5) };
+    private readonly Label department = DetailLabel();
+    private readonly Label manager = DetailLabel();
+    private readonly Label emailAddress = DetailLabel();
+    private readonly Label extension = DetailLabel();
     private readonly Label count = new() { AutoSize = true, ForeColor = Color.DimGray };
     private readonly Button select = new() { Text = "Select Customer", Width = 150, Height = 40, DialogResult = DialogResult.OK, Enabled = false };
 
@@ -43,8 +46,8 @@ internal sealed class CustomerSearchDialog : Form
         this.identification = identification;
         Text = "Customers - Cafeteria";
         StartPosition = FormStartPosition.CenterParent;
-        MinimumSize = new Size(980, 620);
-        Size = new Size(1180, 720);
+        MinimumSize = new Size(1120, 620);
+        Size = new Size(1400, 720);
         BackColor = Color.FromArgb(244, 247, 250);
         Font = new Font("Segoe UI", 10);
 
@@ -93,7 +96,7 @@ internal sealed class CustomerSearchDialog : Form
 
     private void BuildLayout()
     {
-        var root = new TableLayoutPanel
+        TableLayoutPanel root = new()
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
@@ -104,25 +107,25 @@ internal sealed class CustomerSearchDialog : Form
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        var heading = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, Margin = new Padding(0, 0, 0, 14) };
+        TableLayoutPanel heading = new() { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1, Margin = new Padding(0, 0, 0, 14) };
         heading.Controls.Add(new Label { Text = "Customers", AutoSize = true, Font = new Font("Segoe UI", 24, FontStyle.Bold), ForeColor = Color.FromArgb(28, 48, 71) });
-        heading.Controls.Add(new Label { Text = "Search the local FFP employee cache. Eligibility is checked before cafeteria credit can be used.", AutoSize = true, ForeColor = Color.DimGray, Margin = new Padding(2, 4, 0, 12) });
-        var searchRow = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1 };
+        heading.Controls.Add(new Label { Text = "Search the local FFP employee cache.", AutoSize = true, ForeColor = Color.DimGray, Margin = new Padding(2, 4, 0, 12) });
+        TableLayoutPanel searchRow = new() { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 1 };
         searchRow.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         searchRow.Controls.Add(this.search, 0, 0);
         heading.Controls.Add(searchRow);
         heading.Controls.Add(this.count);
         root.Controls.Add(heading, 0, 0);
 
-        var body = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 720, BackColor = BackColor };
+        SplitContainer body = new() { Dock = DockStyle.Fill, SplitterDistance = 1000, BackColor = BackColor };
         body.Panel1.Padding = new Padding(0, 0, 10, 0);
         body.Panel1.Controls.Add(this.grid);
         body.Panel2.Padding = new Padding(10, 0, 0, 0);
         body.Panel2.Controls.Add(BuildDetailsCard());
         root.Controls.Add(body, 0, 1);
 
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(0, 14, 0, 0) };
-        var cancel = new Button { Text = "Cancel", Width = 110, Height = 40, DialogResult = DialogResult.Cancel };
+        FlowLayoutPanel buttons = new() { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Padding = new Padding(0, 14, 0, 0) };
+        Button cancel = new() { Text = "Cancel", Width = 110, Height = 40, DialogResult = DialogResult.Cancel };
         buttons.Controls.Add(cancel);
         buttons.Controls.Add(this.select);
         root.Controls.Add(buttons, 0, 2);
@@ -134,13 +137,16 @@ internal sealed class CustomerSearchDialog : Form
 
     private Control BuildDetailsCard()
     {
-        var card = new Panel { Dock = DockStyle.Fill, BackColor = Color.White, Padding = new Padding(22) };
-        var stack = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
+        Panel card = new() { Dock = DockStyle.Fill, BackColor = Color.White, Padding = new Padding(22) };
+        FlowLayoutPanel stack = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true };
         this.photo.Width = 300;
         this.photo.BackColor = Color.FromArgb(235, 239, 243);
         stack.Controls.Add(this.photo);
         stack.Controls.Add(this.name);
-        stack.Controls.Add(this.eligibility);
+        stack.Controls.Add(this.department);
+        stack.Controls.Add(this.manager);
+        stack.Controls.Add(this.emailAddress);
+        stack.Controls.Add(this.extension);
         card.Controls.Add(stack);
         return card;
     }
@@ -148,11 +154,11 @@ internal sealed class CustomerSearchDialog : Form
     private void ConfigureGrid()
     {
         this.grid.AutoGenerateColumns = false;
-        this.grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(CustomerSearchCandidate.Name), HeaderText = "Employee", FillWeight = 75 });
-        var eligible = new DataGridViewCheckBoxColumn { DataPropertyName = nameof(CustomerSearchCandidate.IsEligibleForCredit), HeaderText = "Eligible", FillWeight = 18 };
-        eligible.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
-        eligible.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleCenter;
-        this.grid.Columns.Add(eligible);
+        this.grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(CustomerSearchCandidate.Name), HeaderText = "Employee", FillWeight = 26 });
+        this.grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(CustomerSearchCandidate.Department), HeaderText = "Department", FillWeight = 20 });
+        this.grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(CustomerSearchCandidate.Manager), HeaderText = "Manager", FillWeight = 20 });
+        this.grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(CustomerSearchCandidate.EmailAddress), HeaderText = "Email Address", FillWeight = 26 });
+        this.grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(CustomerSearchCandidate.Extension), HeaderText = "Extension", FillWeight = 8 });
     }
 
     private async Task SearchAsync()
@@ -162,12 +168,12 @@ internal sealed class CustomerSearchDialog : Form
         this.searchCancellation?.Cancel();
         this.searchCancellation?.Dispose();
         this.searchCancellation = new CancellationTokenSource();
-        var cancellationToken = this.searchCancellation.Token;
-        var searchText = this.search.Text;
+        CancellationToken cancellationToken = this.searchCancellation.Token;
+        string searchText = this.search.Text;
 
         try
         {
-            var rows = await this.identification.SearchAsync(searchText, 50, cancellationToken);
+            IReadOnlyList<CustomerSearchCandidate> rows = await this.identification.SearchAsync(searchText, 50, cancellationToken);
             if (!cancellationToken.IsCancellationRequested && string.Equals(searchText, this.search.Text, StringComparison.Ordinal))
                 LoadCandidates(rows);
         }
@@ -188,20 +194,24 @@ internal sealed class CustomerSearchDialog : Form
 
     private void ShowSelection()
     {
-        var customer = SelectedCustomer;
+        CustomerSearchCandidate? customer = SelectedCustomer;
         this.select.Enabled = customer is not null;
         if (customer is null)
         {
             this.name.Text = "Select an employee";
-            this.eligibility.Text = string.Empty;
+            this.department.Text = string.Empty;
+            this.manager.Text = string.Empty;
+            this.emailAddress.Text = string.Empty;
+            this.extension.Text = string.Empty;
             SetPhoto(null);
             return;
         }
 
         this.name.Text = customer.Name;
-        this.eligibility.Text = customer.IsEligibleForCredit ? "ELIGIBLE FOR CAFETERIA CREDIT" : "NOT ELIGIBLE FOR CAFETERIA CREDIT";
-        this.eligibility.ForeColor = customer.IsEligibleForCredit ? Color.FromArgb(23, 119, 76) : Color.FromArgb(176, 52, 52);
-        this.eligibility.BackColor = customer.IsEligibleForCredit ? Color.FromArgb(226, 246, 236) : Color.FromArgb(255, 232, 232);
+        this.department.Text = $"Department: {DisplayValue(customer.Department)}";
+        this.manager.Text = $"Manager: {DisplayValue(customer.Manager)}";
+        this.emailAddress.Text = $"Email: {DisplayValue(customer.EmailAddress)}";
+        this.extension.Text = $"Extension: {DisplayValue(customer.Extension)}";
         SetPhoto(customer.Photo);
     }
 
@@ -212,12 +222,17 @@ internal sealed class CustomerSearchDialog : Form
         if (bytes is null || bytes.Length == 0) return;
         try
         {
-            using var stream = new MemoryStream(bytes);
-            using var temp = Image.FromStream(stream);
+            using MemoryStream stream = new(bytes);
+            using Image temp = Image.FromStream(stream);
             this.photo.Image = new Bitmap(temp);
         }
-        catch { /* Bad legacy photos should not stop employee selection. */ }
+        catch
+        {
+            // Bad legacy photos should not stop employee selection.
+        }
     }
+
+    private static string DisplayValue(string value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
 
     private static Label DetailLabel() => new() { AutoSize = true, Font = new Font("Segoe UI", 11), ForeColor = Color.FromArgb(61, 74, 89), Margin = new Padding(0, 8, 0, 0) };
 
