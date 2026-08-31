@@ -13,6 +13,9 @@ using Aegis.Cafeteria.Services.Development;
 using Aegis.Cafeteria.Services.Persistence;
 using Aegis.Cafeteria.Services.Realtime;
 using Aegis.Cafeteria.Services.Workers;
+
+using Aegis.Engineering.Diagnostics;
+
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.EntityFrameworkCore;
 
@@ -96,6 +99,8 @@ builder.Services.AddScoped<AdditionalCreditService>();
 builder.Services.AddScoped<IStipendAuthorizer, AuthenticatedStipendAuthorizer>();
 builder.Services.AddScoped<StipendService>();
 builder.Services.AddSingleton<StipendAccountSnapshotFactory>();
+builder.Services.AddSingleton<EngineeringDiagnosticRunStore>();
+builder.Services.AddSingleton<CafeteriaEngineeringDiagnosticService>();
 
 // Management financial operations are authenticated by Windows/AD. The client does not supply
 // ApprovedBy/ProcessedBy; the service derives the actor from HttpContext.User.
@@ -107,6 +112,17 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAuthenticatedUser();
         policy.RequireAssertion(context =>
             management.AuthorizedGroups.Length == 0 || management.AuthorizedGroups.Any(context.User.IsInRole));
+    });
+
+    options.AddPolicy("EngineeringDiagnostics", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+
+        if (!builder.Environment.IsDevelopment())
+        {
+            policy.RequireAssertion(context =>
+                management.AuthorizedGroups.Length == 0 || management.AuthorizedGroups.Any(context.User.IsInRole));
+        }
     });
 });
 
@@ -195,6 +211,59 @@ app.Use(async (context, next) =>
 });
 
 app.MapGet("/health", () => Results.Ok(new { status="running", application="Aegis.Cafeteria.Services", timeUtc=DateTimeOffset.UtcNow }));
+
+app.MapGet("/engineering/diagnostics", () => Results.Content(LcarsDiagnosticsDashboard.Html, "text/html"))
+    .RequireAuthorization("EngineeringDiagnostics");
+
+app.MapGet("/api/engineering/diagnostics/runs", async (int? take, EngineeringDiagnosticRunStore store, CancellationToken ct) =>
+{
+    IReadOnlyList<EngineeringDiagnosticRun> runs = await store.GetRecentAsync(take ?? 25, ct);
+    return Results.Ok(runs);
+}).RequireAuthorization("EngineeringDiagnostics");
+
+app.MapGet("/api/engineering/diagnostics/runs/{runId:guid}", async (Guid runId, EngineeringDiagnosticRunStore store, CancellationToken ct) =>
+{
+    EngineeringDiagnosticRun? run = await store.GetAsync(runId, ct);
+    return run is null ? Results.NotFound() : Results.Ok(run);
+}).RequireAuthorization("EngineeringDiagnostics");
+
+app.MapPost("/api/engineering/diagnostics/runs/{runId:guid}/resolve", async (Guid runId, EngineeringDiagnosticResolutionRequest request, HttpContext http, EngineeringDiagnosticRunStore store, CancellationToken ct) =>
+{
+    try
+    {
+        EngineeringDiagnosticRun? run = await store.ResolveAsync
+        (
+              runId
+            , RequireActor(http)
+            , request.Resolution
+            , ct
+        );
+        return run is null ? Results.NotFound() : Results.Ok(run);
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.BadRequest(new { error = exception.Message });
+    }
+}).RequireAuthorization("EngineeringDiagnostics");
+
+app.MapPost("/api/engineering/diagnostics/run", async (EngineeringDiagnosticRunRequest request, HttpContext http, CafeteriaEngineeringDiagnosticService diagnostics, CancellationToken ct) =>
+{
+    try
+    {
+        EngineeringDiagnosticRun run = await diagnostics.RunAsync
+        (
+              request.Level
+            , RequireActor(http)
+            , request.Reason
+            , ct
+        );
+        return Results.Ok(run);
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.BadRequest(new { error = exception.Message });
+    }
+}).RequireAuthorization("EngineeringDiagnostics");
 
 app.MapHub<ManagementEventsHub>("/hubs/cafeteria");
 

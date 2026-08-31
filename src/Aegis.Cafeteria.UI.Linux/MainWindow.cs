@@ -346,7 +346,32 @@ public sealed class MainWindow : Window
         administration.Items.Add(priceMaintenance);
         menu.Items.Add(administration);
 
+        MenuItem engineering = new()
+        {
+              Header = "Engineering"
+            , FontWeight = FontWeight.Bold
+            , Foreground = new SolidColorBrush(Color.FromRgb(24, 45, 68))
+        };
+        MenuItem diagnostics = new() { Header = "Aegis Engineering Diagnostics..." };
+        diagnostics.Click += (_, _) => OpenEngineeringDiagnostics();
+        engineering.Items.Add(diagnostics);
+        menu.Items.Add(engineering);
+
         return menu;
+    }
+
+    private void OpenEngineeringDiagnostics()
+    {
+        CafeteriaServicesOptions cafeteriaServices = this.services.GetRequiredService<CafeteriaServicesOptions>();
+        string diagnosticsUrl = cafeteriaServices.BaseUrl.TrimEnd('/') + "/engineering/diagnostics";
+        Process.Start
+        (
+            new ProcessStartInfo
+            {
+                  FileName = diagnosticsUrl
+                , UseShellExecute = true
+            }
+        );
     }
 
     private MenuItem BuildReportMenuItem(CafeteriaReportKind kind)

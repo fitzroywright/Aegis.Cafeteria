@@ -14,6 +14,8 @@ using Aegis.Cafeteria.Reporting.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using System.Diagnostics;
+
 namespace Aegis.Cafeteria.UI;
 
 public sealed class MainForm : Form
@@ -392,7 +394,30 @@ public sealed class MainForm : Form
         administration.DropDownItems.Add(cafeteriaAdministration);
         menu.Items.Add(administration);
 
+        ToolStripMenuItem engineering = new("Engineering")
+        {
+            Font = new Font("Segoe UI", 10, FontStyle.Bold)
+        };
+        ToolStripMenuItem diagnostics = new("Aegis Engineering Diagnostics...");
+        diagnostics.Click += (_, _) => OpenEngineeringDiagnostics();
+        engineering.DropDownItems.Add(diagnostics);
+        menu.Items.Add(engineering);
+
         return menu;
+    }
+
+    private void OpenEngineeringDiagnostics()
+    {
+        CafeteriaServicesOptions cafeteriaServices = this.services.GetRequiredService<CafeteriaServicesOptions>();
+        string diagnosticsUrl = cafeteriaServices.BaseUrl.TrimEnd('/') + "/engineering/diagnostics";
+        Process.Start
+        (
+            new ProcessStartInfo
+            {
+                  FileName = diagnosticsUrl
+                , UseShellExecute = true
+            }
+        );
     }
 
     private async Task OpenCafeteriaAdministrationAsync()
