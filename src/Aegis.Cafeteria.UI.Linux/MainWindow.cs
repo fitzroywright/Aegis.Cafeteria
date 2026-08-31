@@ -1034,8 +1034,19 @@ public sealed class MainWindow : Window
     private async Task RefundSelectedAsync()
     {
         if (currentCustomer is null) return;
-        if (transactions.SelectedItem is not TransactionRow selected ||
-            !string.Equals(selected.Transaction.Kind, "Purchase", StringComparison.OrdinalIgnoreCase))
+        if (transactions.SelectedItem is not TransactionRow selected)
+        {
+            status.Text = "Select a purchase from this month's transactions to refund.";
+            return;
+        }
+
+        if (string.Equals(selected.Transaction.Kind, "Refund", StringComparison.OrdinalIgnoreCase))
+        {
+            status.Text = "Refund entries cannot be refunded. Select the original purchase instead.";
+            return;
+        }
+
+        if (!string.Equals(selected.Transaction.Kind, "Purchase", StringComparison.OrdinalIgnoreCase))
         {
             status.Text = "Select a purchase from this month's transactions to refund.";
             return;

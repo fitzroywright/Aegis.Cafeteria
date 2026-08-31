@@ -1426,11 +1426,27 @@ public sealed class MainForm : Form
 
         if (!this.currentCustomer.Customer.IsCashCustomer && this.transactions.CurrentRow?.DataBoundItem is { } selectedRow)
         {
-            var rowType = selectedRow.GetType();
-            var kind = rowType.GetProperty("Kind")?.GetValue(selectedRow)?.ToString();
-            var referenceValue = rowType.GetProperty("ReferenceId")?.GetValue(selectedRow);
+            Type rowType = selectedRow.GetType();
+            string? kind = rowType.GetProperty("Kind")?.GetValue(selectedRow)?.ToString();
+            object? referenceValue = rowType.GetProperty("ReferenceId")?.GetValue(selectedRow);
+
+            if (string.Equals(kind, "Refund", StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show
+                (
+                      this
+                    , "Refund entries cannot be refunded. Select the original purchase instead."
+                    , "Refund"
+                    , MessageBoxButtons.OK
+                    , MessageBoxIcon.Information
+                );
+                return null;
+            }
+
             if (string.Equals(kind, "Purchase", StringComparison.OrdinalIgnoreCase) && referenceValue is Guid orderId)
+            {
                 return await this.orderQuery.GetAsync(orderId);
+            }
         }
 
         // Search enough recent completed orders to find up to five that still have refundable value.
