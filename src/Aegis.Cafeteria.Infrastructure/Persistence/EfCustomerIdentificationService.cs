@@ -12,10 +12,10 @@ public sealed class EfCustomerIdentificationService(
     public async Task<CustomerAccountView?> IdentifyAsync(CustomerIdentifierType type, string value, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;
-        var normalized = DomainPersistenceMapper.NormalizeIdentifier(type, value);
+        string normalized = DomainPersistenceMapper.NormalizeIdentifier(type, value);
         if (string.IsNullOrWhiteSpace(normalized)) return null;
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        var customerId = await db.CustomerIdentifiers.AsNoTracking()
+        await using LocalCafeteriaDbContext db = await factory.CreateDbContextAsync(cancellationToken);
+        int? customerId = await db.CustomerIdentifiers.AsNoTracking()
             .Where(x => x.Type == (int)type && x.NormalizedValue == normalized)
             .Select(x => (int?)x.CustomerId)
             .SingleOrDefaultAsync(cancellationToken);
@@ -26,10 +26,10 @@ public sealed class EfCustomerIdentificationService(
     public async Task<IReadOnlyList<CustomerSearchCandidate>> SearchAsync(string searchText, int maximumResults = 20, CancellationToken cancellationToken = default)
     {
         maximumResults = Math.Clamp(maximumResults, 1, 50);
-        var rawSearch = searchText?.Trim() ?? string.Empty;
-        var normalized = DomainPersistenceMapper.NormalizeSearchText(rawSearch);
+        string rawSearch = searchText?.Trim() ?? string.Empty;
+        string normalized = DomainPersistenceMapper.NormalizeSearchText(rawSearch);
 
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        await using LocalCafeteriaDbContext db = await factory.CreateDbContextAsync(cancellationToken);
 
         List<int> matchedIds;
         if (rawSearch.Length == 0)
@@ -55,7 +55,7 @@ public sealed class EfCustomerIdentificationService(
 
         if (matchedIds.Count == 0) return [];
 
-        var customers = await db.Customers.AsNoTracking()
+        List<Models.CustomerRow> customers = await db.Customers.AsNoTracking()
             .Where(x => matchedIds.Contains(x.Id))
             .ToListAsync(cancellationToken);
 
@@ -67,10 +67,14 @@ public sealed class EfCustomerIdentificationService(
                 x.Id,
                 x.Name,
                 x.IsEligibleForCredit,
-                x.Photo))
+                x.Photo,
+                x.Department,
+                x.Manager,
+                x.EmailAddress,
+                x.Extension))
             .ToArray();
     }
 
     public Task<CustomerAccountView?> LoadAsync(int customerId, CancellationToken cancellationToken = default)
-    => accountQuery.GetCurrentAsync(customerId, cancellationToken);
+        => accountQuery.GetCurrentAsync(customerId, cancellationToken);
 }
