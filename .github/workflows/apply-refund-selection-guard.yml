@@ -1,0 +1,28 @@
+name: Apply refund selection guard
+on: push
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/chatgpt/aegis-engineering-diagnostics-v7'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: python scripts/apply-refund-selection-guard.py
+      - run: python scripts/static-audit.py
+      - run: dotnet build Aegis.Cafeteria.slnx --configuration Release
+      - shell: pwsh
+        run: |
+          git rm .github/workflows/apply-refund-selection-guard.yml
+          git rm .github/workflows/refund-guard-and-management-tabs.yml
+          git rm scripts/apply-refund-selection-guard.py
+          git config user.name ChatGPT
+          git config user.email noreply@openai.com
+          git add src/Aegis.Cafeteria.UI/MainForm.cs src/Aegis.Cafeteria.UI.Linux/MainWindow.cs
+          git commit -m "Prevent refunding refund entries"
+          git push origin HEAD:chatgpt/aegis-engineering-diagnostics-v7
