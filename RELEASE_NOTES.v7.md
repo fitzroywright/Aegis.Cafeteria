@@ -1,49 +1,17 @@
 # Aegis.Cafeteria v7
 
-## Customer account view
+## Aegis Engineering Diagnostics
 
-v7 adds a dedicated customer-identification read model for the future terminal UI.
+- Adds the `Aegis.Engineering.Diagnostics` diagnostic protocol to Cafeteria Services.
+- Adds diagnostic Levels 5 through 1: Scan, Analysis, Verification, Repair Gate, and Critical Intervention Gate.
+- Persists diagnostic runs, checks, evidence, status, requesting engineer, reason, resolution, and resolution identity/time.
+- Adds a protected Services dashboard at `/engineering/diagnostics` with an LCARS-inspired presentation.
+- Adds protected APIs to initiate diagnostics, review recent runs, inspect a run, and resolve a run.
+- Development diagnostics require an authenticated Windows identity but do not require the configured production management group. Production diagnostics retain the configured management-group boundary.
+- Level 2 and Level 1 require an engineering reason and do not execute destructive repair automatically.
+- Adds `Engineering > Aegis Engineering Diagnostics...` to both Windows and Linux POS clients; both open the centralized Services dashboard.
+- The repository and application use `Aegis.Engineering.Diagnostics` naming throughout. Fictional protocol terminology is not used in application code, namespaces, APIs, or documentation.
 
-`ICustomerAccountQuery.GetAsync(customerId, year, month)` returns `CustomerAccountView` with:
+## Existing behavior retained
 
-- customer identity and photo;
-- account-period identity and closed status;
-- current-month purchase/refund/account-event history;
-- comprehensive calculated financial status;
-- synchronization/online status.
-
-### Financial display values
-
-The read model exposes:
-
-- Credit Limit
-- Subsidy Limit
-- Subsidy Used
-- Subsidy Amount Remaining
-- Non-Subsidy Amount Remaining
-- Total Available to Spend
-- Total Order Sales
-- Cafeteria Account Spending
-- Cash Spending
-- Additional Credit Approved / Used / Remaining
-- Stipend Cash Paid / Card Reduction
-- Prior Period Settlements
-- Prior Period Refund Credits
-- Customer Payments
-- Customer Responsibility
-- Payroll Deduction Required
-- Total Refunds
-
-No displayed balance is persisted as mutable account state. Values are recalculated from customer configuration, the account period, orders, refunds and account events.
-
-### Provider-neutral monthly query optimization
-
-Completed orders now persist `AccountYear` and `AccountMonth`, with a composite index on customer/period. This avoids database-provider-specific date-part extraction and keeps the same query path usable with SQLite, SQL Server and PostgreSQL.
-
-### Tests
-
-Added unit tests for financial display partitioning and persistence tests for the full customer-account query shape. The test runner scripts remain `scripts/test-all.ps1` and `scripts/test-all.sh`.
-
-### Existing v6 correction
-
-Corrected `CustomerAccountStatementService` to use `PriorPeriodOutstandingSettlement.ApprovedAt` rather than a nonexistent `RecordedAt` property.
+v7 retains all v6 financial correctness, stipend validation, Development reset, local product administration, FFP integration, reporting, and Windows/Linux POS behavior.
