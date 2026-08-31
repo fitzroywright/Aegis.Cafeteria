@@ -25,6 +25,8 @@ public sealed class OperatorLoginForm : Form
         BackColor = Color.White;
         ClientSize = new Size(660, 430);
         Text = "Cafeteria Sign In";
+        Icon = Icon.ExtractAssociatedIcon(System.Windows.Forms.Application.ExecutablePath);
+        TopMost = true;
         StartPosition = FormStartPosition.CenterScreen;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;

@@ -14,7 +14,7 @@ public sealed record CustomerAccountSnapshot(
     decimal RemainingCompanyContribution,
     decimal CustomerResponsibilityForCurrentCharges,
     decimal CustomerPayments,
-    decimal PayrollDeductionRequired,
+    decimal EmployeeAmountDue,
     decimal AvailableCredit,
     decimal AdditionalCreditUsed,
     decimal UnusedAdditionalCredit,

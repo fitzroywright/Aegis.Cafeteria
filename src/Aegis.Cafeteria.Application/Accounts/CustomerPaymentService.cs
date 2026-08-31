@@ -17,7 +17,7 @@ public sealed class CustomerPaymentService
 
         if (amount <= 0)
             throw new ArgumentOutOfRangeException(nameof(amount));
-        if (amount > account.PayrollDeductionRequired)
+        if (amount > account.EmployeeAmountDue)
             throw new InvalidOperationException(
                 "Payment cannot exceed the amount currently due from the customer.");
 

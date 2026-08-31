@@ -21,7 +21,7 @@ public sealed class LateRefundTests
         order.Complete([
             new OrderPayment(Guid.NewGuid(), PaymentMethod.CafeteriaAccount, 700m, when),
             new OrderPayment(Guid.NewGuid(), PaymentMethod.Cash, 300m, when)], when);
-        var close = new AccountPeriodClose(Guid.NewGuid(), 10, august, 0m, "payroll", new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero));
+        var close = new AccountPeriodClose(Guid.NewGuid(), 10, august, 0m, "cafeteria.manager", new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero));
 
         var result = service.RefundWithPeriodHandling(order, [(item.Id, 1)], 700m, 300m, "manager", new DateTimeOffset(2026, 9, 5, 10, 0, 0, TimeSpan.Zero), "Late return", august, september, close);
 

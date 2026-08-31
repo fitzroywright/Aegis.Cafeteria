@@ -35,6 +35,7 @@ public sealed class EfCustomerIdentificationService(
         if (rawSearch.Length == 0)
         {
             matchedIds = await db.Customers.AsNoTracking()
+                .Where(x => x.IsEligibleForCredit)
                 .OrderBy(x => x.NormalizedName)
                 .Select(x => x.Id)
                 .Take(maximumResults)
@@ -45,7 +46,7 @@ public sealed class EfCustomerIdentificationService(
             // Directory search is intentionally name-only. Secret identifiers are accepted only
             // by IdentifyAsync and are never echoed into a browse/search result.
             matchedIds = await db.Customers.AsNoTracking()
-                .Where(x => x.NormalizedName.Contains(normalized))
+                .Where(x => x.IsEligibleForCredit && x.NormalizedName.Contains(normalized))
                 .OrderBy(x => x.NormalizedName)
                 .Select(x => x.Id)
                 .Take(maximumResults)

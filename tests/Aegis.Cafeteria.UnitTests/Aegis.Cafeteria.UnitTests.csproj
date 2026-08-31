@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\Aegis.Cafeteria.Domain\Aegis.Cafeteria.Domain.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Cafeteria.Application\Aegis.Cafeteria.Application.csproj" />
     <ProjectReference Include="..\..\src\Aegis.Cafeteria.Infrastructure\Aegis.Cafeteria.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Aegis.Cafeteria.Services\Aegis.Cafeteria.Services.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

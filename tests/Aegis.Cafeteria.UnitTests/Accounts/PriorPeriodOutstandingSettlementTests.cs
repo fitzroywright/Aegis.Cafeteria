@@ -19,7 +19,7 @@ public sealed class PriorPeriodOutstandingSettlementTests
             2_500m,
             "manager",
             approvedAt,
-            "August payroll deduction omitted.");
+            "August employee amount due omitted.");
 
         Assert.Equal(2026, settlement.SourceYear);
         Assert.Equal(8, settlement.SourceMonth);
@@ -27,7 +27,7 @@ public sealed class PriorPeriodOutstandingSettlementTests
         Assert.Equal(9, settlement.SettlementMonth);
         Assert.Equal(2_500m, settlement.Amount);
         Assert.Equal("manager", settlement.ApprovedBy);
-        Assert.Equal("August payroll deduction omitted.", settlement.Reason);
+        Assert.Equal("August employee amount due omitted.", settlement.Reason);
     }
 
     [Fact]

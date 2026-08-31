@@ -33,5 +33,5 @@ public sealed class LoggingCafeteriaPersistenceStore(ICafeteriaPersistenceStore 
     public async Task SaveStipendAsync(Stipend x,CancellationToken ct=default)
     { await inner.SaveStipendAsync(x,ct); logger.LogInformation("Off-site stipend {StipendId} for customer {CustomerId}; mode {Mode}; cash {CashAmount}; card reduction {CardReduction}; processed by {ProcessedBy}",x.Id,x.CustomerId,x.PaymentMode,x.CashAmount,x.CardReduction,x.ProcessedByUserId); }
     public async Task SaveAccountPeriodCloseAsync(AccountPeriodClose x,CancellationToken ct=default)
-    { await inner.SaveAccountPeriodCloseAsync(x,ct); logger.LogInformation("Account period closed for customer {CustomerId}, {Year}-{Month}; payroll deduction {Amount}; closed by {ClosedBy}; close {CloseId}",x.CustomerId,x.Period.Year,x.Period.Month,x.PayrollDeduction,x.ClosedBy,x.Id); }
+    { await inner.SaveAccountPeriodCloseAsync(x,ct); logger.LogInformation("Account period closed for customer {CustomerId}, {Year}-{Month}; employee amount due {Amount}; closed by {ClosedBy}; close {CloseId}",x.CustomerId,x.Period.Year,x.Period.Month,x.EmployeeAmountDue,x.ClosedBy,x.Id); }
 }

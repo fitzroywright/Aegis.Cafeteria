@@ -11,7 +11,6 @@ using Microsoft.Extensions.Logging;
 /// </summary>
 public sealed class FfpReferenceRefreshWorker(
     ReferenceDataRefreshService refresh,
-    ProductCatalogRefreshService products,
     FfpIntegrationOptions options,
     ILogger<FfpReferenceRefreshWorker> logger) : BackgroundService
 {
@@ -23,7 +22,6 @@ public sealed class FfpReferenceRefreshWorker(
             var today = DateOnly.FromDateTime(DateTime.Today);
             await TryRefreshAsync("customers", () => refresh.RefreshCustomersAsync(stoppingToken), stoppingToken);
             await TryRefreshAsync("holidays", () => refresh.RefreshHolidaysAsync(today, stoppingToken), stoppingToken);
-            await TryRefreshAsync("LunchItems catalog and rates", () => products.RefreshAsync(stoppingToken), stoppingToken);
 
             try { await Task.Delay(TimeSpan.FromMinutes(options.RefreshIntervalMinutes), stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }

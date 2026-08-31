@@ -80,7 +80,7 @@ public sealed class StipendServiceTests
             RemainingCompanyContribution: remainingContribution,
             CustomerResponsibilityForCurrentCharges: 0m,
             CustomerPayments: 0m,
-            PayrollDeductionRequired: 0m,
+            EmployeeAmountDue: 0m,
             AvailableCredit: availableCredit,
             AdditionalCreditUsed: 0m,
             UnusedAdditionalCredit: 0m);

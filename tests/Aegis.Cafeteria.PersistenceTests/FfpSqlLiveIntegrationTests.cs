@@ -30,13 +30,15 @@ public sealed class FfpSqlLiveIntegrationTests
 
         var employees = await gateway.GetCustomersAsync();
         Assert.NotEmpty(employees);
-        var catalog = await gateway.GetCatalogAsync();
-        Assert.NotEmpty(catalog.Products);
-        Assert.True(catalog.CreditLimitPrice > 0m);
-        Assert.True(catalog.SubsidyCost > 0m);
-        Assert.Equal(options.CreditLimitLunchItemCode, catalog.CreditLimitLunchItemCode);
-        Assert.Equal(options.SubsidyLunchItemCode, catalog.SubsidyLunchItemCode);
-        Assert.All(employees.Take(20), x => Assert.True(x.CustomerId > 0));
+        Assert.All
+        (
+              employees.Take(20)
+            , employee =>
+            {
+                Assert.True(employee.CustomerId > 0);
+                Assert.True(employee.IsEligibleForCafeteriaCredit);
+            }
+        );
 
         var today = DateOnly.FromDateTime(DateTime.Today);
         var holidays = await gateway.GetHolidaysAsync(today.Year, today.Month);

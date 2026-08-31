@@ -35,17 +35,17 @@ public sealed class CustomerPaymentWindow : Window
 
         var title = new TextBlock { Text = "CUSTOMER PAYMENT", FontSize = 20, FontWeight = FontWeight.Bold, Foreground = new SolidColorBrush(Color.Parse("#182D44")) };
         Grid.SetColumnSpan(title, 2); grid.Children.Add(title);
-        var subtitle = new TextBlock { Text = "Record money received from the employee. This reduces the Payroll Deduction for the current period.", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Gray };
+        var subtitle = new TextBlock { Text = "Record money received from the employee. This reduces the Employee Amount Due for the current period.", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Gray };
         Grid.SetRow(subtitle, 1); Grid.SetColumnSpan(subtitle, 2); grid.Children.Add(subtitle);
 
         AddRow(grid, 2, "Customer", new TextBlock { Text = customerName, TextWrapping = TextWrapping.Wrap, FontWeight = FontWeight.Bold });
-        AddRow(grid, 3, "Payroll Deduction before payment", new TextBlock { Text = Money(amountDue), FontWeight = FontWeight.Bold, FontSize = 17 });
+        AddRow(grid, 3, "Employee Amount Due before payment", new TextBlock { Text = Money(amountDue), FontWeight = FontWeight.Bold, FontSize = 17 });
         AddRow(grid, 4, "Payment amount", amount);
         AddRow(grid, 5, "Payment method", method);
         AddRow(grid, 6, "Reference", reference);
-        AddRow(grid, 7, "Payroll Deduction after payment", remaining);
+        AddRow(grid, 7, "Employee Amount Due after payment", remaining);
 
-        var note = new TextBlock { Text = "The payment is recorded against this employee and reduces the amount expected from payroll. It does not create a new sale.", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Gray };
+        var note = new TextBlock { Text = "The payment is recorded against this employee and reduces the employee amount due. It does not create a new sale.", TextWrapping = TextWrapping.Wrap, Foreground = Brushes.Gray };
         Grid.SetRow(note, 8); Grid.SetColumnSpan(note, 2); grid.Children.Add(note);
 
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8, Margin = new Thickness(0, 14, 0, 0) };

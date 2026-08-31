@@ -38,7 +38,7 @@ Read-only display:
 - Current FFP `AvailableBalance`
 - configured Additional Credit Limit
 - Additional Credit approved this month
-- Payroll Deduction / responsibility data if exposed by the Cafeteria reporting/API layer in a later management endpoint
+- Employee Amount Due / responsibility data if exposed by the Cafeteria reporting/API layer in a later management endpoint
 
 ### Actions
 
@@ -251,3 +251,36 @@ All of those responsibilities belong to Cafeteria Services.
 - Stipend cash and card reduction remain distinct.
 - Month opening rerun does not duplicate allocations.
 - FFP `EmployeeIDScans`, `CreditLimit`, `AvailableBalance` and POS account view reconcile after synchronization.
+
+
+## Funding policy / FFP00 maintenance
+
+FFP Manager is the primary administrative UI for Cafeteria funding policy. The POS is not required and does not expose funding-policy editing.
+
+Read the current policy:
+
+`GET /api/management/funding-policy`
+
+Update it:
+
+`PUT /api/management/funding-policy`
+
+```json
+{
+  "dailyCreditLimitRate": 500.00,
+  "dailyCompanySubsidyRate": 300.00
+}
+```
+
+Services first saves the authoritative audited funding policy in its own database and then mirrors the same values to the FFP `LunchItems` row whose `Code = FFP00`:
+
+- `FFP00.Price = DailyCreditLimitRate`
+- `FFP00.Cost = DailyCompanySubsidyRate`
+
+This compatibility mirror allows legacy FFP reports/tools to continue seeing the familiar FFP00 values, but month opening and Aegis calculations use the Services policy rather than re-reading FFP00.
+
+FFP Manager should expose these values under a Cafeteria Administration screen and call Services using the authenticated Windows identity. It must not update FFP00 directly because doing so would bypass the Services audit history and could leave Services and FFP out of sync.
+
+## Employee Amount Due / payroll ownership (v95)
+
+FFP Manager or the payroll system owns payroll processing. Cafeteria exposes/calculates Employee Amount Due but does not track payroll deductions or collections. If FFP Manager needs a stable period-end amount, it should consume the closed-period Employee Amount Due and handle all deduction, collection and reconciliation states outside the POS.

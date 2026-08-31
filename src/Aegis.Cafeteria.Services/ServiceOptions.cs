@@ -33,4 +33,7 @@ public sealed class ScheduledEmailOptions
     public DayOfWeek WeeklyEmployeeDay { get; init; } = DayOfWeek.Monday;
     public int WeeklyEmployeeHourLocal { get; init; } = 8;
     public string EmployeeEmailColumn { get; init; } = "Email";
+    public bool PayrollNotificationEnabled { get; init; } = true;
+    public string[] PayrollRecipients { get; init; } = [];
+    public int PayrollReportHourLocal { get; init; } = 6;
 }

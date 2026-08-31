@@ -11,7 +11,7 @@ public sealed class CustomerPaymentServiceTests
     {
         var service = new CustomerPaymentService();
         var customer = CreateCustomer();
-        var account = Snapshot(payrollDeductionRequired: 3_000m);
+        var account = Snapshot(employeeAmountDue: 3_000m);
 
         var payment = service.RecordPayment(customer, account, 2_000m, DateTimeOffset.UtcNow, "Receipt 123");
 
@@ -25,7 +25,7 @@ public sealed class CustomerPaymentServiceTests
     {
         var service = new CustomerPaymentService();
         var customer = CreateCustomer();
-        var account = Snapshot(payrollDeductionRequired: 3_000m);
+        var account = Snapshot(employeeAmountDue: 3_000m);
 
         Assert.Throws<InvalidOperationException>(() =>
             service.RecordPayment(customer, account, 3_001m, DateTimeOffset.UtcNow));
@@ -34,7 +34,7 @@ public sealed class CustomerPaymentServiceTests
     private static Customer CreateCustomer()
         => new(10, "Test Customer", null, true, 5_000m);
 
-    private static CustomerAccountSnapshot Snapshot(decimal payrollDeductionRequired)
+    private static CustomerAccountSnapshot Snapshot(decimal employeeAmountDue)
         => new(
             BaseMonthlyCredit: 0m,
             PriorPeriodOutstandingSettlements: 0m,
@@ -47,9 +47,9 @@ public sealed class CustomerPaymentServiceTests
             CompanyResponsibility: 0m,
             CompanyContributionUsed: 0m,
             RemainingCompanyContribution: 0m,
-            CustomerResponsibilityForCurrentCharges: payrollDeductionRequired,
+            CustomerResponsibilityForCurrentCharges: employeeAmountDue,
             CustomerPayments: 0m,
-            PayrollDeductionRequired: payrollDeductionRequired,
+            EmployeeAmountDue: employeeAmountDue,
             AvailableCredit: 0m,
             AdditionalCreditUsed: 0m,
             UnusedAdditionalCredit: 0m);

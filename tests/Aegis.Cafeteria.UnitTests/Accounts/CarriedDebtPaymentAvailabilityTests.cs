@@ -27,6 +27,6 @@ public sealed class CarriedDebtPaymentAvailabilityTests
 
         Assert.Equal(allocation.TotalCreditLimit - 1500m, before.AvailableCredit);
         Assert.Equal(allocation.TotalCreditLimit, after.AvailableCredit);
-        Assert.Equal(0m, after.PayrollDeductionRequired);
+        Assert.Equal(0m, after.EmployeeAmountDue);
     }
 }

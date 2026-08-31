@@ -52,7 +52,7 @@ public sealed record CustomerFinancialStatusView(
     decimal PriorPeriodRefundCredits,
     decimal CustomerPayments,
     decimal CustomerResponsibility,
-    decimal PayrollDeductionRequired,
+    decimal EmployeeAmountDue,
     decimal TotalRefunds)
 {
     public decimal TotalCreditLimit => CreditLimit + AdditionalCreditApproved + PriorPeriodRefundCredits;

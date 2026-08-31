@@ -7,6 +7,7 @@ using Aegis.Cafeteria.Application.Security;
 using Aegis.Cafeteria.Domain.Orders;
 using Aegis.Cafeteria.Domain.Identification;
 using Aegis.Cafeteria.Infrastructure.Configuration;
+using Aegis.Cafeteria.Infrastructure.Services;
 using Aegis.Cafeteria.Reporting;
 using Aegis.Cafeteria.Reporting.Export;
 using Aegis.Cafeteria.Reporting.Models;
@@ -44,6 +45,7 @@ public sealed class MainForm : Form
     private readonly IRecentTransactionQuery recentTransactions;
     private readonly ICafeteriaPersistenceStore persistenceStore;
     private readonly IServiceProvider services;
+    private readonly IDisposable accountChangeSubscription;
     private readonly System.Windows.Forms.Timer cacheStatusTimer = new() { Interval = 60_000 };
     private readonly System.Windows.Forms.Timer customerInactivityTimer = new() { Interval = 1_000 };
     private SplitContainer? mainSplit;
@@ -78,7 +80,7 @@ public sealed class MainForm : Form
     private readonly Label carriedDebt = MoneyLabel();
     private readonly Label customerLiability = MoneyLabel();
     private readonly Label customerPaymentsValue = MoneyLabel();
-    private readonly Label payrollDeduction = MoneyLabel();
+    private readonly Label employeeAmountDue = MoneyLabel();
     private readonly DataGridView transactions = Grid();
 
     private readonly TextBox productSearch = new() { PlaceholderText = "Search products", Dock = DockStyle.Top, Height = 34 };
@@ -131,6 +133,7 @@ public sealed class MainForm : Form
         IOrderQuery orderQuery,
         IRecentTransactionQuery recentTransactions,
         ICafeteriaPersistenceStore persistenceStore,
+        ICustomerAccountChangeNotifier accountChangeNotifier,
         IServiceProvider services,
         ILogger<MainForm> logger)
     {
@@ -152,10 +155,12 @@ public sealed class MainForm : Form
         this.orderQuery = orderQuery;
         this.recentTransactions = recentTransactions;
         this.persistenceStore = persistenceStore;
+        this.accountChangeSubscription = accountChangeNotifier.Subscribe(OnCustomerAccountChangedAsync);
         this.services = services;
         this.logger = logger;
 
         Text = "Cafeteria";
+        Icon = Icon.ExtractAssociatedIcon(System.Windows.Forms.Application.ExecutablePath);
         WindowState = FormWindowState.Maximized;
         MinimumSize = new Size(1200, 760);
         Font = new Font("Segoe UI", 10);
@@ -205,6 +210,7 @@ public sealed class MainForm : Form
             this.cacheStatusTimer.Stop();
             this.customerInactivityTimer.Stop();
             System.Windows.Forms.Application.RemoveMessageFilter(this.activityMessageFilter);
+            this.accountChangeSubscription.Dispose();
             if (this.customerDisplay is not null)
             {
                 this.customerDisplay.Close();
@@ -375,7 +381,33 @@ public sealed class MainForm : Form
         reports.DropDownItems.Add(employee);
         reports.DropDownItems.Add(audit);
         menu.Items.Add(reports);
+
+        ToolStripMenuItem administration = new("Administration")
+        {
+            Font = new Font("Segoe UI", 10, FontStyle.Bold)
+        };
+
+        ToolStripMenuItem cafeteriaAdministration = new("Price Maintenance...");
+        cafeteriaAdministration.Click += async (_, _) => await OpenCafeteriaAdministrationAsync();
+        administration.DropDownItems.Add(cafeteriaAdministration);
+        menu.Items.Add(administration);
+
         return menu;
+    }
+
+    private async Task OpenCafeteriaAdministrationAsync()
+    {
+        OperatorIdentity? manager = await AuthorizeManagerAsync("Cafeteria price maintenance");
+
+        if (manager is null)
+        {
+            return;
+        }
+
+        IProductCatalogMaintenance maintenance = this.services.GetRequiredService<IProductCatalogMaintenance>();
+        using CafeteriaAdministrationDialog dialog = new(maintenance);
+        dialog.ShowDialog(this);
+        await LoadProductsAsync();
     }
 
     private static ToolStripMenuItem ReportCategory(string text) => new(text)
@@ -548,14 +580,14 @@ public sealed class MainForm : Form
         AddFinancialRow(finances, "Debt brought forward", this.carriedDebt);
         AddFinancialRow(finances, "Customer Responsibility (before payments)", this.customerLiability);
         AddFinancialRow(finances, "Customer Payments", this.customerPaymentsValue);
-        AddFinancialRow(finances, "Payroll Deduction", this.payrollDeduction);
+        AddFinancialRow(finances, "Employee Amount Due", this.employeeAmountDue);
         root.Controls.Add(finances, 0, 2);
 
         var paymentAction = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, BackColor = Color.FromArgb(240, 248, 243), Padding = new Padding(12, 9, 12, 9), Margin = new Padding(0, 0, 0, 10) };
         paymentAction.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         paymentAction.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         paymentAction.Controls.Add(new Label { Text = "CUSTOMER PAYMENT", AutoSize = true, ForeColor = Green, Font = new Font("Segoe UI", 9, FontStyle.Bold) }, 0, 0);
-        paymentAction.Controls.Add(new Label { Text = "Record money received from the employee to reduce the Payroll Deduction shown above.", AutoSize = true, MaximumSize = new Size(330, 0), ForeColor = Muted, Font = new Font("Segoe UI", 9) }, 0, 1);
+        paymentAction.Controls.Add(new Label { Text = "Record money received from the employee to reduce the Employee Amount Due shown above.", AutoSize = true, MaximumSize = new Size(330, 0), ForeColor = Muted, Font = new Font("Segoe UI", 9) }, 0, 1);
         paymentAction.Controls.Add(this.customerPaymentButton, 1, 0);
         paymentAction.SetRowSpan(this.customerPaymentButton, 2);
         root.Controls.Add(paymentAction, 0, 3);
@@ -720,8 +752,6 @@ public sealed class MainForm : Form
             refresh is null ? null : async () =>
             {
                 await refresh.RefreshAsync(DateOnly.FromDateTime(DateTime.Today));
-                var productRefresh = this.services.GetService<ProductCatalogRefreshService>();
-                if (productRefresh is not null) await productRefresh.RefreshAsync();
                 await LoadProductsAsync();
                 return 0;
             });
@@ -918,7 +948,7 @@ public sealed class MainForm : Form
             this.carriedDebt.Text = Money(account.FinancialStatus.CarriedForwardDebt);
             this.customerLiability.Text = Money(account.FinancialStatus.GrossCustomerLiability);
             this.customerPaymentsValue.Text = Money(account.FinancialStatus.CustomerPayments);
-            this.payrollDeduction.Text = Money(account.FinancialStatus.PayrollDeductionRequired);
+            this.employeeAmountDue.Text = Money(account.FinancialStatus.EmployeeAmountDue);
         }
         this.transactionSource.DataSource = account.Transactions.Select(x => new
         {
@@ -946,7 +976,7 @@ public sealed class MainForm : Form
                 : "● FFP publication disabled";
             this.syncStatus.ForeColor = account.FfpPublication.PoisonedOperations == 0 ? Green : Color.DarkOrange;
         }
-        this.customerPaymentButton.Enabled = !account.Customer.IsCashCustomer && account.Customer.IsEligibleForCredit && !account.Period.IsClosed && account.FinancialStatus.PayrollDeductionRequired > 0m;
+        this.customerPaymentButton.Enabled = !account.Customer.IsCashCustomer && account.Customer.IsEligibleForCredit && !account.Period.IsClosed && account.FinancialStatus.EmployeeAmountDue > 0m;
         UpdateCheckoutState();
         _ = UpdateCustomerDisplayAsync(account);
     }
@@ -1009,7 +1039,7 @@ public sealed class MainForm : Form
 
     private void SetFinancialValuesUnavailable()
     {
-        foreach (var label in new[] { this.creditLimit, this.subsidyRemaining, this.nonSubsidyRemaining, this.available, this.carriedDebt, this.customerLiability, this.customerPaymentsValue, this.payrollDeduction })
+        foreach (var label in new[] { this.creditLimit, this.subsidyRemaining, this.nonSubsidyRemaining, this.available, this.carriedDebt, this.customerLiability, this.customerPaymentsValue, this.employeeAmountDue })
             label.Text = "—";
     }
 
@@ -1239,7 +1269,7 @@ public sealed class MainForm : Form
     private async Task RecordCustomerPaymentAsync()
     {
         if (this.currentCustomer is null || this.currentCustomer.Customer.IsCashCustomer || !this.currentCustomer.Customer.IsEligibleForCredit) return;
-        var due = this.currentCustomer.FinancialStatus.PayrollDeductionRequired;
+        var due = this.currentCustomer.FinancialStatus.EmployeeAmountDue;
         if (due <= 0m)
         {
             MessageBox.Show(this, "This customer has no outstanding cafeteria responsibility to pay.", "Customer Payment", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1268,8 +1298,51 @@ public sealed class MainForm : Form
         finally
         {
             if (this.currentCustomer is not null)
-                this.customerPaymentButton.Enabled = !this.currentCustomer.Customer.IsCashCustomer && this.currentCustomer.Customer.IsEligibleForCredit && !this.currentCustomer.Period.IsClosed && this.currentCustomer.FinancialStatus.PayrollDeductionRequired > 0m;
+                this.customerPaymentButton.Enabled = !this.currentCustomer.Customer.IsCashCustomer && this.currentCustomer.Customer.IsEligibleForCredit && !this.currentCustomer.Period.IsClosed && this.currentCustomer.FinancialStatus.EmployeeAmountDue > 0m;
         }
+    }
+
+    private Task OnCustomerAccountChangedAsync
+    (
+        int customerId
+    )
+    {
+        if (this.currentCustomer?.Customer.Id != customerId)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (IsDisposed || Disposing)
+        {
+            return Task.CompletedTask;
+        }
+
+        BeginInvoke
+        (
+            async () =>
+            {
+                try
+                {
+                    CustomerAccountView? refreshed = await this.identification.LoadAsync(customerId);
+
+                    if (refreshed is not null)
+                    {
+                        ShowCustomer(refreshed);
+                    }
+                }
+                catch (Exception exception)
+                {
+                    this.logger.LogWarning
+                    (
+                          exception
+                        , "Could not refresh displayed customer {CustomerId}"
+                        , customerId
+                    );
+                }
+            }
+        );
+
+        return Task.CompletedTask;
     }
 
     private async Task RefundSelectedAsync()

@@ -36,3 +36,12 @@ Report rendering is performed off the UI thread to avoid freezing the POS during
 ## Daily dashboard
 
 Idle dashboard includes product pie charts for Items Sold — Quantity and Items Sold — Value, using top-five slices plus Other.
+
+
+## v98 product and workforce boundary
+
+Only employees with `FFP.Employees.EligibleForLunchTicket = 1` are active Cafeteria employees. The POS does not load ineligible employees for browse, name search or identifier matching. Historical customer rows may remain locally only to support old transaction history.
+
+Saleable cafeteria products are owned by the POS SQLite database. `FFP.dbo.LunchItems` and Cafeteria Services are not product-catalog sources. Product administration changes the current POS catalog only; completed order lines preserve ProductName, UnitPrice and Quantity as immutable transaction snapshots. Reports use those transaction/ledger values rather than looking up today's product price.
+
+`FFP00` is retained solely as a compatibility mirror for the Services-owned funding policy and must not be treated as a saleable product or catalog source.

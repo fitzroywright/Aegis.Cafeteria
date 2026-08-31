@@ -30,7 +30,7 @@ public sealed class CustomerPaymentWorkflow(
             throw new InvalidOperationException("Customer payments cannot be posted into a closed cafeteria period.");
         if (amount <= 0m)
             throw new ArgumentOutOfRangeException(nameof(amount), "Payment amount must be greater than zero.");
-        if (amount > account.FinancialStatus.PayrollDeductionRequired)
+        if (amount > account.FinancialStatus.EmployeeAmountDue)
             throw new InvalidOperationException("Payment cannot exceed the amount currently due from the customer.");
         if (string.IsNullOrWhiteSpace(paymentMethod))
             throw new ArgumentException("Payment method is required.", nameof(paymentMethod));

@@ -9,7 +9,7 @@ public sealed class AccountPeriodGuardTests
     public void ClosedPeriod_RejectsOrdinaryMutation()
     {
         var period = new AccountPeriod(2026, 8, 22);
-        var close = new AccountPeriodClose(Guid.NewGuid(), 1, period, 0m, "payroll", new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero));
+        var close = new AccountPeriodClose(Guid.NewGuid(), 1, period, 0m, "cafeteria.manager", new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero));
         Assert.Throws<InvalidOperationException>(() => new AccountPeriodGuard().EnsureOpen(period, close));
     }
 }

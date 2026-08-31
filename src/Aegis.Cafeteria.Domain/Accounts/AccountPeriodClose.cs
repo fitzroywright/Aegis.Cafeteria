@@ -6,20 +6,20 @@ public sealed class AccountPeriodClose
         Guid id,
         int customerId,
         AccountPeriod period,
-        decimal payrollDeduction,
+        decimal employeeAmountDue,
         string closedBy,
         DateTimeOffset closedAt)
     {
         if (id == Guid.Empty) throw new ArgumentException("Close ID is required.", nameof(id));
         if (customerId <= 0) throw new ArgumentOutOfRangeException(nameof(customerId));
         ArgumentNullException.ThrowIfNull(period);
-        if (payrollDeduction < 0) throw new ArgumentOutOfRangeException(nameof(payrollDeduction));
+        if (employeeAmountDue < 0) throw new ArgumentOutOfRangeException(nameof(employeeAmountDue));
         if (string.IsNullOrWhiteSpace(closedBy)) throw new ArgumentException("Closing user is required.", nameof(closedBy));
 
         Id = id;
         CustomerId = customerId;
         Period = period;
-        PayrollDeduction = payrollDeduction;
+        EmployeeAmountDue = employeeAmountDue;
         ClosedBy = closedBy.Trim();
         ClosedAt = closedAt;
     }
@@ -27,7 +27,7 @@ public sealed class AccountPeriodClose
     public Guid Id { get; }
     public int CustomerId { get; }
     public AccountPeriod Period { get; }
-    public decimal PayrollDeduction { get; }
+    public decimal EmployeeAmountDue { get; }
     public string ClosedBy { get; }
     public DateTimeOffset ClosedAt { get; }
 }

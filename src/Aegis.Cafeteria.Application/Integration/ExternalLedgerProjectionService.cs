@@ -53,6 +53,8 @@ public sealed class ExternalLedgerProjectionService(IExternalLedgerOutbox outbox
         var postBalance = Math.Min(
             accountBeforeRefund.FinancialStatus.TotalCreditLimit,
             accountBeforeRefund.FinancialStatus.TotalAvailableToSpend + refund.CafeteriaAccountAmount);
+        bool priorPeriodRefund = order.CompletedAt.HasValue &&
+            (order.CompletedAt.Value.Year != refund.RefundedAt.Year || order.CompletedAt.Value.Month != refund.RefundedAt.Month);
         var description = BuildRefundDescription(order, refund);
         var entry = new ExternalLedgerEntry(
             refund.Id,
@@ -65,7 +67,7 @@ public sealed class ExternalLedgerProjectionService(IExternalLedgerOutbox outbox
             postBalance,
             "REFUND",
             NormalizeUserName(refund.RefundedBy),
-            "Cafeteria Refund");
+            priorPeriodRefund ? "Cafeteria Prior Period Refund" : "Cafeteria Refund");
         return outbox.EnqueueAsync(entry, cancellationToken);
     }
 
@@ -77,7 +79,7 @@ public sealed class ExternalLedgerProjectionService(IExternalLedgerOutbox outbox
 
     private static string BuildPurchaseDescription(Order order)
     {
-        var items = string.Join("; ", order.Items.Select(x => $"{x.ProductName} x{x.Quantity}"));
+        var items = string.Join("; ", order.Items.Select(x => $"{x.ProductName} x{x.Quantity} @ {x.UnitPrice:N2}"));
         var tender = order.CafeteriaAccountPaid == order.Total
             ? $"Total: {order.Total:N2}"
             : $"Order Total: {order.Total:N2}; Cafeteria: {order.CafeteriaAccountPaid:N2}";
@@ -87,8 +89,9 @@ public sealed class ExternalLedgerProjectionService(IExternalLedgerOutbox outbox
     private static string BuildRefundDescription(Order order, OrderRefund refund)
     {
         var names = order.Items.ToDictionary(x => x.Id, x => x.ProductName);
-        var items = string.Join("; ", refund.Items.Select(x => $"{names.GetValueOrDefault(x.OrderItemId, "Item")} x{x.Quantity}"));
-        return $"Refund - {items} - Cafeteria Refund: {refund.CafeteriaAccountAmount:N2}";
+        var items = string.Join("; ", refund.Items.Select(x => $"{names.GetValueOrDefault(x.OrderItemId, "Item")} x{x.Quantity} @ {x.UnitPrice:N2}"));
+        var originalSale = order.CompletedAt.HasValue ? $"; Original Sale: {order.CompletedAt.Value:yyyy-MM-dd}" : string.Empty;
+        return $"Refund - {items} - Cafeteria Refund: {refund.CafeteriaAccountAmount:N2}{originalSale}";
     }
 
     private static string NormalizeUserName(string? value)

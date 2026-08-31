@@ -65,7 +65,7 @@ public sealed class CustomerLookupResolverTests
             CashSpending: 0, AdditionalCreditApproved: 0, AdditionalCreditUsed: 0,
             AdditionalCreditRemaining: 0, StipendCashPaid: 0, StipendCardReduction: 0,
             PriorPeriodSettlements: 0, PriorPeriodRefundCredits: 0, CustomerPayments: 0,
-            CustomerResponsibility: 0, PayrollDeductionRequired: 0, TotalRefunds: 0),
+            CustomerResponsibility: 0, EmployeeAmountDue: 0, TotalRefunds: 0),
         Array.Empty<CustomerMonthlyTransactionView>(),
         new FfpPublicationStatus(false, 0, 0, null, null));
 

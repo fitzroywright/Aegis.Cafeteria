@@ -9,11 +9,14 @@ using Microsoft.Extensions.Logging;
 /// Adapter for the existing FFP schema used by FFP.LunchSystem. the external system idempotency key
 /// is the idempotency key. The scan insert and Employees summary update occur in one SQL transaction.
 /// </summary>
-public sealed class FfpSqlApplicationGateway(FfpIntegrationOptions options, ILogger<FfpSqlApplicationGateway> logger) : IExternalAccountingGateway, IWorkforceReferenceSource, IProductCatalogSource
+public sealed class FfpSqlApplicationGateway(FfpIntegrationOptions options, ILogger<FfpSqlApplicationGateway> logger) :
+      IExternalAccountingGateway
+    , IWorkforceReferenceSource
+    , IFundingPolicyCompatibilityGateway
+    , IMonthRecalculationGuard
+    , IDevelopmentDataResetGateway
 {
-    // Ported from FFP.LunchSystem SQLConstants.GetEmployeeListSQL/SystemFunctions.GetData.
-    // We intentionally load all employees (rather than only eligible employees) so Aegis can
-    // identify the person first and then enforce EligibleForLunchTicket explicitly.
+    // Only employees eligible for the Cafeteria program are loaded into the POS workforce cache.
     private const string EmployeeSql = @"
 SELECT
       e.ID
@@ -25,7 +28,8 @@ SELECT
     , CAST(CASE WHEN e.EligibleForLunchTicket = 1 THEN 1 ELSE 0 END AS bit) AS IsEligible
     , ISNULL(d.Name, '') AS DepartmentName
 FROM dbo.Employees AS e
-LEFT OUTER JOIN dbo.Departments AS d ON d.ID = e.DepartmentID;";
+LEFT OUTER JOIN dbo.Departments AS d ON d.ID = e.DepartmentID
+WHERE e.EligibleForLunchTicket = 1;";
 
     private const string HolidaySql = @"
 SELECT Name, CalendarDate
@@ -42,13 +46,10 @@ WHERE YEAR(CalendarDate) = @year;";
         await using var r = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await r.ReadAsync(cancellationToken))
         {
-            var employeeId = Convert.ToInt32(r.GetValue(0));
-            var idFallback = employeeId.ToString(System.Globalization.CultureInfo.InvariantCulture);
-
-            // Preserve FFP.LunchSystem identifier fallback for the three supported identifiers: Code, TRN and NFC.
-            var code = NormalizeIdentifier(r, 1) ?? idFallback;
-            var trn = NormalizeIdentifier(r, 2) ?? idFallback;
-            var nfc = NormalizeIdentifier(r, 3) ?? idFallback;
+            int employeeId = Convert.ToInt32(r.GetValue(0));
+            string? code = NormalizeIdentifier(r, 1);
+            string? trn = NormalizeIdentifier(r, 2);
+            string? nfc = NormalizeIdentifier(r, 3);
             var name = Convert.ToString(r.GetValue(4))?.Trim() ?? string.Empty;
             var photo = r.IsDBNull(5) ? null : (byte[])r.GetValue(5);
             var isEligible = !r.IsDBNull(6) && Convert.ToBoolean(r.GetValue(6));
@@ -81,38 +82,171 @@ WHERE YEAR(CalendarDate) = @year;";
         return list.Distinct().ToArray();
     }
 
-    public async Task<CafeteriaCatalogSnapshot> GetCatalogAsync(CancellationToken cancellationToken = default)
+
+    public async Task MirrorFundingPolicyAsync
+    (
+          decimal dailyCreditLimitRate
+        , decimal dailyCompanySubsidyRate
+        , CancellationToken cancellationToken = default
+    )
     {
         EnsureEnabled();
-        const string sql = @"
-SELECT ID, Code, Name, Price, Cost
-FROM dbo.LunchItems
-WHERE IsActive = 1
-ORDER BY Name, ID;";
+        EnsureWritesEnabled();
 
-        var activeLunchItems = new List<ExternalProductSnapshot>();
-        await using var cn = new SqlConnection(options.ConnectionString);
-        await cn.OpenAsync(cancellationToken);
-        await using var cmd = new SqlCommand(sql, cn);
-        await using var r = await cmd.ExecuteReaderAsync(cancellationToken);
-        while (await r.ReadAsync(cancellationToken))
+        const string sql = @"
+UPDATE dbo.LunchItems
+   SET Price = @Price,
+       Cost = @Cost
+ WHERE Code = 'FFP00';
+
+IF @@ROWCOUNT <> 1
+    THROW 51000, 'FFP00 compatibility policy row was not found or was not unique.', 1;";
+
+        await using SqlConnection connection = new(options.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using SqlCommand command = new(sql, connection);
+        command.Parameters.AddWithValue("@Price", dailyCreditLimitRate);
+        command.Parameters.AddWithValue("@Cost", dailyCompanySubsidyRate);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+
+    public async Task<MonthRecalculationGuardResult> CheckAsync
+    (
+          int year
+        , int month
+        , CancellationToken cancellationToken = default
+    )
+    {
+        EnsureEnabled();
+
+        if (year < 2000 || year > 9999)
         {
-            var id = Convert.ToInt32(r.GetValue(0));
-            var code = r.IsDBNull(1) ? string.Empty : Convert.ToString(r.GetValue(1))?.Trim() ?? string.Empty;
-            var name = r.IsDBNull(2) ? string.Empty : Convert.ToString(r.GetValue(2))?.Trim() ?? string.Empty;
-            // Price is the employee-facing credit/sale value; Cost is the company subsidy value.
-            var price = r.IsDBNull(3) ? 0m : Convert.ToDecimal(r.GetValue(3), System.Globalization.CultureInfo.InvariantCulture);
-            var cost = r.IsDBNull(4) ? 0m : Convert.ToDecimal(r.GetValue(4), System.Globalization.CultureInfo.InvariantCulture);
-            activeLunchItems.Add(new ExternalProductSnapshot(id, code, name, price, cost));
+            throw new ArgumentOutOfRangeException(nameof(year));
         }
 
-        return LunchItemRatePolicyDeriver.Derive(activeLunchItems, DateTimeOffset.UtcNow, options.CreditLimitLunchItemCode, options.SubsidyLunchItemCode);
+        if (month is < 1 or > 12)
+        {
+            throw new ArgumentOutOfRangeException(nameof(month));
+        }
+
+        DateTime start = new(year, month, 1);
+        DateTime end = start.AddMonths(1);
+
+        const string sql = @"
+SELECT COUNT(*)
+FROM dbo.EmployeeIDScans
+WHERE ScanDate >= @Start
+  AND ScanDate < @End
+  AND IDName IN
+  (
+        'Cafeteria Purchase'
+      , 'Cafeteria Refund'
+      , 'Cafeteria Prior Period Refund'
+      , 'Customer Payment'
+      , 'Additional Credit'
+      , 'Stipend Card Reduction'
+  );";
+
+        await using SqlConnection connection = new(options.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using SqlCommand command = new(sql, connection);
+        command.Parameters.AddWithValue("@Start", start);
+        command.Parameters.AddWithValue("@End", end);
+
+        int activityCount = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
+
+        return activityCount == 0
+            ? new MonthRecalculationGuardResult(true, 0, null)
+            : new MonthRecalculationGuardResult
+            (
+                  false
+                , activityCount
+                , $"Month {year:D4}-{month:D2} contains {activityCount} cafeteria financial transaction(s). Recalculation is blocked once financial activity exists."
+            );
+    }
+
+
+    public async Task<DevelopmentDataResetResult> ResetAsync
+    (
+          string resetBy
+        , DateTimeOffset resetAt
+        , CancellationToken cancellationToken = default
+    )
+    {
+        EnsureEnabled();
+        EnsureWritesEnabled();
+
+        const string sql = @"
+DELETE FROM dbo.EmployeeIDScans
+WHERE IDName IN
+(
+      'Tickets Assigned'
+    , 'Monthly Allocation Recalculation'
+    , 'Cafeteria Purchase'
+    , 'Cafeteria Refund'
+    , 'Cafeteria Prior Period Refund'
+    , 'Customer Payment'
+    , 'Additional Credit'
+    , 'Stipend Card Reduction'
+);
+
+DECLARE @DeletedLedgerEntries int = @@ROWCOUNT;
+
+UPDATE dbo.Employees
+   SET CreditLimit = 0,
+       AvailableBalance = 0
+ WHERE EligibleForLunchTicket = 1;
+
+SELECT @DeletedLedgerEntries, @@ROWCOUNT;";
+
+        await using SqlConnection connection = new(options.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using SqlTransaction transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+
+        try
+        {
+            DevelopmentDataResetResult result;
+
+            await using (SqlCommand command = new(sql, connection, transaction))
+            {
+                await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
+
+                if (!await reader.ReadAsync(cancellationToken))
+                {
+                    throw new InvalidOperationException("The FFP development reset did not return a result.");
+                }
+
+                result = new DevelopmentDataResetResult
+                (
+                      reader.GetInt32(0)
+                    , reader.GetInt32(1)
+                );
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+            logger.LogWarning
+            (
+                  "Reset Aegis.Cafeteria development data in FFP by {Actor} at {ResetAt}: deleted {LedgerCount} ledger rows and reset {EmployeeCount} employee accounts"
+                , resetBy
+                , resetAt
+                , result.DeletedLedgerEntries
+                , result.ResetEmployeeAccounts
+            );
+
+            return result;
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
     public async Task<IReadOnlyList<ExternalAccountSummary>> GetAccountSummariesAsync(CancellationToken cancellationToken = default)
     {
         EnsureEnabled();
-        const string sql = "SELECT ID, ISNULL(CreditLimit,0), ISNULL(AvailableBalance,0) FROM Employees;";
+        const string sql = "SELECT ID, ISNULL(CreditLimit,0), ISNULL(AvailableBalance,0) FROM Employees WHERE EligibleForLunchTicket = 1;";
         var result = new List<ExternalAccountSummary>();
         await using var cn = new SqlConnection(options.ConnectionString);
         await cn.OpenAsync(cancellationToken);
@@ -126,6 +260,7 @@ ORDER BY Name, ID;";
     public async Task PublishLedgerEntryAsync(ExternalLedgerEntry entry, CancellationToken cancellationToken = default)
     {
         EnsureEnabled();
+        EnsureWritesEnabled();
         await using var cn = new SqlConnection(options.ConnectionString);
         await cn.OpenAsync(cancellationToken);
         await using var tx = (SqlTransaction)await cn.BeginTransactionAsync(cancellationToken);
@@ -183,6 +318,14 @@ END", cn, tx);
         if (reader.IsDBNull(ordinal)) return null;
         var value = Convert.ToString(reader.GetValue(ordinal))?.Trim();
         return string.IsNullOrEmpty(value) ? null : value.ToLowerInvariant();
+    }
+
+    private void EnsureWritesEnabled()
+    {
+        if (!options.AllowWrites)
+        {
+            throw new InvalidOperationException("FFP writes are disabled for this environment. The configured FFP database is read-only from Aegis.Cafeteria.Services.");
+        }
     }
 
     private void EnsureEnabled()

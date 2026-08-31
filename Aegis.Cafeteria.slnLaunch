@@ -1,0 +1,33 @@
+[
+  {
+    "Name": "Development - Services + Windows POS",
+    "Projects": [
+      {
+        "Path": "src\\Aegis.Cafeteria.Services\\Aegis.Cafeteria.Services.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "src\\Aegis.Cafeteria.UI\\Aegis.Cafeteria.UI.csproj",
+        "Action": "Start"
+      }
+    ]
+  },
+  {
+    "Name": "Development - Services Only",
+    "Projects": [
+      {
+        "Path": "src\\Aegis.Cafeteria.Services\\Aegis.Cafeteria.Services.csproj",
+        "Action": "Start"
+      }
+    ]
+  },
+  {
+    "Name": "Development - Windows POS Only",
+    "Projects": [
+      {
+        "Path": "src\\Aegis.Cafeteria.UI\\Aegis.Cafeteria.UI.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

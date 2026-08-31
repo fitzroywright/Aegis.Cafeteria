@@ -22,13 +22,11 @@ public sealed class EfCustomerAccountQuery(
 
         CustomerRow? customerRow;
         AccountPeriodRow? periodRow;
-        CafeteriaRatePolicyRow? fundingPolicyRow;
         await using (var db = await factory.CreateDbContextAsync(cancellationToken))
         {
             customerRow = await db.Customers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == customerId, cancellationToken);
             if (customerRow is null) return null;
-            periodRow = await db.AccountPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.CustomerId == customerId && x.Year == year && x.Month == month, cancellationToken);            fundingPolicyRow = await db.CafeteriaRatePolicies.AsNoTracking()
-                .SingleOrDefaultAsync(x => x.Id == 1, cancellationToken);
+            periodRow = await db.AccountPeriods.AsNoTracking().SingleOrDefaultAsync(x => x.CustomerId == customerId && x.Year == year && x.Month == month, cancellationToken);
         }
 
         var customer = DomainReadMapper.ToDomain(customerRow);
@@ -67,7 +65,7 @@ public sealed class EfCustomerAccountQuery(
         if (!customer.IsEligibleForCredit)
         {
             // Ineligible employees have no cafeteria-credit account. Keep cash transaction history
-            // available, but do not calculate credit, subsidy, liability, debt, or payroll balances.
+            // available, but do not calculate credit, subsidy, liability or externally supplied prior-period balances.
             financial = NoCreditFinancialStatus();
         }
         else
@@ -105,7 +103,7 @@ public sealed class EfCustomerAccountQuery(
                 PriorPeriodRefundCredits: snapshot.PriorPeriodRefundCredits,
                 CustomerPayments: snapshot.CustomerPayments,
                 CustomerResponsibility: snapshot.CustomerResponsibilityForCurrentCharges,
-                PayrollDeductionRequired: snapshot.PayrollDeductionRequired,
+                EmployeeAmountDue: snapshot.EmployeeAmountDue,
                 TotalRefunds: snapshot.TotalRefunds);
         }
 
@@ -122,7 +120,7 @@ public sealed class EfCustomerAccountQuery(
             financial,
             transactions,
             publication,
-            BuildFundingStatus(customer.IsEligibleForCredit, fundingPolicyRow));
+            BuildFundingStatus(customer.IsEligibleForCredit, allocation));
     }
 
     public async Task<IReadOnlyList<CustomerMonthlyTransactionView>> GetTransactionsAsync(
@@ -176,14 +174,27 @@ public sealed class EfCustomerAccountQuery(
         PriorPeriodRefundCredits: 0m,
         CustomerPayments: 0m,
         CustomerResponsibility: 0m,
-        PayrollDeductionRequired: 0m,
+        EmployeeAmountDue: 0m,
         TotalRefunds: 0m);
 
-    private static CustomerFundingStatusView BuildFundingStatus(bool eligibleForCredit, CafeteriaRatePolicyRow? policy)
+    private static CustomerFundingStatusView BuildFundingStatus
+    (
+          bool eligibleForCredit
+        , MonthlyCreditAllocation allocation
+    )
     {
-        if (!eligibleForCredit) return new CustomerFundingStatusView(policy is not null,false,policy?.RefreshedAt,"Not eligible for cafeteria credit");
-        var loaded=policy is not null;
-        return new CustomerFundingStatusView(loaded,loaded,policy?.RefreshedAt,loaded?$"{policy!.CreditLimitLunchItemCode} credit / {policy.SubsidyLunchItemCode} subsidy policy loaded":"FFP funding policy has not been loaded");
+        if (!eligibleForCredit)
+        {
+            return new CustomerFundingStatusView(false, false, null, "Not eligible for cafeteria credit");
+        }
+
+        return new CustomerFundingStatusView
+        (
+              true
+            , true
+            , allocation.CalculatedAt
+            , $"Monthly Cafeteria funding loaded: credit rate {allocation.CreditLimitPrice:N2}; subsidy rate {allocation.SubsidyCost:N2}"
+        );
     }
 
     private static T[] Deserialize<T>(IEnumerable<AccountEventRow> events, string type)

@@ -34,7 +34,7 @@ public sealed class EfCafeteriaPersistenceStore(LocalPersistenceStore store) : I
 
     public async Task SaveAccountPeriodCloseAsync(AccountPeriodClose x,CancellationToken ct=default)
     {
-        var row=new AccountPeriodRow{CustomerId=x.CustomerId,Year=x.Period.Year,Month=x.Period.Month,WorkingDays=x.Period.WorkingDays,IsClosed=true,ClosedAt=x.ClosedAt,ClosedBy=x.ClosedBy,FinalPayrollDeduction=x.PayrollDeduction,Revision=Revision(),UpdatedAt=DateTimeOffset.UtcNow};
+        var row=new AccountPeriodRow{CustomerId=x.CustomerId,Year=x.Period.Year,Month=x.Period.Month,WorkingDays=x.Period.WorkingDays,IsClosed=true,ClosedAt=x.ClosedAt,ClosedBy=x.ClosedBy,FinalPayrollDeduction=x.EmployeeAmountDue,Revision=Revision(),UpdatedAt=DateTimeOffset.UtcNow};
         await store.SaveAccountPeriodAsync(row,ct);
     }
 

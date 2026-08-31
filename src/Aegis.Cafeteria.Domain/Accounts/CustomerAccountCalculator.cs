@@ -90,7 +90,7 @@ public sealed class CustomerAccountCalculator
             .Sum(x => x.Amount);
         if (customerPayments > grossCustomerLiability)
             throw new InvalidOperationException("Customer payments cannot exceed the customer's outstanding responsibility.");
-        var payrollDeductionRequired = Math.Max(0m, grossCustomerLiability - customerPayments);
+        var employeeAmountDue = Math.Max(0m, grossCustomerLiability - customerPayments);
 
         // Positive unused balances are period-scoped and expire at close. Carried debt reduces current capacity,
         // but a customer payment clears liability and therefore re-opens the corresponding revolving credit.
@@ -118,7 +118,7 @@ public sealed class CustomerAccountCalculator
             RemainingCompanyContribution: remainingCompanyContribution,
             CustomerResponsibilityForCurrentCharges: customerResponsibilityForCurrentCharges,
             CustomerPayments: customerPayments,
-            PayrollDeductionRequired: payrollDeductionRequired,
+            EmployeeAmountDue: employeeAmountDue,
             AvailableCredit: availableCredit,
             AdditionalCreditUsed: additionalCreditUsed,
             UnusedAdditionalCredit: unusedAdditionalCredit,

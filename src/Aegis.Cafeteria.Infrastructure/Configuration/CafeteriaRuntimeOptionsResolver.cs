@@ -31,6 +31,7 @@ public static class CafeteriaRuntimeOptionsResolver
         var svc = configuration.GetSection("CafeteriaServices");
         var sm = ReadSecretsManagerOptions(configuration);
         var servicesEnabled = svc.GetValue("Enabled", false);
+        bool developmentDataEnabled = configuration.GetSection("DevelopmentData").GetValue("Enabled", false);
         var ffpEnabled = ffp.GetValue("Enabled", true);
         var configuredFfpConnectionString = ffp["ConnectionString"];
         var ffpConnectionString = !ffpEnabled || servicesEnabled
@@ -39,7 +40,7 @@ public static class CafeteriaRuntimeOptionsResolver
                 ? configuredFfpConnectionString.Trim()
                 : await secrets.GetSecretAsync(ApplicationSecretNames.FfpDatabaseConnectionString, cancellationToken)
                     ?? string.Empty;
-        if (ffpEnabled && !servicesEnabled && string.IsNullOrWhiteSpace(ffpConnectionString))
+        if (ffpEnabled && !servicesEnabled && !developmentDataEnabled && string.IsNullOrWhiteSpace(ffpConnectionString))
             throw new InvalidOperationException("FFP integration is enabled but no FfpIntegration:ConnectionString or FfpDatabaseConnectionString secret is configured.");
 
         var messagingToken = messaging.GetValue("Enabled", false)
@@ -62,6 +63,7 @@ public static class CafeteriaRuntimeOptionsResolver
         var ffpOptions = new FfpIntegrationOptions
         {
             Enabled = ffp.GetValue("Enabled", true), ConnectionString = ffpConnectionString,
+            AllowWrites = ffp.GetValue("AllowWrites", true),
             RefreshIntervalMinutes = Math.Max(1, ffp.GetValue("RefreshIntervalMinutes", 10)),
             CreditLimitLunchItemCode = ffp["CreditLimitLunchItemCode"]?.Trim() ?? "FFP00",
             SubsidyLunchItemCode = ffp["SubsidyLunchItemCode"]?.Trim() ?? "FFP00",
@@ -88,13 +90,16 @@ public static class CafeteriaRuntimeOptionsResolver
                 ? configuredServiceApiKey.Trim()
                 : await secrets.GetSecretAsync(ApplicationSecretNames.CafeteriaServicesApiKey, cancellationToken)
             : null;
-        var servicesOptions = new CafeteriaServicesOptions
+        CafeteriaServicesOptions servicesOptions = new()
         {
-            Enabled = servicesEnabled,
-            BaseUrl = svc["BaseUrl"]?.Trim() ?? "http://localhost:5088",
-            PollSeconds = Math.Max(5, svc.GetValue("PollSeconds", 15)),
-            ApiKey = string.IsNullOrWhiteSpace(serviceApiKey) ? null : serviceApiKey.Trim(),
-            UseServiceMonthlyAllocations = svc.GetValue("UseServiceMonthlyAllocations", false)
+              Enabled = servicesEnabled
+            , BaseUrl = svc["BaseUrl"]?.Trim() ?? "http://localhost:5088"
+            , PollSeconds = Math.Max(5, svc.GetValue("PollSeconds", 15))
+            , ApiKey = string.IsNullOrWhiteSpace(serviceApiKey) ? null : serviceApiKey.Trim()
+            , UseServiceMonthlyAllocations = svc.GetValue("UseServiceMonthlyAllocations", false)
+            , RealtimeEnabled = svc.GetValue("RealtimeEnabled", true)
+            , HubPath = svc["HubPath"]?.Trim() ?? "/hubs/cafeteria"
+            , RealtimeReconnectSeconds = Math.Max(2, svc.GetValue("RealtimeReconnectSeconds", 5))
         };
         return new CafeteriaRuntimeOptions(persistence, logging, sm, ffpOptions, healthOptions, messagingOptions, servicesOptions);
     }

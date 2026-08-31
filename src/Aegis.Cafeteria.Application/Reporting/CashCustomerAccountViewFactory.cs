@@ -4,7 +4,7 @@ using Aegis.Cafeteria.Application.Abstractions;
 
 /// <summary>
 /// Creates the anonymous cash-only customer used by the POS. This is deliberately not an
-/// employee and never participates in cafeteria credit, subsidy, payroll or FFP ledger projection.
+/// employee and never participates in cafeteria credit, subsidy, employee-liability or FFP ledger projection.
 /// </summary>
 public static class CashCustomerAccountViewFactory
 {

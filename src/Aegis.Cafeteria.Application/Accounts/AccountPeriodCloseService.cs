@@ -21,6 +21,6 @@ public sealed class AccountPeriodCloseService(IAccountPeriodCloseAuthorizer auth
         if (closedAt < new DateTimeOffset(period.EndDate.ToDateTime(TimeOnly.MaxValue), TimeSpan.Zero))
             throw new InvalidOperationException("An account period cannot be closed before the period has ended.");
 
-        return new AccountPeriodClose(Guid.NewGuid(), customer.Id, period, snapshot.PayrollDeductionRequired, closedBy, closedAt);
+        return new AccountPeriodClose(Guid.NewGuid(), customer.Id, period, snapshot.EmployeeAmountDue, closedBy, closedAt);
     }
 }

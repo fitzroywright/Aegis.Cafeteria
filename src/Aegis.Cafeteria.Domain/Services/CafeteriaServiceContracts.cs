@@ -6,7 +6,9 @@ public enum CafeteriaServiceEventKind
 {
     AdditionalCredit = 1,
     Stipend = 2,
-    MonthlyAllocation = 3
+    MonthlyAllocation = 3,
+    MonthlyAllocationRecalculation = 4,
+    DevelopmentReset = 5
 }
 
 public sealed record CafeteriaServiceEventEnvelope(
@@ -48,3 +50,22 @@ public sealed record MonthlyAllocationServiceEvent(
     decimal SubsidyCost,
     DateTimeOffset CalculatedAt,
     string EmployeeName);
+
+
+public sealed record MonthlyAllocationRecalculationServiceEvent
+(
+      Guid OperationId
+    , MonthlyAllocationServiceEvent PreviousAllocation
+    , MonthlyAllocationServiceEvent ReplacementAllocation
+    , string RecalculatedBy
+    , DateTimeOffset RecalculatedAt
+);
+
+public sealed record DevelopmentResetServiceEvent
+(
+      Guid OperationId
+    , string ResetBy
+    , DateTimeOffset ResetAt
+    , bool PreserveProducts
+    , bool PreserveFundingPolicy
+);

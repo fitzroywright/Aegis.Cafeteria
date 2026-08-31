@@ -81,6 +81,32 @@ public sealed class PosCheckoutServiceTests
             cashAmount: 999m));
     }
 
+
+    [Fact]
+    public async Task CompleteAsync_RejectsClosedAccountPeriod()
+    {
+        PosCheckoutService service = new(new FakeStore());
+        CustomerAccountView view = View(available: 1_000m) with
+        {
+            Period = new AccountPeriodView(2026, 8, 20, 4_000m, 8_000m, true)
+        };
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>
+        (
+            () => service.CompleteAsync
+            (
+                  view
+                , [new PosOrderLine(1, "Lunch", 1_000m, 1)]
+                , cafeteriaAccountAmount: 1_000m
+                , cashAmount: 0m
+                , cashierUserId: "fwright"
+                , terminalId: "CAFETERIA-POS"
+            )
+        );
+
+        Assert.Contains("closed cafeteria period", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static CustomerAccountView View(decimal available) => new(
         new CustomerIdentityView(1, "Customer", null, true),
         new AccountPeriodView(2026, 8, 20, 4_000m, 8_000m, false),
@@ -105,7 +131,7 @@ public sealed class PosCheckoutServiceTests
             PriorPeriodRefundCredits: 0m,
             CustomerPayments: 0m,
             CustomerResponsibility: 0m,
-            PayrollDeductionRequired: 0m,
+            EmployeeAmountDue: 0m,
             TotalRefunds: 0m),
         [],
         new FfpPublicationStatus(true,0,0,DateTimeOffset.UtcNow,null));

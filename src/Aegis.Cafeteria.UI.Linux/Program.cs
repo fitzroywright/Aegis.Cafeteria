@@ -70,7 +70,6 @@ internal static class Program
                 refresh.RefreshCustomersAsync().GetAwaiter().GetResult();
                 var today = DateOnly.FromDateTime(DateTime.Today);
                 refresh.RefreshHolidaysAsync(today).GetAwaiter().GetResult();
-                host.Services.GetRequiredService<ProductCatalogRefreshService>().RefreshAsync().GetAwaiter().GetResult();
             }
             catch (Exception ex)
             {

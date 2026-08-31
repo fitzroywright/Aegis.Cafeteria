@@ -36,6 +36,12 @@ public sealed class PosCheckoutService
     {
         ArgumentNullException.ThrowIfNull(account);
         ArgumentNullException.ThrowIfNull(lines);
+
+        if (account.Period.IsClosed)
+        {
+            throw new InvalidOperationException("Sales cannot be completed for a closed cafeteria period.");
+        }
+
         if (lines.Count == 0) throw new InvalidOperationException("At least one order item is required.");
         if ((account.Customer.IsCashCustomer || !account.Customer.IsEligibleForCredit) && cafeteriaAccountAmount > 0m)
             throw new InvalidOperationException(account.Customer.IsCashCustomer

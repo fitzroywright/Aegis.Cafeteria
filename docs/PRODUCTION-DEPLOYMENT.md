@@ -369,7 +369,7 @@ Operation IDs are deterministic, so rerunning the same employee/month does not c
 - Stipend card reduction changes FFP available balance; cash-only stipend does not.
 - Month opening publishes exactly once.
 - Cash Customer sale never writes employee ledger data.
-- Customer Payment reduces Payroll Deduction.
+- Customer Payment reduces Employee Amount Due.
 - Refund/void behavior matches audit rules.
 - Reports preview and XLSX/PDF export work without freezing the UI.
 - Graylog/health heartbeat operate as configured.
@@ -387,3 +387,53 @@ python scripts\static-audit.py
 ```
 
 Do not deploy if any command fails.
+
+## v92 SignalR production connectivity
+
+The POS initiates an outbound HTTPS/SignalR connection to the same Cafeteria Services host used for REST integration. Permit POS-to-Services TCP 443. No Services-to-POS initiated firewall rule is required.
+
+Keep these production POS settings enabled:
+
+```json
+"CafeteriaServices": {
+  "Enabled": true,
+  "RealtimeEnabled": true,
+  "HubPath": "/hubs/cafeteria",
+  "RealtimeReconnectSeconds": 5,
+  "PollSeconds": 15
+}
+```
+
+`CafeteriaServicesApiKey` protects both the REST POS endpoints and the SignalR hub. The POS sends it as `X-Cafeteria-Api-Key` during SignalR negotiation/connection.
+
+Do not disable polling when SignalR is enabled. Polling is the recovery mechanism for missed notifications, service restarts, network interruptions, and POS offline periods.
+
+## Configure the v93 funding policy before first month opening
+
+`FFP00` is no longer the production Services source for cafeteria funding rates. Before the first production month opening, configure the Services funding policy.
+
+For a brand-new Services database, temporarily set the bootstrap values in `Aegis.Cafeteria.Services/appsettings.Production.json` or equivalent environment-specific configuration:
+
+```json
+"FundingPolicy": {
+  "DailyCreditLimitRate": 0.00,
+  "DailyCompanySubsidyRate": 0.00
+}
+```
+
+Replace both zero values with the approved production rates before first startup. Services writes them to its own audited funding-policy tables. After the policy exists in the Services database, maintain it through FFP Manager using the Services management API. Services mirrors the approved values to `FFP00` for compatibility; do not edit `FFP00` directly.
+
+Do not run Month Opening until both rates have been verified.
+
+## Price maintenance
+
+Authorized managers use POS `Administration -> Funding Policy & Price Maintenance` to edit the active FFP LunchItems catalog. Product code is immutable; product Name, Price and Cost are editable. Changes are written by Services to FFP SQL and then pushed to POS terminals through a catalog-change notification. The periodic catalog refresh remains enabled as a recovery path.
+
+
+## v98 product and workforce boundary
+
+Only employees with `FFP.Employees.EligibleForLunchTicket = 1` are active Cafeteria employees. The POS does not load ineligible employees for browse, name search or identifier matching. Historical customer rows may remain locally only to support old transaction history.
+
+Saleable cafeteria products are owned by the POS SQLite database. `FFP.dbo.LunchItems` and Cafeteria Services are not product-catalog sources. Product administration changes the current POS catalog only; completed order lines preserve ProductName, UnitPrice and Quantity as immutable transaction snapshots. Reports use those transaction/ledger values rather than looking up today's product price.
+
+`FFP00` is retained solely as a compatibility mirror for the Services-owned funding policy and must not be treated as a saleable product or catalog source.

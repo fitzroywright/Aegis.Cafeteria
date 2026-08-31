@@ -52,7 +52,7 @@ public sealed class CustomerDisplayForm : Form
     private readonly Label subsidyRemaining = MoneyValue();
     private readonly Label nonSubsidyRemaining = MoneyValue();
     private readonly Label carriedDebt = MoneyValue();
-    private readonly Label payrollDeduction = MoneyValue();
+    private readonly Label employeeAmountDue = MoneyValue();
 
     private readonly Label historyTitle = new()
     {
@@ -129,7 +129,7 @@ public sealed class CustomerDisplayForm : Form
             this.subsidyRemaining.Text = Money(account.FinancialStatus.SubsidyAmountRemaining);
             this.nonSubsidyRemaining.Text = Money(account.FinancialStatus.NonSubsidyAmountRemaining);
             this.carriedDebt.Text = Money(account.FinancialStatus.CarriedForwardDebt);
-            this.payrollDeduction.Text = Money(account.FinancialStatus.PayrollDeductionRequired);
+            this.employeeAmountDue.Text = Money(account.FinancialStatus.EmployeeAmountDue);
         }
         else
         {
@@ -137,7 +137,7 @@ public sealed class CustomerDisplayForm : Form
             this.subsidyRemaining.Text = "—";
             this.nonSubsidyRemaining.Text = "—";
             this.carriedDebt.Text = "—";
-            this.payrollDeduction.Text = "—";
+            this.employeeAmountDue.Text = "—";
         }
 
         SetPhoto(account.Customer.Photo);
@@ -245,7 +245,7 @@ public sealed class CustomerDisplayForm : Form
         AddFinancial(grid, 1, "SUBSIDY REMAINING", this.subsidyRemaining);
         AddFinancial(grid, 2, "NON-SUBSIDY REMAINING", this.nonSubsidyRemaining);
         AddFinancial(grid, 3, "CARRIED DEBT", this.carriedDebt);
-        AddFinancial(grid, 4, "PAYROLL DEDUCTION", this.payrollDeduction);
+        AddFinancial(grid, 4, "EMPLOYEE AMOUNT DUE", this.employeeAmountDue);
         return grid;
     }
 

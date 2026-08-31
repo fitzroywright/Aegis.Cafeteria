@@ -41,11 +41,11 @@ public sealed class CustomerAccountCalculatorTests
 
         Assert.Equal(4_500m, result.CompanyResponsibility);
         Assert.Equal(0m, result.CustomerResponsibilityForCurrentCharges);
-        Assert.Equal(0m, result.PayrollDeductionRequired);
+        Assert.Equal(0m, result.EmployeeAmountDue);
     }
 
     [Fact]
-    public void CustomerResponsibility_BecomesCurrentMonthPayrollDeduction()
+    public void CustomerResponsibility_BecomesCurrentMonthEmployeeAmountDue()
     {
         var customer = CreateCustomer();
         var result = Calculate(
@@ -55,11 +55,11 @@ public sealed class CustomerAccountCalculatorTests
 
         Assert.Equal(8_000m, result.CompanyResponsibility);
         Assert.Equal(2_000m, result.CustomerResponsibilityForCurrentCharges);
-        Assert.Equal(2_000m, result.PayrollDeductionRequired);
+        Assert.Equal(2_000m, result.EmployeeAmountDue);
     }
 
     [Fact]
-    public void CustomerPayment_ReducesPayrollDeductionRequired()
+    public void CustomerPayment_ReducesEmployeeAmountDue()
     {
         var customer = CreateCustomer();
         var result = Calculate(
@@ -70,7 +70,7 @@ public sealed class CustomerAccountCalculatorTests
 
         Assert.Equal(2_000m, result.CustomerResponsibilityForCurrentCharges);
         Assert.Equal(1_500m, result.CustomerPayments);
-        Assert.Equal(500m, result.PayrollDeductionRequired);
+        Assert.Equal(500m, result.EmployeeAmountDue);
     }
 
     [Fact]
@@ -117,7 +117,7 @@ public sealed class CustomerAccountCalculatorTests
 
         Assert.Equal(0m, result.CompanyResponsibility);
         Assert.Equal(0m, result.CustomerResponsibilityForCurrentCharges);
-        Assert.Equal(2_500m, result.PayrollDeductionRequired);
+        Assert.Equal(2_500m, result.EmployeeAmountDue);
     }
 
     [Fact]
@@ -148,7 +148,7 @@ public sealed class CustomerAccountCalculatorTests
         Assert.Equal(12_601m, result.PriorPeriodOutstandingSettlements);
         Assert.Equal(0m, result.BaseCreditAvailableForCurrentPurchases);
         Assert.Equal(0m, result.AvailableCredit);
-        Assert.Equal(12_601m, result.PayrollDeductionRequired);
+        Assert.Equal(12_601m, result.EmployeeAmountDue);
         Assert.Equal(0m, result.CompanyResponsibility);
     }
 
@@ -174,7 +174,7 @@ public sealed class CustomerAccountCalculatorTests
         Assert.Equal(650m, result.CompanyContributionUsed);
         Assert.Equal(7_350m, result.RemainingCompanyContribution);
         Assert.Equal(0m, result.TotalCharges);
-        Assert.Equal(0m, result.PayrollDeductionRequired);
+        Assert.Equal(0m, result.EmployeeAmountDue);
     }
 
     [Fact]
@@ -199,7 +199,7 @@ public sealed class CustomerAccountCalculatorTests
         Assert.Equal(8_000m, result.CompanyContributionUsed);
         Assert.Equal(0m, result.RemainingCompanyContribution);
         Assert.Equal(650m, result.CustomerResponsibilityForCurrentCharges);
-        Assert.Equal(650m, result.PayrollDeductionRequired);
+        Assert.Equal(650m, result.EmployeeAmountDue);
     }
 
     [Fact]
@@ -363,7 +363,7 @@ public sealed class CustomerAccountCalculatorTests
             amount,
             "manager",
             new DateTimeOffset(settlementYear, settlementMonth, 2, 10, 0, 0, TimeSpan.Zero),
-            "Late outstanding balance discovered after payroll close.");
+            "Late outstanding balance discovered after period close.");
 
     private static DateTimeOffset August(int day)
         => new(2026, 8, day, 12, 0, 0, TimeSpan.Zero);

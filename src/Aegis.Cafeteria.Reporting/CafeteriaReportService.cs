@@ -359,7 +359,7 @@ public sealed class CafeteriaReportService(
         var table=new ReportTable("Transactions",[new("date","Date"),new("kind","Type"),new("description","Description"),new("amount","Amount","currency"),new("account","Account","currency"),new("cash","Cash","currency")],txRows);
         var fs=view.FinancialStatus;
         return Doc(CafeteriaReportKind.EmployeeStatement,$"Employee statement — {view.Customer.Name}",f,
-            [new("Credit limit",fs.CreditLimit),new("Available",fs.TotalAvailableToSpend),new("Subsidy remaining",fs.SubsidyAmountRemaining),new("Customer responsibility",fs.CustomerResponsibility),new("Payroll deduction",fs.PayrollDeductionRequired),new("Refunds",fs.TotalRefunds)],[],[table]);
+            [new("Credit limit",fs.CreditLimit),new("Available",fs.TotalAvailableToSpend),new("Subsidy remaining",fs.SubsidyAmountRemaining),new("Customer responsibility",fs.CustomerResponsibility),new("Employee amount due",fs.EmployeeAmountDue),new("Refunds",fs.TotalRefunds)],[],[table]);
     }
 
     private async Task<ReportDocument> MonthlyAllocationsAsync(ReportFilter f,CancellationToken ct)
@@ -384,11 +384,11 @@ public sealed class CafeteriaReportService(
     private async Task<ReportDocument> ResponsibilityAsync(ReportFilter f,CancellationToken ct,bool debtOnly)
     {
         var positions=await LoadAccountPositionsAsync(f,ct);if(debtOnly)positions=positions.Where(x=>x.View.FinancialStatus.CustomerResponsibility>0).ToList();
-        var rows=positions.OrderByDescending(x=>x.View.FinancialStatus.CustomerResponsibility).Select(x=>Row(("employee",x.View.Customer.Name),("period",$"{x.Year:D4}-{x.Month:D2}"),("responsibility",x.View.FinancialStatus.CustomerResponsibility),("payroll",x.View.FinancialStatus.PayrollDeductionRequired),("carried",x.View.FinancialStatus.CarriedForwardDebt),("payments",x.View.FinancialStatus.CustomerPayments))).ToArray();
+        var rows=positions.OrderByDescending(x=>x.View.FinancialStatus.CustomerResponsibility).Select(x=>Row(("employee",x.View.Customer.Name),("period",$"{x.Year:D4}-{x.Month:D2}"),("responsibility",x.View.FinancialStatus.CustomerResponsibility),("amountDue",x.View.FinancialStatus.EmployeeAmountDue),("carried",x.View.FinancialStatus.CarriedForwardDebt),("payments",x.View.FinancialStatus.CustomerPayments))).ToArray();
         var title=debtOnly?"Outstanding customer debt":"Customer responsibility";var kind=debtOnly?CafeteriaReportKind.OutstandingDebt:CafeteriaReportKind.CustomerResponsibility;
-        return Doc(kind,title,f,[new("Customer responsibility",positions.Sum(x=>x.View.FinancialStatus.CustomerResponsibility)),new("Payroll deduction",positions.Sum(x=>x.View.FinancialStatus.PayrollDeductionRequired)),new("Carried debt",positions.Sum(x=>x.View.FinancialStatus.CarriedForwardDebt))],
+        return Doc(kind,title,f,[new("Customer responsibility",positions.Sum(x=>x.View.FinancialStatus.CustomerResponsibility)),new("Employee amount due",positions.Sum(x=>x.View.FinancialStatus.EmployeeAmountDue)),new("Carried debt",positions.Sum(x=>x.View.FinancialStatus.CarriedForwardDebt))],
             [new("Largest employee balances",ReportChartType.Bar,positions.OrderByDescending(x=>x.View.FinancialStatus.CustomerResponsibility).Take(12).Select(x=>x.View.Customer.Name).ToArray(),[new("Responsibility",positions.OrderByDescending(x=>x.View.FinancialStatus.CustomerResponsibility).Take(12).Select(x=>x.View.FinancialStatus.CustomerResponsibility).ToArray(),"currency")])],
-            [new(title,[new("employee","Employee"),new("period","Period"),new("responsibility","Responsibility","currency"),new("payroll","Payroll deduction","currency"),new("carried","Carried debt","currency"),new("payments","Payments","currency")],rows)]);
+            [new(title,[new("employee","Employee"),new("period","Period"),new("responsibility","Responsibility","currency"),new("amountDue","Employee amount due","currency"),new("carried","Carried debt","currency"),new("payments","Payments","currency")],rows)]);
     }
 
     private async Task<ReportDocument> RefundVoidAuditAsync(ReportFilter f,CancellationToken ct)

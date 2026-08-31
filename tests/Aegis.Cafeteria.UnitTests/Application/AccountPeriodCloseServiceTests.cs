@@ -8,13 +8,13 @@ using Aegis.Cafeteria.UnitTests.TestDoubles;
 public sealed class AccountPeriodCloseServiceTests
 {
     [Fact]
-    public void Close_CapturesFinalPayrollDeduction()
+    public void Close_CapturesFinalEmployeeAmountDue()
     {
         var service = new AccountPeriodCloseService(new AllowCloseAuthorizer());
         var period = new AccountPeriod(2026, 8, 22);
-        var result = service.Close(Customer(), period, Snapshot(1250m), "payroll.manager", new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero));
-        Assert.Equal(1250m, result.PayrollDeduction);
-        Assert.Equal("payroll.manager", result.ClosedBy);
+        var result = service.Close(Customer(), period, Snapshot(1250m), "cafeteria.manager", new DateTimeOffset(2026, 9, 1, 8, 0, 0, TimeSpan.Zero));
+        Assert.Equal(1250m, result.EmployeeAmountDue);
+        Assert.Equal("cafeteria.manager", result.ClosedBy);
     }
 
     [Fact]
@@ -32,5 +32,5 @@ public sealed class AccountPeriodCloseServiceTests
     }
 
     private static Customer Customer() => new(1, "Customer", null, true, 5_000m);
-    private static CustomerAccountSnapshot Snapshot(decimal payroll) => new(0,0,0,0,0,0,0,0,0,0,0,0,0,payroll,0,0,0);
+    private static CustomerAccountSnapshot Snapshot(decimal employeeAmountDue) => new(0,0,0,0,0,0,0,0,0,0,0,0,0,employeeAmountDue,0,0,0);
 }

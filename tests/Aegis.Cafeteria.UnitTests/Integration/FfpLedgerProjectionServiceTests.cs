@@ -64,7 +64,7 @@ public sealed class ExternalLedgerProjectionServiceTests
             GrossCustomerLiability: 0m, TotalOrderSales: 0m, CafeteriaAccountSpending: 0m, CashSpending: 0m,
             AdditionalCreditApproved: 0m, AdditionalCreditUsed: 0m, AdditionalCreditRemaining: 0m,
             StipendCashPaid: 0m, StipendCardReduction: 0m, PriorPeriodSettlements: 0m, PriorPeriodRefundCredits: 0m,
-            CustomerPayments: 0m, CustomerResponsibility: 0m, PayrollDeductionRequired: 0m, TotalRefunds: 0m),
+            CustomerPayments: 0m, CustomerResponsibility: 0m, EmployeeAmountDue: 0m, TotalRefunds: 0m),
         [],
         new FfpPublicationStatus(Enabled: true, PendingOperations: 0, PoisonedOperations: 0, LastSuccessfulPublication: null, LastError: null));
 

@@ -21,7 +21,7 @@ public sealed class CustomerAccountSnapshotDisplayTests
             RemainingCompanyContribution: 7_350m,
             CustomerResponsibilityForCurrentCharges: 0m,
             CustomerPayments: 0m,
-            PayrollDeductionRequired: 0m,
+            EmployeeAmountDue: 0m,
             AvailableCredit: 12_350m,
             AdditionalCreditUsed: 0m,
             UnusedAdditionalCredit: 1_000m);
@@ -49,7 +49,7 @@ public sealed class CustomerAccountSnapshotDisplayTests
             RemainingCompanyContribution: 7_500m,
             CustomerResponsibilityForCurrentCharges: 0m,
             CustomerPayments: 0m,
-            PayrollDeductionRequired: 0m,
+            EmployeeAmountDue: 0m,
             AvailableCredit: 2_500m,
             AdditionalCreditUsed: 0m,
             UnusedAdditionalCredit: 2_000m);

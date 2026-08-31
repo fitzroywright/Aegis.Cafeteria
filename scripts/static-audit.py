@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import json, sys, xml.etree.ElementTree as ET
+import json, re, sys, xml.etree.ElementTree as ET
 root=Path(__file__).resolve().parents[1]; errors=[]
 
 for p in list(root.rglob('*.csproj'))+list(root.rglob('*.slnx')):
@@ -44,24 +44,19 @@ employee_sql=gateway.split('private const string EmployeeSql',1)[1].split('priva
 for forbidden in ('TicketsAssigned','TicketsRemaining','CreditLimit','AvailableBalance'):
     if forbidden in employee_sql: errors.append(f'FFP employee reference query imports forbidden legacy funding field: {forbidden}')
 
-# LunchItems is the single source for products and rates, and Price is authoritative.
-for required in ('SELECT ID, Code, Name, Price, Cost', 'FROM dbo.LunchItems', 'WHERE IsActive = 1', 'GetCatalogAsync'):
-    if required not in gateway: errors.append(f'FFP LunchItems single-catalog query missing: {required}')
-for forbidden in ('DailyCreditLunchItemCode','@DailyCreditCode'):
-    if forbidden in gateway: errors.append(f'obsolete/incorrect LunchItems rate lookup remains in gateway: {forbidden}')
+# v98: FFP is not a product-catalog source. Only the FFP00 compatibility policy mirror may touch LunchItems.
+if 'WHERE e.EligibleForLunchTicket = 1' not in employee_sql:
+    errors.append('v98 FFP employee query must load eligible employees only')
+for forbidden in ('GetCatalogAsync', 'GetProductsAsync', 'UpdateProductAsync', 'SELECT ID, Code, Name, Price, Cost'):
+    if forbidden in gateway:
+        errors.append(f'v98 FFP gateway must not expose saleable product catalog behavior: {forbidden}')
+if "WHERE Code = 'FFP00'" not in gateway or 'MirrorFundingPolicyAsync' not in gateway:
+    errors.append('v98 FFP00 compatibility mirror missing')
 
-product_source=(root/'src/Aegis.Cafeteria.Application/Integration/IProductCatalogSource.cs').read_text()
-for required in ('CafeteriaCatalogSnapshot','CreditLimitPrice','SubsidyCost','GetCatalogAsync'):
-    if required not in product_source: errors.append(f'single-snapshot LunchItems catalog contract missing: {required}')
-for forbidden in ('DailyCreditRate','CompanySubsidyDailyRate'):
-    if forbidden in product_source: errors.append(f'synthetic daily-rate concept remains in catalog contract: {forbidden}')
-product_refresh=(root/'src/Aegis.Cafeteria.Application/Integration/ProductCatalogRefreshService.cs').read_text()
-for required in ('GetCatalogAsync', 'ReplaceCatalogAsync', 'CreditLimitLunchItemCode', 'SubsidyLunchItemCode', 'RequirePolicyRow'):
-    if required not in product_refresh: errors.append(f'single-snapshot LunchItems refresh/funding derivation missing: {required}')
-for forbidden in ('saleablePrices.Max()', 'DailyCreditRate'):
-    if forbidden in product_refresh: errors.append(f'ordinary sale price still influences monthly funding: {forbidden}')
-for required in ('creditRow.Price', 'subsidyRow.Cost'):
-    if required not in product_refresh: errors.append(f'v69 funding field mapping missing: {required}')
+product_maintenance=(root/'src/Aegis.Cafeteria.Infrastructure/Persistence/EfProductCatalogMaintenance.cs').read_text()
+for required in ('AddAsync', 'UpdateAsync', 'DeleteAsync', 'db.Products'):
+    if required not in product_maintenance:
+        errors.append(f'v98 local POS product maintenance missing: {required}')
 
 allocation_source=(root/'src/Aegis.Cafeteria.Domain/Accounts/MonthlyCreditAllocation.cs').read_text()
 for required in ('CreditLimitPrice', 'SubsidyCost', 'EligibleWorkingDays * CreditLimitPrice', 'EligibleWorkingDays * SubsidyCost'):
@@ -166,7 +161,7 @@ for required in ('RecentTransactionView','IRecentTransactionQuery','GetTodayAsyn
     if required not in recent_contract: errors.append(f'v52 recent-transaction contract missing: {required}')
 for required in ('OrderStatus.Completed','DateOnly.FromDateTime','var tender ='):
     if required not in recent_query: errors.append(f'v52 recent-transaction query missing: {required}')
-if 'AddSingleton<IRecentTransactionQuery,EfRecentTransactionQuery>()' not in infra_registration:
+if not re.search(r'AddSingleton\s*<\s*IRecentTransactionQuery\s*,\s*EfRecentTransactionQuery\s*>\s*\(\s*\)', infra_registration):
     errors.append('v52 recent-transaction query is not registered in DI')
 if 'RecentTransactionCount' not in ui_options:
     errors.append('v52 Ui options missing RecentTransactionCount')
@@ -262,7 +257,7 @@ for label, source in (('Windows', win_main), ('Linux', linux_main)):
 mainform = (root/'src/Aegis.Cafeteria.UI/MainForm.cs').read_text(encoding='utf-8-sig')
 if "AutoCompleteMode" in mainform or "AutoCompleteSource" in mainform or "AutoCompleteCustomSource" in mainform:
     errors.append("v63: universal customer search must not use WinForms autocomplete; Find/Enter must receive exactly the cashier-entered value")
-if ".Where(x => x.NormalizedName.Contains(normalized))" not in (root / "src/Aegis.Cafeteria.Infrastructure/Persistence/EfCustomerIdentificationService.cs").read_text(): errors.append("v60: employee name search must use contains matching like product search")
+if "NormalizedName.Contains(normalized)" not in (root / "src/Aegis.Cafeteria.Infrastructure/Persistence/EfCustomerIdentificationService.cs").read_text(): errors.append("v60: employee name search must use contains matching like product search")
 resolver=(root / "src/Aegis.Cafeteria.Application/Abstractions/CustomerLookupResolver.cs").read_text()
 if "candidates.Count == 1" in resolver: errors.append("v60: partial name results must never auto-load a single candidate")
 if "result.Candidates.Count > 0" not in mainform: errors.append("v60: Windows must open the chooser for any name candidates")
@@ -332,7 +327,7 @@ services_program=(root/'src/Aegis.Cafeteria.Services/Program.cs').read_text() if
 for required in ('/api/management/additional-credit','/api/management/stipends','/api/pos/events','/api/ffp/ledger','/api/month-opening/run'):
     if required not in services_program: errors.append(f'v73 Services endpoint missing: {required}')
 services_gateway=(root/'src/Aegis.Cafeteria.Infrastructure/Services/ServicesIntegrationGateway.cs').read_text()
-for required in ('IExternalAccountingGateway','IWorkforceReferenceSource','IProductCatalogSource','api/ffp/ledger'):
+for required in ('IExternalAccountingGateway','IWorkforceReferenceSource','api/ffp/ledger'):
     if required not in services_gateway: errors.append(f'v73 POS-to-Services integration gateway missing: {required}')
 sync_worker=(root/'src/Aegis.Cafeteria.Infrastructure/Services/ManagementEventSyncWorker.cs').read_text()
 for required in ('AdditionalCreditServiceEvent','StipendServiceEvent','MonthlyAllocationServiceEvent','ManagementEventInbox'):
@@ -431,7 +426,7 @@ for required in ('FillPie','No items sold today','PieSlice'):
     if required not in _v78_pie: errors.append(f'v78 pie chart control missing: {required}')
 if 'AVAILABLE TO SPEND' not in _v78_customer:
     errors.append('v78 customer-facing display must explicitly label Available to Spend')
-for required in ('Available to Spend','New Customer Responsibility','charge account','later payment/payroll deduction','this.subsidyRemaining'):
+for required in ('Available to Spend','New Customer Responsibility','charge account','later payment/employee amount due','this.subsidyRemaining'):
     if required not in _v78_tender: errors.append(f'v78 pay-later tender explanation missing: {required}')
 if errors:
     raise SystemExit('\n'.join(errors))
@@ -449,7 +444,7 @@ _v79_linux_display=(root/'src/Aegis.Cafeteria.UI.Linux/CustomerDisplayWindow.cs'
 _v79_linux_pie=(root/'src/Aegis.Cafeteria.UI.Linux/PieChartView.cs').read_text()
 for required in ('SaveCustomerPaymentAsync','ExternalLedgerEntryKind.CustomerPayment','PublishAdjustmentAsync','TotalAvailableToSpend + amount','PaymentMethod','ReceivedByUserId'):
     if required not in _v79_workflow + _v79_payment: errors.append(f'v79 shared customer-payment workflow missing: {required}')
-for required in ('Customer Payment...','RecordCustomerPaymentAsync','CustomerPaymentDialog','PayrollDeductionRequired','Apply Payment'):
+for required in ('Customer Payment...','RecordCustomerPaymentAsync','CustomerPaymentDialog','EmployeeAmountDue','Apply Payment'):
     if required not in _v79_windows + _v79_windows_dialog: errors.append(f'v79 Windows customer-payment UI missing: {required}')
 for required in ('Customer Payment...','RecordCustomerPaymentAsync','CustomerPaymentWindow','New Customer Responsibility','charge account','Apply Payment'):
     if required not in _v79_linux + _v79_linux_payment: errors.append(f'v79 Linux customer-payment/pay-later parity missing: {required}')
@@ -469,26 +464,26 @@ _v84_windows=(root/'src/Aegis.Cafeteria.UI/MainForm.cs').read_text(encoding='utf
 _v84_windows_payment=(root/'src/Aegis.Cafeteria.UI/CustomerPaymentDialog.cs').read_text(encoding='utf-8-sig')
 _v84_linux=(root/'src/Aegis.Cafeteria.UI.Linux/MainWindow.cs').read_text()
 _v84_linux_payment=(root/'src/Aegis.Cafeteria.UI.Linux/CustomerPaymentWindow.cs').read_text()
-for required in ('Void Current Sale','VOID AVAILABLE','Manager approval and reason required','Customer Payment...','reduce the Payroll Deduction'):
+for required in ('Void Current Sale','VOID AVAILABLE','Manager approval and reason required','Customer Payment...','reduce the Employee Amount Due'):
     if required not in _v84_windows: errors.append(f'v84 Windows void/payment UX missing: {required}')
     if required not in _v84_linux: errors.append(f'v84 Linux void/payment UX missing: {required}')
-for required in ('Payroll Deduction before payment','Payroll Deduction after payment','Apply Payment'):
+for required in ('Employee Amount Due before payment','Employee Amount Due after payment','Apply Payment'):
     if required not in _v84_windows_payment: errors.append(f'v84 Windows payment dialog missing: {required}')
     if required not in _v84_linux_payment: errors.append(f'v84 Linux payment dialog missing: {required}')
 if errors:
     raise SystemExit('\n'.join(errors))
 print('Static audit passed: v79 closes the customer-payment UI gap and aligns Linux with Windows for pay-later visibility, partial refunds, customer-facing Available to Spend, and daily product pie charts.')
 
-# v80 payroll deduction summary parity
+# v80 employee amount due summary parity
 windows_main = (root / "src/Aegis.Cafeteria.UI/MainForm.cs").read_text(encoding="utf-8")
 linux_main = (root / "src/Aegis.Cafeteria.UI.Linux/MainWindow.cs").read_text(encoding="utf-8")
 v80_errors=[]
-if '"Payroll Deduction", this.payrollDeduction' not in windows_main: v80_errors.append("Windows customer summary must show Payroll Deduction")
-if 'PayrollDeductionRequired' not in windows_main: v80_errors.append("Windows Payroll Deduction must use shared financial status")
-if '"Payroll Deduction", payrollDeduction' not in linux_main: v80_errors.append("Linux customer summary must show Payroll Deduction")
-if 'PayrollDeductionRequired' not in linux_main: v80_errors.append("Linux Payroll Deduction must use shared financial status")
+if '"Employee Amount Due", this.employeeAmountDue' not in windows_main: v80_errors.append("Windows customer summary must show Employee Amount Due")
+if 'EmployeeAmountDue' not in windows_main: v80_errors.append("Windows Employee Amount Due must use shared financial status")
+if '"Employee Amount Due", employeeAmountDue' not in linux_main: v80_errors.append("Linux customer summary must show Employee Amount Due")
+if 'EmployeeAmountDue' not in linux_main: v80_errors.append("Linux Employee Amount Due must use shared financial status")
 if v80_errors: raise SystemExit('\n'.join(v80_errors))
-print("Static audit passed: v80 adds Payroll Deduction to the employee summary on Windows and Linux using the shared calculated value.")
+print("Static audit passed: v80 adds Employee Amount Due to the employee summary on Windows and Linux using the shared calculated value.")
 
 # v81: Excel/PDF export and Windows/Linux reporting parity.
 excel_exporter = (root / "src/Aegis.Cafeteria.Reporting/Export/ExcelReportExporter.cs").read_text(encoding="utf-8")
@@ -508,22 +503,22 @@ assert 'Overview & KPIs' in windows_reports or 'Overview & KPIs' in windows_main
 assert 'Sales & Purchases' in linux_main
 print("Static audit passed: v81 adds shared XLSX/PDF report export and exposes the formats in both Windows and Linux reporting UIs.")
 
-# v83: customer-facing payroll deduction and retryable Windows employee search.
+# v83: customer-facing employee amount due and retryable Windows employee search.
 v83_errors = []
 windows_display_v83 = (root / "src/Aegis.Cafeteria.UI/CustomerDisplayForm.cs").read_text(encoding="utf-8")
 linux_display_v83 = (root / "src/Aegis.Cafeteria.UI.Linux/CustomerDisplayWindow.cs").read_text(encoding="utf-8")
 windows_search_v83 = (root / "src/Aegis.Cafeteria.UI/CustomerSearchDialog.cs").read_text(encoding="utf-8")
 windows_main_v83 = (root / "src/Aegis.Cafeteria.UI/MainForm.cs").read_text(encoding="utf-8")
 linux_main_v83 = (root / "src/Aegis.Cafeteria.UI.Linux/MainWindow.cs").read_text(encoding="utf-8")
-if '"PAYROLL DEDUCTION", this.payrollDeduction' not in windows_display_v83: v83_errors.append("Windows customer-facing display must show Payroll Deduction")
-if '"PAYROLL DEDUCTION", payrollDeduction' not in linux_display_v83: v83_errors.append("Linux customer-facing display must show Payroll Deduction")
+if '"EMPLOYEE AMOUNT DUE", this.employeeAmountDue' not in windows_display_v83: v83_errors.append("Windows customer-facing display must show Employee Amount Due")
+if '"EMPLOYEE AMOUNT DUE", employeeAmountDue' not in linux_display_v83: v83_errors.append("Linux customer-facing display must show Employee Amount Due")
 if 'this.search.ReadOnly = true' in windows_search_v83: v83_errors.append("Windows customer search results must keep the search term editable")
 if 'new CustomerSearchDialog(this.identification, candidates, searchText)' not in windows_main_v83: v83_errors.append("Windows candidate dialog must retain the identification service for retry search")
-if 'Customer Responsibility (before payments)' not in windows_main_v83 or 'Customer Payments' not in windows_main_v83: v83_errors.append("Windows summary must distinguish gross responsibility from payments and payroll deduction")
-if 'Customer Responsibility (before payments)' not in linux_main_v83 or 'Customer Payments' not in linux_main_v83: v83_errors.append("Linux summary must distinguish gross responsibility from payments and payroll deduction")
+if 'Customer Responsibility (before payments)' not in windows_main_v83 or 'Customer Payments' not in windows_main_v83: v83_errors.append("Windows summary must distinguish gross responsibility from payments and employee amount due")
+if 'Customer Responsibility (before payments)' not in linux_main_v83 or 'Customer Payments' not in linux_main_v83: v83_errors.append("Linux summary must distinguish gross responsibility from payments and employee amount due")
 if v83_errors:
     raise SystemExit("v83 audit failed: " + "; ".join(v83_errors))
-print("Static audit passed: v83 shows Payroll Deduction to the customer, clarifies responsibility versus payments, and makes Windows employee search retryable in-place.")
+print("Static audit passed: v83 shows Employee Amount Due to the customer, clarifies responsibility versus payments, and makes Windows employee search retryable in-place.")
 
 # v85: suppress report rows whose measurable numeric values are all zero.
 v85_reporting = (root / "src/Aegis.Cafeteria.Reporting/CafeteriaReportService.cs").read_text(encoding="utf-8")
@@ -633,3 +628,377 @@ assert "original sale" in v91_reason_generator
 for rel in ("tests/Aegis.Cafeteria.UnitTests/Orders/TenderAllocationCalculatorTests.cs", "tests/Aegis.Cafeteria.UnitTests/Orders/RefundReasonGeneratorTests.cs"):
     assert (root / rel).exists(), f"v91 test missing: {rel}"
 print("Static audit passed: v91 auto-balances split tender as cash is entered and pre-populates editable factual refund reasons on Windows and Linux.")
+
+# v92: SignalR is a wake-up only; durable event pull remains authoritative.
+v92_service_program = (root/'src/Aegis.Cafeteria.Services/Program.cs').read_text()
+v92_event_store = (root/'src/Aegis.Cafeteria.Services/Persistence/ServiceEventStore.cs').read_text()
+v92_signalr_worker = (root/'src/Aegis.Cafeteria.Infrastructure/Services/ManagementEventSignalRWorker.cs').read_text()
+v92_sync_worker = (root/'src/Aegis.Cafeteria.Infrastructure/Services/ManagementEventSyncWorker.cs').read_text()
+v92_infra = (root/'src/Aegis.Cafeteria.Infrastructure/CafeteriaInfrastructure.cs').read_text()
+v92_windows = (root/'src/Aegis.Cafeteria.UI/MainForm.cs').read_text()
+v92_linux = (root/'src/Aegis.Cafeteria.UI.Linux/MainWindow.cs').read_text()
+v92_dev_gateway = (root/'src/Aegis.Cafeteria.Services/Development/DevelopmentFfpGateway.cs').read_text()
+
+for required in (
+    'AddSignalR()',
+    'MapHub<ManagementEventsHub>("/hubs/cafeteria")',
+    'StartsWithSegments("/hubs/cafeteria")'
+):
+    if required not in v92_service_program:
+        raise SystemExit(f'v92 service SignalR wiring missing: {required}')
+
+for required in (
+    'await this.realtimePublisher.PublishAsync',
+    'await database.SaveChangesAsync(cancellationToken);'
+):
+    if required not in v92_event_store:
+        raise SystemExit(f'v92 durable-event/realtime ordering missing: {required}')
+
+for required in (
+    'EventsAvailableMethod',
+    'this.wakeSignal.Pulse()',
+    'WithAutomaticReconnect',
+    'X-Cafeteria-Api-Key'
+):
+    if required not in v92_signalr_worker:
+        raise SystemExit(f'v92 POS SignalR wake-up missing: {required}')
+
+for required in (
+    'PullAndApplyAsync(stoppingToken)',
+    'TimeSpan.FromSeconds(this.options.PollSeconds)',
+    'await this.accountChangeNotifier.NotifyAsync(serviceEvent.CustomerId)'
+):
+    if required not in v92_sync_worker:
+        raise SystemExit(f'v92 durable polling/account refresh missing: {required}')
+
+for required in (
+    'AddHostedService<ManagementEventSyncWorker>()',
+    'AddHostedService<ManagementEventSignalRWorker>()',
+    'ICustomerAccountChangeNotifier'
+):
+    if required not in v92_infra:
+        raise SystemExit(f'v92 POS DI wiring missing: {required}')
+
+for ui_name, ui_source in [('Windows', v92_windows), ('Linux', v92_linux)]:
+    for required in ('accountChangeNotifier.Subscribe(OnCustomerAccountChangedAsync)', 'accountChangeSubscription.Dispose()'):
+        if required not in ui_source:
+            raise SystemExit(f'v92 {ui_name} active-account refresh wiring missing: {required}')
+
+for required in (
+    'DevelopmentFfpGateway',
+    'Test Employee One',
+    '900001'
+):
+    if required not in v92_dev_gateway:
+        raise SystemExit(f'v92 isolated laptop test gateway missing: {required}')
+
+if 'developmentDataEnabled && !builder.Environment.IsDevelopment()' not in v92_service_program:
+    raise SystemExit('v92 DevelopmentData must fail closed outside Development')
+
+print('Static audit passed: v92 adds SignalR wake-up, preserves durable polling/offline catch-up, refreshes active customers on Windows/Linux, and provides an isolated laptop integration test profile.')
+
+
+# v93-v98: funding policy remains Services-owned; v98 removes Services/FFP product catalog ownership.
+v93_program = (root/'src/Aegis.Cafeteria.Services/Program.cs').read_text()
+v93_store = (root/'src/Aegis.Cafeteria.Services/Persistence/CafeteriaFundingPolicyStore.cs').read_text()
+v93_windows_admin = (root/'src/Aegis.Cafeteria.UI/CafeteriaAdministrationDialog.cs').read_text()
+for required in ('CafeteriaFundingPolicyStore', '/api/management/funding-policy'):
+    if required not in v93_program:
+        raise SystemExit(f'v98 Services funding-policy wiring missing: {required}')
+for forbidden in ('/api/management/products', '/api/ffp/catalog', 'PublishCatalogChangedAsync'):
+    if forbidden in v93_program:
+        raise SystemExit(f'v98 Services must not own POS products: {forbidden}')
+for required in ('DailyCreditLimitRate', 'DailyCompanySubsidyRate', 'FundingPolicyHistory'):
+    if required not in v93_store and required not in (root/'src/Aegis.Cafeteria.Services/Persistence/ServiceDbContext.cs').read_text():
+        raise SystemExit(f'v98 funding policy persistence missing: {required}')
+for required in ('POS Product & Price Maintenance', 'Add Product', 'Save Selected Product', 'Delete Selected Product'):
+    if required not in v93_windows_admin:
+        raise SystemExit(f'v98 local POS product administration missing: {required}')
+print('Static audit passed: v98 keeps funding policy in Services while making products POS-local.')
+
+# v94: funding policy is managed outside the POS and mirrored to FFP00 by Services.
+v94_pos_admin = (root / "src/Aegis.Cafeteria.UI/CafeteriaAdministrationDialog.cs").read_text(encoding="utf-8")
+v94_main = (root / "src/Aegis.Cafeteria.UI/MainForm.cs").read_text(encoding="utf-8")
+v94_services = (root / "src/Aegis.Cafeteria.Services/Program.cs").read_text(encoding="utf-8")
+v94_policy_service = (root / "src/Aegis.Cafeteria.Services/FundingPolicyManagementService.cs").read_text(encoding="utf-8")
+
+if "Save Funding Policy" in v94_pos_admin or "BuildFundingPolicyPage" in v94_pos_admin:
+    raise SystemExit("v94 POS must not edit funding policy")
+
+if 'new("Price Maintenance...")' not in v94_main:
+    raise SystemExit("v94 POS Administration must expose price maintenance only")
+
+for required in (
+    'FundingPolicyManagementService',
+    'MapPut("/api/management/funding-policy"'
+):
+    if required not in v94_services:
+        raise SystemExit(f"v94 management funding-policy API missing: {required}")
+
+for required in (
+    'IFundingPolicyCompatibilityGateway',
+    'MirrorFundingPolicyAsync',
+    'dailyCreditLimitRate',
+    'dailyCompanySubsidyRate'
+):
+    if required not in v94_policy_service:
+        raise SystemExit(f"v98 FFP00 compatibility mirror missing: {required}")
+
+print("Static audit passed: v94 assigns funding-policy maintenance to FFP Manager/Services and mirrors approved rates to FFP00 while POS remains price-maintenance only.")
+
+# v95: Cafeteria owns employee liability, not payroll processing.
+v95_root = root / "src"
+v95_text = "\n".join(path.read_text(encoding="utf-8") for path in v95_root.rglob("*.cs"))
+for forbidden in (
+    "class PayrollDeductionService",
+    "record PayrollDeductionRecord",
+    "record PayrollCollectionResult",
+    "class DebtCarryForwardService",
+    "PayrollDeductionRequired"
+):
+    if forbidden in v95_text:
+        raise SystemExit(f"v95 payroll-boundary audit failed: forbidden application concept remains: {forbidden}")
+for required in (
+    '"Employee Amount Due"',
+    'EmployeeAmountDue'
+):
+    if required not in v95_text:
+        raise SystemExit(f"v95 employee-liability audit failed: missing {required}")
+legacy_payroll_mentions = []
+for path in v95_root.rglob("*.cs"):
+    if "Aegis.Cafeteria.Services" in str(path):
+        continue
+    text = path.read_text(encoding="utf-8")
+    if "Payroll" in text:
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            if "Payroll" in line and "FinalPayrollDeduction" not in line:
+                legacy_payroll_mentions.append(f"{path.relative_to(root)}:{line_number}: {line.strip()}")
+if legacy_payroll_mentions:
+    raise SystemExit("v95 payroll-boundary audit failed: non-legacy payroll terminology remains: " + "; ".join(legacy_payroll_mentions[:10]))
+print("Static audit passed: v95 makes Employee Amount Due the POS liability and removes payroll-processing/tracking components while preserving the legacy SQLite column name for upgrade compatibility.")
+
+
+# v96: Cafeteria reports Employee Amount Due to Payroll by email without tracking payroll collection.
+v96_program = (root / "src/Aegis.Cafeteria.Services/Program.cs").read_text(encoding="utf-8")
+v96_worker = (root / "src/Aegis.Cafeteria.Services/Workers/ScheduledEmailWorker.cs").read_text(encoding="utf-8")
+v96_report = (root / "src/Aegis.Cafeteria.Services/Email/PayrollDeductionReportSource.cs").read_text(encoding="utf-8")
+v96_projection = (root / "src/Aegis.Cafeteria.Application/Integration/ExternalLedgerProjectionService.cs").read_text(encoding="utf-8")
+for required in (
+    'MapGet("/api/management/payroll-report"',
+    'MapPost("/api/management/payroll-report/send"',
+    'PayrollDeductionReportSource'
+):
+    if required not in v96_program:
+        raise SystemExit(f"v96 payroll notification API missing: {required}")
+for required in (
+    'PayrollRecipients',
+    'PayrollReportHourLocal',
+    'Cafeteria-Payroll-Detail-',
+    'Cafeteria-Payroll-Summary-',
+    'Employee Amount Due'
+):
+    if required not in v96_worker:
+        raise SystemExit(f"v96 scheduled payroll email missing: {required}")
+for required in (
+    'CompanyResponsibility',
+    'CustomerPayments',
+    'EmployeeAmountDue',
+    'Cafeteria Refund'
+):
+    if required not in v96_report:
+        raise SystemExit(f"v96 payroll report calculation missing: {required}")
+if 'Cafeteria Prior Period Refund' not in v96_projection:
+    raise SystemExit("v96 must distinguish prior-period refunds from same-period payroll calculations")
+print("Static audit passed: v96 emails detailed and summary Employee Amount Due reports to Payroll while leaving payroll collection/reconciliation outside Cafeteria.")
+
+# v97: Development uses real JMDB01/FFP as a full read/write integration-test database.
+v97_options = (root / "src/Aegis.Cafeteria.Infrastructure/Configuration/FfpIntegrationOptions.cs").read_text(encoding="utf-8")
+v97_gateway = (root / "src/Aegis.Cafeteria.Infrastructure/Ffp/FfpSqlApplicationGateway.cs").read_text(encoding="utf-8")
+v97_development = (root / "src/Aegis.Cafeteria.Services/appsettings.Development.json").read_text(encoding="utf-8")
+v97_launcher = (root / "scripts/windows/Start-LaptopIntegrationTest.ps1").read_text(encoding="utf-8")
+if "public bool AllowWrites { get; init; } = true;" not in v97_options:
+    raise SystemExit("v97 FFP write-safety option missing")
+for required in (
+    "EnsureWritesEnabled();",
+    "if (!options.AllowWrites)",
+    "FFP writes are disabled for this environment"
+):
+    if required not in v97_gateway:
+        raise SystemExit(f"v97 FFP write guard missing: {required}")
+for required in (
+    '"Enabled": false',
+    'Data Source=JMDB01;Initial Catalog=FFP;Integrated Security=true;Pooling=false;Encrypt=false',
+    '"AllowWrites": true'
+):
+    if required not in v97_development:
+        raise SystemExit(f"v97 Development real-FFP configuration missing: {required}")
+for required in (
+    "FfpIntegration__AllowWrites='true'",
+    "DevelopmentData__Enabled='false'",
+    "Initial Catalog=FFP"
+):
+    if required not in v97_launcher:
+        raise SystemExit(f"v97 laptop launcher safety setting missing: {required}")
+print("Static audit passed: v97 Development uses JMDB01/FFP through Windows Integrated Security for full read/write integration testing while retaining isolated local Services/POS SQLite databases.")
+
+# v98: eligible-only workforce, local POS products, immutable transaction prices.
+v98_gateway = (root / "src/Aegis.Cafeteria.Infrastructure/Ffp/FfpSqlApplicationGateway.cs").read_text(encoding="utf-8")
+v98_identification = (root / "src/Aegis.Cafeteria.Infrastructure/Persistence/EfCustomerIdentificationService.cs").read_text(encoding="utf-8")
+v98_di = (root / "src/Aegis.Cafeteria.Infrastructure/CafeteriaInfrastructure.cs").read_text(encoding="utf-8")
+v98_order_rows = (root / "src/Aegis.Cafeteria.Infrastructure/Persistence/Models/CoreRows.cs").read_text(encoding="utf-8")
+v98_projection = (root / "src/Aegis.Cafeteria.Application/Integration/ExternalLedgerProjectionService.cs").read_text(encoding="utf-8")
+if "WHERE e.EligibleForLunchTicket = 1" not in v98_gateway:
+    raise SystemExit("v98 must load eligible FFP employees only")
+for forbidden in ("IProductCatalogSource", "IProductPriceMaintenanceGateway", "GetProductsAsync", "UpdateProductAsync"):
+    if forbidden in v98_gateway:
+        raise SystemExit(f"v98 FFP gateway still owns products: {forbidden}")
+if "IProductCatalogMaintenance, EfProductCatalogMaintenance" not in v98_di:
+    raise SystemExit("v98 local POS product maintenance DI missing")
+if ".Where(x => x.IsEligibleForCredit)" not in v98_identification or "x.IsEligibleForCredit && x.NormalizedName.Contains" not in v98_identification:
+    raise SystemExit("v98 customer browse/search must exclude stale ineligible employee rows")
+for required in ("ProductName", "UnitPrice", "Quantity"):
+    if required not in v98_order_rows:
+        raise SystemExit(f"v98 immutable order-line snapshot missing: {required}")
+if "@ {x.UnitPrice:N2}" not in v98_projection:
+    raise SystemExit("v98 FFP ledger purchase description must preserve transaction unit price")
+print("Static audit passed: v98 loads eligible employees only, owns products in POS SQLite, and preserves product descriptions/prices in immutable transaction/ledger records.")
+
+# v99: shared Visual Studio multi-project development launch profile.
+v99_solution_launch = root / "Aegis.Cafeteria.slnLaunch"
+if not v99_solution_launch.exists():
+    raise SystemExit("v99 shared Visual Studio solution launch profile is missing")
+v99_profiles = json.loads(v99_solution_launch.read_text(encoding="utf-8"))
+v99_combined = next((profile for profile in v99_profiles if profile.get("Name") == "Development - Services + Windows POS"), None)
+if v99_combined is None:
+    raise SystemExit("v99 combined Services + Windows POS launch profile is missing")
+v99_projects = v99_combined.get("Projects", [])
+expected_v99_projects = [
+    ("src\\Aegis.Cafeteria.Services\\Aegis.Cafeteria.Services.csproj", "Start"),
+    ("src\\Aegis.Cafeteria.UI\\Aegis.Cafeteria.UI.csproj", "Start")
+]
+actual_v99_projects = [(project.get("Path"), project.get("Action")) for project in v99_projects]
+if actual_v99_projects != expected_v99_projects:
+    raise SystemExit(f"v99 combined launch profile must start Services then Windows POS: {actual_v99_projects}")
+for launch_file in (
+    root / "src/Aegis.Cafeteria.Services/Properties/launchSettings.json",
+    root / "src/Aegis.Cafeteria.UI/Properties/launchSettings.json"
+):
+    launch_data = json.loads(launch_file.read_text(encoding="utf-8"))
+    if not any(profile.get("environmentVariables", {}).get("DOTNET_ENVIRONMENT") == "Development" for profile in launch_data.get("profiles", {}).values()):
+        raise SystemExit(f"v99 Development environment missing from {launch_file}")
+print("Static audit passed: v99 provides a shared Visual Studio F5 profile that starts Services then Windows POS, both in Development.")
+
+# v100: Development-only Swagger/OpenAPI with Visual Studio browser launch.
+v100_program = (root / "src/Aegis.Cafeteria.Services/Program.cs").read_text(encoding="utf-8")
+v100_project = (root / "src/Aegis.Cafeteria.Services/Aegis.Cafeteria.Services.csproj").read_text(encoding="utf-8")
+v100_launch = json.loads((root / "src/Aegis.Cafeteria.Services/Properties/launchSettings.json").read_text(encoding="utf-8"))
+for required in (
+    "if (builder.Environment.IsDevelopment())",
+    "builder.Services.AddSwaggerGen();",
+    "if (app.Environment.IsDevelopment())",
+    "app.UseSwagger();",
+    "app.UseSwaggerUI();"
+):
+    if required not in v100_program:
+        raise SystemExit(f"v100 Development Swagger configuration missing: {required}")
+if 'Swashbuckle.AspNetCore" Version="10.2.3"' not in v100_project:
+    raise SystemExit("v100 Swashbuckle.AspNetCore package reference missing")
+v100_service_profile = v100_launch.get("profiles", {}).get("Cafeteria Services Development", {})
+if v100_service_profile.get("launchBrowser") is not True or v100_service_profile.get("launchUrl") != "swagger":
+    raise SystemExit("v100 Services Development profile must launch Swagger automatically")
+if v100_service_profile.get("applicationUrl") != "http://localhost:5088":
+    raise SystemExit("v100 Services Development URL changed unexpectedly")
+print("Static audit passed: v100 enables Swagger only in Development and opens it automatically from the Visual Studio Services profile.")
+
+
+# Reset v1 cosmetic/package baseline guards.
+v1_ui_project = (root / "src/Aegis.Cafeteria.UI/Aegis.Cafeteria.UI.csproj").read_text(encoding="utf-8")
+v1_main_form = (root / "src/Aegis.Cafeteria.UI/MainForm.cs").read_text(encoding="utf-8")
+v1_login_form = (root / "src/Aegis.Cafeteria.UI/OperatorLoginForm.cs").read_text(encoding="utf-8")
+if "<ApplicationIcon>Assets\\FFP.ico</ApplicationIcon>" not in v1_ui_project:
+    raise SystemExit("v1 must embed the FFP icon as the Windows application icon")
+if "Icon = Icon.ExtractAssociatedIcon(System.Windows.Forms.Application.ExecutablePath);" not in v1_main_form:
+    raise SystemExit("v1 main form must use the executable FFP icon")
+if "Icon = Icon.ExtractAssociatedIcon(System.Windows.Forms.Application.ExecutablePath);" not in v1_login_form:
+    raise SystemExit("v1 login form must use the executable FFP icon")
+if "TopMost = true;" not in v1_login_form:
+    raise SystemExit("v1 login form must remain always on top")
+print("Static audit passed: reset v1 embeds the FFP application icon and keeps the login form always on top.")
+
+# Reset v2: audited safe recalculation of an already-opened month.
+v2_contracts = (root / "src/Aegis.Cafeteria.Domain/Services/CafeteriaServiceContracts.cs").read_text(encoding="utf-8")
+v2_program = (root / "src/Aegis.Cafeteria.Services/Program.cs").read_text(encoding="utf-8")
+v2_worker = (root / "src/Aegis.Cafeteria.Services/Workers/MonthOpeningWorker.cs").read_text(encoding="utf-8")
+v2_gateway = (root / "src/Aegis.Cafeteria.Infrastructure/Ffp/FfpSqlApplicationGateway.cs").read_text(encoding="utf-8")
+v2_publisher = (root / "src/Aegis.Cafeteria.Services/Workers/ServiceFfpPublisherWorker.cs").read_text(encoding="utf-8")
+v2_sync = (root / "src/Aegis.Cafeteria.Infrastructure/Services/ManagementEventSyncWorker.cs").read_text(encoding="utf-8")
+v2_payroll = (root / "src/Aegis.Cafeteria.Services/Email/PayrollDeductionReportSource.cs").read_text(encoding="utf-8")
+if "MonthlyAllocationRecalculation = 4" not in v2_contracts:
+    raise SystemExit("v2 monthly-allocation recalculation event contract missing")
+if 'app.MapPost("/api/month-opening/recalculate"' not in v2_program or '.RequireAuthorization("CafeteriaManagement")' not in v2_program:
+    raise SystemExit("v2 protected month recalculation endpoint missing")
+for required in (
+    "recalculationGuard.CheckAsync",
+    "The eligible employee set has changed since Month Opening",
+    "no longer has the untouched Month Opening balance",
+    "DeterministicRecalculationOperationId"
+):
+    if required not in v2_worker:
+        raise SystemExit(f"v2 recalculation safety/idempotency guard missing: {required}")
+for required in (
+    "Cafeteria Purchase",
+    "Cafeteria Refund",
+    "Customer Payment",
+    "Additional Credit",
+    "Stipend Card Reduction"
+):
+    if required not in v2_gateway:
+        raise SystemExit(f"v2 FFP activity guard missing: {required}")
+if '"Monthly Allocation Recalculation"' not in v2_publisher or "ExternalLedgerEntryKind.Adjustment" not in v2_publisher:
+    raise SystemExit("v2 FFP recalculation ledger projection missing")
+if "case CafeteriaServiceEventKind.MonthlyAllocationRecalculation" not in v2_sync or "ReplaceMonthlyCreditAllocationAsync" not in v2_sync:
+    raise SystemExit("v2 POS replacement allocation synchronization missing")
+if "MonthlyAllocationRecalculationServiceEvent" not in v2_payroll:
+    raise SystemExit("v2 payroll reporting does not resolve recalculated allocations")
+print("Static audit passed: reset v2 safely recalculates untouched month openings, preserves audit history, republishes FFP balances, and updates POS/payroll state.")
+
+# Reset v3: coordinated Development-only reset across Services, POS and FFP test projection.
+v3_contracts = (root / "src/Aegis.Cafeteria.Domain/Services/CafeteriaServiceContracts.cs").read_text(encoding="utf-8")
+v3_program = (root / "src/Aegis.Cafeteria.Services/Program.cs").read_text(encoding="utf-8")
+v3_reset = (root / "src/Aegis.Cafeteria.Services/Development/DevelopmentDataResetService.cs").read_text(encoding="utf-8")
+v3_gateway = (root / "src/Aegis.Cafeteria.Infrastructure/Ffp/FfpSqlApplicationGateway.cs").read_text(encoding="utf-8")
+v3_sync = (root / "src/Aegis.Cafeteria.Infrastructure/Services/ManagementEventSyncWorker.cs").read_text(encoding="utf-8")
+if "DevelopmentReset = 5" not in v3_contracts or "DevelopmentResetServiceEvent" not in v3_contracts:
+    raise SystemExit("v3 Development reset event contract missing")
+if 'if (app.Environment.IsDevelopment())' not in v3_program or 'app.MapPost("/api/development/reset"' not in v3_program:
+    raise SystemExit("v3 Development-only reset endpoint missing")
+if 'RequireAuthorization("CafeteriaManagement")' not in v3_program:
+    raise SystemExit("v3 reset endpoint must retain Cafeteria management authorization")
+for required in ("DeletedFfpLedgerEntries", "DeletedServiceEvents", "preserveProducts", "preserveFundingPolicy"):
+    if required not in v3_reset:
+        raise SystemExit(f"v3 coordinated reset result/semantics missing: {required}")
+for required in ("DELETE FROM dbo.EmployeeIDScans", "CreditLimit = 0", "AvailableBalance = 0", "IDevelopmentDataResetGateway"):
+    if required not in v3_gateway:
+        raise SystemExit(f"v3 FFP test reset missing: {required}")
+for required in ("case CafeteriaServiceEventKind.DevelopmentReset", "database.FfpLedgerOutbox.ExecuteDeleteAsync", "if (!preserveProducts)"):
+    if required not in v3_sync:
+        raise SystemExit(f"v3 POS reset synchronization missing: {required}")
+if "Entry predates the latest Development reset." not in v3_program:
+    raise SystemExit("v3 stale pre-reset POS publication guard missing")
+print("Static audit passed: reset v3 coordinates Development reset across Services, POS and FFP while preserving products/funding policy and blocking stale outbox replay.")
+
+# Reset v4: close the FFP reset reader before committing the SQL transaction.
+v4_gateway = (root / "src/Aegis.Cafeteria.Infrastructure/Ffp/FfpSqlApplicationGateway.cs").read_text(encoding="utf-8")
+v4_reset_start = v4_gateway.index("public async Task<DevelopmentDataResetResult> ResetAsync")
+v4_reset_end = v4_gateway.index("public async Task<IReadOnlyList<ExternalAccountSummary>>", v4_reset_start)
+v4_reset_method = v4_gateway[v4_reset_start:v4_reset_end]
+reader_scope = "await using (SqlCommand command = new(sql, connection, transaction))"
+commit = "await transaction.CommitAsync(cancellationToken);"
+if reader_scope not in v4_reset_method or commit not in v4_reset_method:
+    raise SystemExit("v4 FFP reset reader/transaction pattern missing")
+if v4_reset_method.index(reader_scope) > v4_reset_method.index(commit):
+    raise SystemExit("v4 FFP reset must dispose the reader/command before committing")
+reader_close_brace = v4_reset_method.index("            }\n\n            await transaction.CommitAsync(cancellationToken);", v4_reset_method.index(reader_scope))
+if reader_close_brace < 0:
+    raise SystemExit("v4 FFP reset reader scope does not close before transaction commit")
+print("Static audit passed: reset v4 disposes the FFP SQL reader before committing the development-reset transaction.")

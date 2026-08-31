@@ -33,11 +33,19 @@ public sealed class ServiceFfpPublisherWorker(
     {
         var pending = await events.GetPendingFfpPublicationAsync(50, cancellationToken);
         var count = 0;
-        foreach (var envelope in pending)
+        foreach (CafeteriaServiceEventEnvelope envelope in pending)
         {
             try
             {
-                var entry = await BuildLedgerEntryAsync(envelope, cancellationToken);
+                DateTimeOffset? latestResetAt = await events.GetLatestDevelopmentResetAtAsync(cancellationToken);
+
+                if (latestResetAt is DateTimeOffset resetAt && envelope.OccurredAt <= resetAt && envelope.Kind != CafeteriaServiceEventKind.DevelopmentReset)
+                {
+                    count++;
+                    continue;
+                }
+
+                ExternalLedgerEntry? entry = await BuildLedgerEntryAsync(envelope, cancellationToken);
                 if (entry is not null) await accounting.PublishLedgerEntryAsync(entry, cancellationToken);
                 await events.RecordFfpAttemptAsync(envelope.OperationId, null, true, cancellationToken);
                 count++;
@@ -59,6 +67,8 @@ public sealed class ServiceFfpPublisherWorker(
             CafeteriaServiceEventKind.AdditionalCredit => await BuildAdditionalCreditAsync(envelope, cancellationToken),
             CafeteriaServiceEventKind.Stipend => await BuildStipendAsync(envelope, cancellationToken),
             CafeteriaServiceEventKind.MonthlyAllocation => await BuildMonthlyAllocationAsync(envelope, cancellationToken),
+            CafeteriaServiceEventKind.MonthlyAllocationRecalculation => await BuildMonthlyAllocationRecalculationAsync(envelope, cancellationToken),
+            CafeteriaServiceEventKind.DevelopmentReset => null,
             _ => throw new InvalidOperationException($"Unsupported service-originated FFP event kind {envelope.Kind}.")
         };
     }
@@ -98,6 +108,66 @@ public sealed class ServiceFfpPublisherWorker(
         return Task.FromResult(new ExternalLedgerEntry(x.OperationId, x.CustomerId, ExternalLedgerEntryKind.MonthlyAllocation, x.CalculatedAt,
             $"{x.EligibleWorkingDays} new Tickets Assigned to {employeeName} By SYSTEM", allocation.TotalCreditLimit,
             allocation.TotalCreditLimit, allocation.TotalCreditLimit, "ALLOCATION", "SYSTEM", "Tickets Assigned"));
+    }
+
+    private Task<ExternalLedgerEntry> BuildMonthlyAllocationRecalculationAsync
+    (
+          CafeteriaServiceEventEnvelope envelope
+        , CancellationToken cancellationToken
+    )
+    {
+        MonthlyAllocationRecalculationServiceEvent recalculation = JsonSerializer.Deserialize<MonthlyAllocationRecalculationServiceEvent>
+        (
+            envelope.PayloadJson
+        )
+            ?? throw new InvalidOperationException("Invalid Monthly Allocation Recalculation service event payload.");
+
+        MonthlyCreditAllocation previous = new
+        (
+              recalculation.PreviousAllocation.CustomerId
+            , recalculation.PreviousAllocation.Year
+            , recalculation.PreviousAllocation.Month
+            , recalculation.PreviousAllocation.EligibleWorkingDays
+            , recalculation.PreviousAllocation.IsEligibleForCredit
+            , recalculation.PreviousAllocation.CreditLimitPrice
+            , recalculation.PreviousAllocation.SubsidyCost
+            , recalculation.PreviousAllocation.CalculatedAt
+        );
+
+        MonthlyCreditAllocation replacement = new
+        (
+              recalculation.ReplacementAllocation.CustomerId
+            , recalculation.ReplacementAllocation.Year
+            , recalculation.ReplacementAllocation.Month
+            , recalculation.ReplacementAllocation.EligibleWorkingDays
+            , recalculation.ReplacementAllocation.IsEligibleForCredit
+            , recalculation.ReplacementAllocation.CreditLimitPrice
+            , recalculation.ReplacementAllocation.SubsidyCost
+            , recalculation.ReplacementAllocation.CalculatedAt
+        );
+
+        decimal delta = replacement.TotalCreditLimit - previous.TotalCreditLimit;
+        string description = $"Monthly allocation recalculated for {replacement.Year:D4}-{replacement.Month:D2}: "
+            + $"{previous.TotalCreditLimit:N2} -> {replacement.TotalCreditLimit:N2}; "
+            + $"{replacement.EligibleWorkingDays} working day(s); "
+            + $"credit rate {replacement.CreditLimitPrice:N2}; subsidy rate {replacement.SubsidyCost:N2}.";
+
+        ExternalLedgerEntry entry = new
+        (
+              recalculation.OperationId
+            , replacement.CustomerId
+            , ExternalLedgerEntryKind.Adjustment
+            , recalculation.RecalculatedAt
+            , description
+            , delta
+            , replacement.TotalCreditLimit
+            , replacement.TotalCreditLimit
+            , "ALLOCATION RECALC"
+            , recalculation.RecalculatedBy
+            , "Monthly Allocation Recalculation"
+        );
+
+        return Task.FromResult(entry);
     }
 
     private async Task<ExternalAccountSummary> GetAccountAsync(int customerId, CancellationToken cancellationToken)

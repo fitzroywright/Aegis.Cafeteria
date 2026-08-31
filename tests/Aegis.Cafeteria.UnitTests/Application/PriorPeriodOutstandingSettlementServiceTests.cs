@@ -23,7 +23,7 @@ public sealed class PriorPeriodOutstandingSettlementServiceTests
             2_500m,
             "manager",
             approvedAt,
-            "August payroll deduction was not recorded.");
+            "August employee amount due was not recorded.");
 
         Assert.Equal(customer.Id, settlement.CustomerId);
         Assert.Equal(2_500m, settlement.Amount);

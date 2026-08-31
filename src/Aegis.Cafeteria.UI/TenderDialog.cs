@@ -107,7 +107,7 @@ internal sealed class TenderDialog : Form
         {
             AutoSize = true,
             ForeColor = Color.DimGray,
-            Text = "Enter cash received and the Cafeteria Account charge account amount adjusts automatically. Spending above remaining company subsidy becomes customer responsibility for later payment/payroll deduction. The sale can complete only when the order is fully covered by Cafeteria Account and/or cash.",
+            Text = "Enter cash received and the Cafeteria Account charge account amount adjusts automatically. Spending above remaining company subsidy becomes customer responsibility for later payment/employee amount due. The sale can complete only when the order is fully covered by Cafeteria Account and/or cash.",
             MaximumSize = new Size(420, 0),
             Margin = new Padding(0, 8, 0, 8)
         };

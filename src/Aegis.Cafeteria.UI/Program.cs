@@ -105,9 +105,6 @@ internal static class Program
                     var today = DateOnly.FromDateTime(DateTime.Today);
                     await refresh.RefreshHolidaysAsync(today);
 
-                    splash.Update("Refreshing cafeteria items...", "Loading active items and the FFP00 funding price from FFP LunchItems.");
-                    await host.Services.GetRequiredService<ProductCatalogRefreshService>().RefreshAsync();
-
                     if (count == 0)
                     {
                         startupWarning = true;

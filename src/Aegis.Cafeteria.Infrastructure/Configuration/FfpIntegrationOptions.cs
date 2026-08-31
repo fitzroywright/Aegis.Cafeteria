@@ -4,6 +4,7 @@ public sealed class FfpIntegrationOptions
 {
     public bool Enabled { get; init; } = true;
     public string ConnectionString { get; init; } = string.Empty;
+    public bool AllowWrites { get; init; } = true;
     public int RefreshIntervalMinutes { get; init; } = 10;
     public string CreditLimitLunchItemCode { get; init; } = "FFP00";
     public string SubsidyLunchItemCode { get; init; } = "FFP00";

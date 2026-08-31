@@ -44,6 +44,7 @@ public sealed class MainWindow : Window
     private readonly IOrderQuery orderQuery;
     private readonly ICafeteriaPersistenceStore persistenceStore;
     private readonly IServiceProvider services;
+    private readonly IDisposable accountChangeSubscription;
     private readonly DispatcherTimer cacheTimer = new() { Interval = TimeSpan.FromMinutes(1) };
     private readonly DispatcherTimer inactivityTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly DispatcherTimer nameSearchTimer = new() { Interval = TimeSpan.FromMilliseconds(250) };
@@ -75,7 +76,7 @@ public sealed class MainWindow : Window
     private readonly TextBlock carriedDebt = ValueText();
     private readonly TextBlock customerLiability = ValueText();
     private readonly TextBlock customerPaymentsValue = ValueText();
-    private readonly TextBlock payrollDeduction = ValueText();
+    private readonly TextBlock employeeAmountDue = ValueText();
 
     private readonly ListBox searchResults = new() { MinHeight = 80, MaxHeight = 130 };
     private readonly ListBox transactions = new();
@@ -126,6 +127,7 @@ public sealed class MainWindow : Window
         CustomerPaymentWorkflow customerPayments,
         IOrderQuery orderQuery,
         ICafeteriaPersistenceStore persistenceStore,
+        ICustomerAccountChangeNotifier accountChangeNotifier,
         IServiceProvider services,
         ILogger<MainWindow> logger)
     {
@@ -145,6 +147,7 @@ public sealed class MainWindow : Window
         this.customerPayments = customerPayments;
         this.orderQuery = orderQuery;
         this.persistenceStore = persistenceStore;
+        this.accountChangeSubscription = accountChangeNotifier.Subscribe(OnCustomerAccountChangedAsync);
         this.services = services;
         this.logger = logger;
 
@@ -186,6 +189,7 @@ public sealed class MainWindow : Window
             nameSearchTimer.Stop();
             nameSearchCancellation?.Cancel();
             nameSearchCancellation?.Dispose();
+            accountChangeSubscription.Dispose();
             customerDisplay?.Close();
             customerDisplay = null;
         };
@@ -330,6 +334,18 @@ public sealed class MainWindow : Window
             reports.Items.Add(parent);
         }
         menu.Items.Add(reports);
+
+        MenuItem administration = new()
+        {
+              Header = "Administration"
+            , FontWeight = FontWeight.Bold
+            , Foreground = new SolidColorBrush(Color.FromRgb(24, 45, 68))
+        };
+        MenuItem priceMaintenance = new() { Header = "Price Maintenance..." };
+        priceMaintenance.Click += async (_, _) => await OpenProductMaintenanceAsync();
+        administration.Items.Add(priceMaintenance);
+        menu.Items.Add(administration);
+
         return menu;
     }
 
@@ -412,7 +428,7 @@ public sealed class MainWindow : Window
         AddFinancialRow(finances, 4, "Debt Brought Forward", carriedDebt);
         AddFinancialRow(finances, 5, "Customer Responsibility (before payments)", customerLiability);
         AddFinancialRow(finances, 6, "Customer Payments", customerPaymentsValue);
-        AddFinancialRow(finances, 7, "Payroll Deduction", payrollDeduction);
+        AddFinancialRow(finances, 7, "Employee Amount Due", employeeAmountDue);
         Grid.SetRow(finances, 1);
         panel.Children.Add(finances);
 
@@ -432,7 +448,7 @@ public sealed class MainWindow : Window
                         Children =
                         {
                             new TextBlock { Text = "CUSTOMER PAYMENT", FontWeight = Avalonia.Media.FontWeight.Bold, Foreground = new SolidColorBrush(Color.Parse("#17774C")) },
-                            new TextBlock { Text = "Record money received from the employee to reduce the Payroll Deduction shown above.", TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 12 }
+                            new TextBlock { Text = "Record money received from the employee to reduce the Employee Amount Due shown above.", TextWrapping = Avalonia.Media.TextWrapping.Wrap, FontSize = 12 }
                         }
                     },
                     customerPaymentButton
@@ -554,7 +570,7 @@ public sealed class MainWindow : Window
         paymentSummary.Children.Add(newResponsibility);
         var payLaterHint = new TextBlock
         {
-            Text = "Enter cash received and the Cafeteria Account charge account amount adjusts automatically. Amounts above remaining company subsidy become customer responsibility for later payment or payroll deduction.",
+            Text = "Enter cash received and the Cafeteria Account charge account amount adjusts automatically. Amounts above remaining company subsidy become customer responsibility for later payment or employee amount due.",
             TextWrapping = Avalonia.Media.TextWrapping.Wrap,
             FontSize = 12
         };
@@ -619,8 +635,6 @@ public sealed class MainWindow : Window
             refreshEmployeesButton.IsEnabled = false;
             cacheStatus.Text = "Reference data: refreshing...";
             await refresh.RefreshAsync(DateOnly.FromDateTime(DateTime.Today));
-            var productRefresh = services.GetService<ProductCatalogRefreshService>();
-            if (productRefresh is not null) await productRefresh.RefreshAsync();
             await LoadProductsAsync();
         }
         catch (Exception ex)
@@ -765,7 +779,7 @@ public sealed class MainWindow : Window
             fundingStatus.Text = account.Customer.IsCashCustomer
                 ? "Cash customer - cash tender only"
                 : "Not eligible for cafeteria credit - cash purchases only";
-            foreach (var value in new[] { creditLimit, subsidyRemaining, nonSubsidyRemaining, available, carriedDebt, customerLiability, customerPaymentsValue, payrollDeduction }) value.Text = "—";
+            foreach (var value in new[] { creditLimit, subsidyRemaining, nonSubsidyRemaining, available, carriedDebt, customerLiability, customerPaymentsValue, employeeAmountDue }) value.Text = "—";
         }
         else
         {
@@ -779,7 +793,7 @@ public sealed class MainWindow : Window
             carriedDebt.Text = Money(account.FinancialStatus.CarriedForwardDebt);
             customerLiability.Text = Money(account.FinancialStatus.GrossCustomerLiability);
             customerPaymentsValue.Text = Money(account.FinancialStatus.CustomerPayments);
-            payrollDeduction.Text = Money(account.FinancialStatus.PayrollDeductionRequired);
+            employeeAmountDue.Text = Money(account.FinancialStatus.EmployeeAmountDue);
         }
         transactions.ItemsSource = account.Transactions.Select(x => new TransactionRow(x)).ToArray();
         SetPhoto(account.Customer.Photo);
@@ -788,7 +802,7 @@ public sealed class MainWindow : Window
             : account.FfpPublication.Enabled
                 ? $"FFP publication | Pending: {account.FfpPublication.PendingOperations} | Requires attention: {account.FfpPublication.PoisonedOperations}"
                 : "FFP publication disabled";
-        customerPaymentButton.IsEnabled = !account.Customer.IsCashCustomer && account.Customer.IsEligibleForCredit && !account.Period.IsClosed && account.FinancialStatus.PayrollDeductionRequired > 0m;
+        customerPaymentButton.IsEnabled = !account.Customer.IsCashCustomer && account.Customer.IsEligibleForCredit && !account.Period.IsClosed && account.FinancialStatus.EmployeeAmountDue > 0m;
         UpdateCustomerDisplay(account);
         UpdateCheckoutState();
     }
@@ -895,7 +909,7 @@ public sealed class MainWindow : Window
     private async Task RecordCustomerPaymentAsync()
     {
         if (currentCustomer is null || currentCustomer.Customer.IsCashCustomer || !currentCustomer.Customer.IsEligibleForCredit) return;
-        var due = currentCustomer.FinancialStatus.PayrollDeductionRequired;
+        var due = currentCustomer.FinancialStatus.EmployeeAmountDue;
         if (due <= 0m)
         {
             status.Text = "This customer has no outstanding cafeteria responsibility to pay.";
@@ -924,7 +938,7 @@ public sealed class MainWindow : Window
         finally
         {
             if (currentCustomer is not null)
-                customerPaymentButton.IsEnabled = !currentCustomer.Customer.IsCashCustomer && currentCustomer.Customer.IsEligibleForCredit && !currentCustomer.Period.IsClosed && currentCustomer.FinancialStatus.PayrollDeductionRequired > 0m;
+                customerPaymentButton.IsEnabled = !currentCustomer.Customer.IsCashCustomer && currentCustomer.Customer.IsEligibleForCredit && !currentCustomer.Period.IsClosed && currentCustomer.FinancialStatus.EmployeeAmountDue > 0m;
         }
     }
 
@@ -944,6 +958,21 @@ public sealed class MainWindow : Window
             }
         });
         return Task.CompletedTask;
+    }
+
+    private async Task OpenProductMaintenanceAsync()
+    {
+        OperatorIdentity? manager = await AuthorizeManagerAsync("Cafeteria price maintenance");
+
+        if (manager is null)
+        {
+            return;
+        }
+
+        IProductCatalogMaintenance maintenance = this.services.GetRequiredService<IProductCatalogMaintenance>();
+        ProductMaintenanceWindow window = new(maintenance);
+        await window.ShowDialog(this);
+        await LoadProductsAsync();
     }
 
     private async Task<OperatorIdentity?> AuthorizeManagerAsync(string action)
@@ -1084,7 +1113,7 @@ public sealed class MainWindow : Window
         customerName.Text = "No customer selected";
         fundingStatus.Text = string.Empty;
         period.Text = string.Empty;
-        foreach (var value in new[] { creditLimit, subsidyRemaining, nonSubsidyRemaining, available, carriedDebt, customerLiability, payrollDeduction }) value.Text = "$0.00";
+        foreach (var value in new[] { creditLimit, subsidyRemaining, nonSubsidyRemaining, available, carriedDebt, customerLiability, employeeAmountDue }) value.Text = "$0.00";
         if (photo.Source is Bitmap old) old.Dispose();
         photo.Source = null;
         FocusCustomerLookup();

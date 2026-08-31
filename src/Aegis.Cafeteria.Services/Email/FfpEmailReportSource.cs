@@ -18,12 +18,12 @@ public sealed class FfpEmailReportSource(FfpIntegrationOptions ffp, ScheduledEma
 SELECT
     COUNT(*) AS TxCount,
     SUM(CASE WHEN IDName='Cafeteria Purchase' THEN ISNULL(ScanValue,0) ELSE 0 END) AS Purchases,
-    SUM(CASE WHEN IDName='Cafeteria Refund' THEN ABS(ISNULL(ScanValue,0)) ELSE 0 END) AS Refunds,
+    SUM(CASE WHEN IDName IN ('Cafeteria Refund','Cafeteria Prior Period Refund') THEN ABS(ISNULL(ScanValue,0)) ELSE 0 END) AS Refunds,
     SUM(CASE WHEN IDName='Additional Credit' THEN ISNULL(ScanValue,0) ELSE 0 END) AS AdditionalCredit,
     SUM(CASE WHEN IDName='Stipend Card Reduction' THEN ISNULL(ScanValue,0) ELSE 0 END) AS Stipends
 FROM dbo.EmployeeIDScans
 WHERE ScanDate >= @from AND ScanDate < @to
-  AND IDName IN ('Cafeteria Purchase','Cafeteria Refund','Additional Credit','Stipend Card Reduction');";
+  AND IDName IN ('Cafeteria Purchase','Cafeteria Refund','Cafeteria Prior Period Refund','Customer Payment','Additional Credit','Stipend Card Reduction');";
         await using var cn = new SqlConnection(ffp.ConnectionString);
         await cn.OpenAsync(cancellationToken);
         await using var cmd = new SqlCommand(sql, cn);
@@ -44,7 +44,7 @@ SELECT s.EmployeeID,
 FROM dbo.EmployeeIDScans s
 INNER JOIN dbo.Employees e ON e.ID=s.EmployeeID
 WHERE s.ScanDate >= @from AND s.ScanDate < @to
-  AND s.IDName IN ('Tickets Assigned','Cafeteria Purchase','Cafeteria Refund','Additional Credit','Stipend Card Reduction')
+  AND s.IDName IN ('Tickets Assigned','Monthly Allocation Recalculation','Cafeteria Purchase','Cafeteria Refund','Cafeteria Prior Period Refund','Customer Payment','Additional Credit','Stipend Card Reduction')
 ORDER BY s.EmployeeID, s.ScanDate, s.ID;";
         await using var cn = new SqlConnection(ffp.ConnectionString);
         await cn.OpenAsync(cancellationToken);

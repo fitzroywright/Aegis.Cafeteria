@@ -9,7 +9,9 @@ using Aegis.Cafeteria.Infrastructure.Ffp;
 using Aegis.Cafeteria.Infrastructure.Secrets;
 using Aegis.Cafeteria.Services;
 using Aegis.Cafeteria.Services.Email;
+using Aegis.Cafeteria.Services.Development;
 using Aegis.Cafeteria.Services.Persistence;
+using Aegis.Cafeteria.Services.Realtime;
 using Aegis.Cafeteria.Services.Workers;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.EntityFrameworkCore;
@@ -20,7 +22,10 @@ builder.Configuration.AddEnvironmentVariables();
 
 var secretProvider = ApplicationSecretProviderFactory.Create(builder.Configuration, builder.Environment);
 var runtime = await CafeteriaRuntimeOptionsResolver.ResolveAsync(builder.Configuration, secretProvider);
-if (!runtime.FfpIntegration.Enabled || string.IsNullOrWhiteSpace(runtime.FfpIntegration.ConnectionString))
+bool developmentDataEnabled = builder.Configuration.GetSection("DevelopmentData").GetValue("Enabled", false);
+if (developmentDataEnabled && !builder.Environment.IsDevelopment())
+    throw new InvalidOperationException("DevelopmentData can only be enabled in the Development environment.");
+if (!developmentDataEnabled && (!runtime.FfpIntegration.Enabled || string.IsNullOrWhiteSpace(runtime.FfpIntegration.ConnectionString)))
     throw new InvalidOperationException("Aegis.Cafeteria.Services requires direct FFP integration and an FFP connection string/secret.");
 
 var configuredManagement = builder.Configuration.GetSection("ManagementApi").Get<ManagementApiOptions>() ?? new();
@@ -50,16 +55,47 @@ builder.Services.AddSingleton(management);
 builder.Services.AddSingleton(monthOpening);
 builder.Services.AddSingleton(scheduledEmail);
 builder.Services.AddSingleton<MonthlyAllocationCalculator>();
-builder.Services.AddSingleton<FfpSqlApplicationGateway>();
-builder.Services.AddSingleton<IExternalAccountingGateway>(sp=>sp.GetRequiredService<FfpSqlApplicationGateway>());
-builder.Services.AddSingleton<IWorkforceReferenceSource>(sp=>sp.GetRequiredService<FfpSqlApplicationGateway>());
-builder.Services.AddSingleton<IProductCatalogSource>(sp=>sp.GetRequiredService<FfpSqlApplicationGateway>());
+if (developmentDataEnabled)
+{
+    builder.Services.AddSingleton<DevelopmentFfpGateway>();
+    builder.Services.AddSingleton<IExternalAccountingGateway>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
+    builder.Services.AddSingleton<IWorkforceReferenceSource>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
+    builder.Services.AddSingleton<IFundingPolicyCompatibilityGateway>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
+    builder.Services.AddSingleton<IMonthRecalculationGuard>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
+    builder.Services.AddSingleton<IDevelopmentDataResetGateway>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
+    builder.Services.AddSingleton<DevelopmentPayrollLedgerSource>();
+    builder.Services.AddSingleton<IPayrollLedgerSource>(sp => sp.GetRequiredService<DevelopmentPayrollLedgerSource>());
+}
+else
+{
+    builder.Services.AddSingleton<FfpSqlApplicationGateway>();
+    builder.Services.AddSingleton<IExternalAccountingGateway>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
+    builder.Services.AddSingleton<IWorkforceReferenceSource>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
+    builder.Services.AddSingleton<IFundingPolicyCompatibilityGateway>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
+    builder.Services.AddSingleton<IMonthRecalculationGuard>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
+    builder.Services.AddSingleton<IDevelopmentDataResetGateway>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
+    builder.Services.AddSingleton<FfpPayrollLedgerSource>();
+    builder.Services.AddSingleton<IPayrollLedgerSource>(sp => sp.GetRequiredService<FfpPayrollLedgerSource>());
+}
 builder.Services.AddDbContextFactory<ServiceDbContext>(o=>o.UseSqlite(serviceDb));
+builder.Services.AddSignalR();
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen();
+}
+builder.Services.AddSingleton<ServiceEventRealtimePublisher>();
 builder.Services.AddSingleton<ServiceEventStore>();
 builder.Services.AddSingleton<CustomerCreditPolicyStore>();
+builder.Services.AddSingleton<CafeteriaFundingPolicyStore>();
+builder.Services.AddSingleton<FundingPolicyManagementService>();
+builder.Services.AddSingleton<ICafeteriaFundingPolicySource>(sp => sp.GetRequiredService<CafeteriaFundingPolicyStore>());
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAdditionalCreditAuthorizer, AuthenticatedAdditionalCreditAuthorizer>();
 builder.Services.AddScoped<AdditionalCreditService>();
+builder.Services.AddScoped<IStipendAuthorizer, AuthenticatedStipendAuthorizer>();
+builder.Services.AddScoped<StipendService>();
+builder.Services.AddSingleton<StipendAccountSnapshotFactory>();
 
 // Management financial operations are authenticated by Windows/AD. The client does not supply
 // ApprovedBy/ProcessedBy; the service derives the actor from HttpContext.User.
@@ -74,13 +110,16 @@ builder.Services.AddAuthorization(options =>
     });
 });
 
+builder.Services.AddSingleton<DevelopmentDataResetService>();
 builder.Services.AddSingleton<MonthOpeningWorker>();
 builder.Services.AddHostedService(sp=>sp.GetRequiredService<MonthOpeningWorker>());
 builder.Services.AddSingleton<ServiceFfpPublisherWorker>();
 builder.Services.AddHostedService(sp=>sp.GetRequiredService<ServiceFfpPublisherWorker>());
 builder.Services.AddSingleton<FfpEmailReportSource>();
+builder.Services.AddSingleton<PayrollDeductionReportSource>();
 builder.Services.AddSingleton<SmtpEmailSender>();
-builder.Services.AddHostedService<ScheduledEmailWorker>();
+builder.Services.AddSingleton<ScheduledEmailWorker>();
+builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<ScheduledEmailWorker>());
 
 var app = builder.Build();
 await using (var scope = app.Services.CreateAsyncScope())
@@ -88,6 +127,49 @@ await using (var scope = app.Services.CreateAsyncScope())
     var factory=scope.ServiceProvider.GetRequiredService<IDbContextFactory<ServiceDbContext>>();
     await using var db=await factory.CreateDbContextAsync();
     await db.Database.EnsureCreatedAsync();
+
+    await db.Database.ExecuteSqlRawAsync
+    (
+        @"CREATE TABLE IF NOT EXISTS CafeteriaFundingPolicy (
+              Id INTEGER NOT NULL CONSTRAINT PK_CafeteriaFundingPolicy PRIMARY KEY
+            , DailyCreditLimitRate TEXT NOT NULL
+            , DailyCompanySubsidyRate TEXT NOT NULL
+            , UpdatedBy TEXT NOT NULL
+            , UpdatedAt TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS CafeteriaFundingPolicyHistory (
+              Id INTEGER NOT NULL CONSTRAINT PK_CafeteriaFundingPolicyHistory PRIMARY KEY AUTOINCREMENT
+            , DailyCreditLimitRate TEXT NOT NULL
+            , DailyCompanySubsidyRate TEXT NOT NULL
+            , UpdatedBy TEXT NOT NULL
+            , UpdatedAt TEXT NOT NULL
+        );"
+    );
+
+    CafeteriaFundingPolicyStore fundingPolicyStore = scope.ServiceProvider.GetRequiredService<CafeteriaFundingPolicyStore>();
+    bool hasFundingPolicy = await db.FundingPolicies.AnyAsync();
+
+    if (!hasFundingPolicy)
+    {
+        decimal bootstrapCreditRate = builder.Configuration.GetSection("FundingPolicy").GetValue("DailyCreditLimitRate", 0m);
+        decimal bootstrapSubsidyRate = builder.Configuration.GetSection("FundingPolicy").GetValue("DailyCompanySubsidyRate", 0m);
+
+        if (bootstrapCreditRate > 0m && bootstrapSubsidyRate > 0m)
+        {
+            await fundingPolicyStore.SetFundingPolicyAsync
+            (
+                  bootstrapCreditRate
+                , bootstrapSubsidyRate
+                , "CONFIGURATION"
+            );
+        }
+    }
+}
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
 app.UseAuthentication();
@@ -97,7 +179,9 @@ app.UseAuthorization();
 // use this credential because financial actor identity must come from authenticated Windows/AD.
 app.Use(async (context, next) =>
 {
-    var serviceEndpoint = context.Request.Path.StartsWithSegments("/api/pos") || context.Request.Path.StartsWithSegments("/api/ffp");
+    bool serviceEndpoint = context.Request.Path.StartsWithSegments("/api/pos")
+        || context.Request.Path.StartsWithSegments("/api/ffp")
+        || context.Request.Path.StartsWithSegments("/hubs/cafeteria");
     if (serviceEndpoint && !string.IsNullOrWhiteSpace(management.ApiKey))
     {
         if (!context.Request.Headers.TryGetValue("X-Cafeteria-Api-Key", out var supplied) || supplied.Count != 1 || supplied[0] != management.ApiKey)
@@ -111,6 +195,8 @@ app.Use(async (context, next) =>
 });
 
 app.MapGet("/health", () => Results.Ok(new { status="running", application="Aegis.Cafeteria.Services", timeUtc=DateTimeOffset.UtcNow }));
+
+app.MapHub<ManagementEventsHub>("/hubs/cafeteria");
 
 app.MapGet("/api/pos/events", async (long afterSequence, int? take, ServiceEventStore store, CancellationToken ct)
     => Results.Ok(await store.GetAfterAsync(Math.Max(0,afterSequence), take ?? 100, ct)));
@@ -166,25 +252,161 @@ app.MapPost("/api/management/additional-credit", async (AdditionalCreditRequest 
     catch(ArgumentException ex){return Results.BadRequest(ex.Message);}
 }).RequireAuthorization("CafeteriaManagement");
 
-app.MapPost("/api/management/stipends", async (StipendRequest request, HttpContext http, ServiceEventStore store, IWorkforceReferenceSource workforce, CancellationToken ct) =>
+app.MapPost("/api/management/stipends", async
+(
+      StipendRequest request
+    , HttpContext http
+    , ServiceEventStore store
+    , IWorkforceReferenceSource workforce
+    , StipendAccountSnapshotFactory accountFactory
+    , StipendService stipendService
+    , CancellationToken ct
+) =>
 {
-    if(request.CustomerId<=0 || request.CashAmount<=0m || request.CardReductionAmount<0m || request.CardReductionAmount>request.CashAmount)
-        return Results.BadRequest("Employee and valid cash/card-reduction amounts are required.");
-    if(request.OperationId is Guid requestedId)
+    if (request.CustomerId <= 0 || request.CashAmount <= 0m || request.CardReductionAmount < 0m)
     {
-        var existing=await store.GetByOperationAsync(requestedId,ct);
-        if(existing is not null) return Results.Ok(existing);
+        return Results.BadRequest("Employee and valid cash/card-reduction amounts are required.");
     }
-    var employees=await workforce.GetCustomersAsync(ct);
-    var employee=employees.SingleOrDefault(x=>x.CustomerId==request.CustomerId);
-    if(employee is null) return Results.NotFound("Employee was not found in FFP.");
-    if(!employee.IsEligibleForCafeteriaCredit) return Results.BadRequest("Employee is not eligible for cafeteria credit.");
-    var actor=RequireActor(http);
-    var at=request.ProcessedAt ?? DateTimeOffset.Now;
-    var operationId=request.OperationId.GetValueOrDefault(Guid.NewGuid());
-    var payload=new StipendServiceEvent(operationId,request.CustomerId,request.CashAmount,request.CardReductionAmount,request.PaymentMode,actor,at,request.ExpenseReportReference,request.Notes);
-    var e=await store.AppendAsync(operationId,CafeteriaServiceEventKind.Stipend,request.CustomerId,at,payload,ct);
-    return Results.Created($"/api/events/{e.Sequence}",e);
+
+    if (request.OperationId is Guid requestedId)
+    {
+        CafeteriaServiceEventEnvelope? existing = await store.GetByOperationAsync(requestedId, ct);
+
+        if (existing is not null)
+        {
+            return Results.Ok(existing);
+        }
+    }
+
+    IReadOnlyList<ExternalCustomerSnapshot> employees = await workforce.GetCustomersAsync(ct);
+    ExternalCustomerSnapshot? employee = employees.SingleOrDefault(candidate => candidate.CustomerId == request.CustomerId);
+
+    if (employee is null)
+    {
+        return Results.NotFound("Employee was not found in FFP.");
+    }
+
+    if (!employee.IsEligibleForCafeteriaCredit)
+    {
+        return Results.BadRequest("Employee is not eligible for cafeteria credit.");
+    }
+
+    string actor = RequireActor(http);
+    DateTimeOffset processedAt = request.ProcessedAt ?? DateTimeOffset.Now;
+
+    try
+    {
+        CustomerAccountSnapshot account = await accountFactory.BuildAsync
+        (
+              request.CustomerId
+            , processedAt.Year
+            , processedAt.Month
+            , ct
+        );
+
+        Customer customer = new(employee.CustomerId, employee.Name, employee.Photo, true, 0m);
+        Stipend stipend = stipendService.Process
+        (
+              customer
+            , account
+            , request.CashAmount
+            , request.PaymentMode
+            , actor
+            , processedAt
+            , request.ExpenseReportReference
+            , request.Notes
+        );
+
+        if (request.CardReductionAmount != stipend.CardReduction)
+        {
+            return Results.BadRequest
+            (
+                $"Card reduction must be {stipend.CardReduction:N2} for the employee's current subsidy and cafeteria balance."
+            );
+        }
+
+        Guid operationId = request.OperationId.GetValueOrDefault(Guid.NewGuid());
+        StipendServiceEvent payload = new
+        (
+              operationId
+            , request.CustomerId
+            , stipend.CashAmount
+            , stipend.CardReduction
+            , stipend.PaymentMode
+            , actor
+            , stipend.ProcessedAt
+            , stipend.ExpenseReportReference
+            , stipend.Notes
+        );
+        CafeteriaServiceEventEnvelope serviceEvent = await store.AppendAsync
+        (
+              operationId
+            , CafeteriaServiceEventKind.Stipend
+            , request.CustomerId
+            , processedAt
+            , payload
+            , ct
+        );
+
+        return Results.Created($"/api/events/{serviceEvent.Sequence}", serviceEvent);
+    }
+    catch (UnauthorizedAccessException)
+    {
+        return Results.Forbid();
+    }
+    catch (InvalidOperationException exception)
+    {
+        return Results.Conflict(new { error = exception.Message });
+    }
+    catch (ArgumentException exception)
+    {
+        return Results.BadRequest(exception.Message);
+    }
+}).RequireAuthorization("CafeteriaManagement");
+
+app.MapGet("/api/management/funding-policy", async (CafeteriaFundingPolicyStore fundingPolicy, CancellationToken ct) =>
+{
+    return Results.Ok(await fundingPolicy.GetFundingPolicyAsync(ct));
+}).RequireAuthorization("CafeteriaManagement");
+
+app.MapPut("/api/management/funding-policy", async (FundingPolicyRequest request, HttpContext http, FundingPolicyManagementService fundingPolicy, CancellationToken ct) =>
+{
+    if (request.DailyCreditLimitRate <= 0m || request.DailyCompanySubsidyRate <= 0m || request.DailyCompanySubsidyRate > request.DailyCreditLimitRate)
+    {
+        return Results.BadRequest("Funding rates must be positive and the company subsidy rate cannot exceed the credit-limit rate.");
+    }
+
+    string actor = RequireActor(http);
+    return Results.Ok
+    (
+        await fundingPolicy.SetFundingPolicyAsync
+        (
+              request.DailyCreditLimitRate
+            , request.DailyCompanySubsidyRate
+            , actor
+            , ct
+        )
+    );
+}).RequireAuthorization("CafeteriaManagement");
+
+
+
+app.MapGet("/api/management/payroll-report", async (int year, int month, PayrollDeductionReportSource payroll, CancellationToken ct) =>
+{
+    return Results.Ok(await payroll.BuildAsync(year, month, ct));
+}).RequireAuthorization("CafeteriaManagement");
+
+app.MapPost("/api/management/payroll-report/send", async (int year, int month, bool? force, ScheduledEmailWorker worker, CancellationToken ct) =>
+{
+    PayrollDeductionReportPackage report = await worker.SendPayrollReportAsync(year, month, force ?? false, ct);
+    return Results.Ok(new
+    {
+          report.Year
+        , report.Month
+        , report.EmployeesWithAmountDue
+        , report.TotalEmployeeAmountDue
+        , Forced = force ?? false
+    });
 }).RequireAuthorization("CafeteriaManagement");
 
 app.MapPost("/api/month-opening/run", async (int? year, int? month, MonthOpeningWorker worker, CancellationToken ct) =>
@@ -194,6 +416,45 @@ app.MapPost("/api/month-opening/run", async (int? year, int? month, MonthOpening
     return Results.Ok(new { created=await worker.EnsureMonthAsync(y,m,ct), year=y, month=m });
 }).RequireAuthorization("CafeteriaManagement");
 
+app.MapPost("/api/month-opening/recalculate", async (int? year, int? month, HttpContext http, MonthOpeningWorker worker, CancellationToken ct) =>
+{
+    DateTime now = DateTime.Now;
+    int selectedYear = year ?? now.Year;
+    int selectedMonth = month ?? now.Month;
+
+    if (selectedMonth is < 1 or > 12)
+    {
+        return Results.BadRequest("Month must be 1-12.");
+    }
+
+    try
+    {
+        MonthRecalculationResult result = await worker.RecalculateMonthAsync
+        (
+              selectedYear
+            , selectedMonth
+            , RequireActor(http)
+            , ct
+        );
+
+        return Results.Ok(result);
+    }
+    catch (InvalidOperationException exception)
+    {
+        return Results.Conflict(new { error = exception.Message });
+    }
+}).RequireAuthorization("CafeteriaManagement");
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapPost("/api/development/reset", async (HttpContext http, DevelopmentDataResetService reset, CancellationToken ct) =>
+    {
+        string actor = RequireActor(http);
+        DevelopmentResetResult result = await reset.ResetAsync(actor, ct);
+        return Results.Ok(result);
+    }).RequireAuthorization("CafeteriaManagement");
+}
+
 app.MapGet("/api/ffp/customers", async (IWorkforceReferenceSource source,CustomerCreditPolicyStore policies,CancellationToken ct)=>
 {
     var customers=await source.GetCustomersAsync(ct);
@@ -201,9 +462,19 @@ app.MapGet("/api/ffp/customers", async (IWorkforceReferenceSource source,Custome
     return Results.Ok(customers.Select(x=>x with { AdditionalCreditLimit=limits.GetValueOrDefault(x.CustomerId,0m) }).ToArray());
 });
 app.MapGet("/api/ffp/holidays", async (int year,int month,IWorkforceReferenceSource source,CancellationToken ct)=>Results.Ok(await source.GetHolidaysAsync(year,month,ct)));
-app.MapGet("/api/ffp/catalog", async (IProductCatalogSource source,CancellationToken ct)=>Results.Ok(await source.GetCatalogAsync(ct)));
 app.MapGet("/api/ffp/accounts", async (IExternalAccountingGateway gateway,CancellationToken ct)=>Results.Ok(await gateway.GetAccountSummariesAsync(ct)));
-app.MapPost("/api/ffp/ledger", async (ExternalLedgerEntry entry,IExternalAccountingGateway gateway,CancellationToken ct)=>{await gateway.PublishLedgerEntryAsync(entry,ct);return Results.Ok();});
+app.MapPost("/api/ffp/ledger", async (ExternalLedgerEntry entry, IExternalAccountingGateway gateway, ServiceEventStore store, CancellationToken ct) =>
+{
+    DateTimeOffset? latestResetAt = await store.GetLatestDevelopmentResetAtAsync(ct);
+
+    if (app.Environment.IsDevelopment() && latestResetAt is DateTimeOffset resetAt && entry.OccurredAt <= resetAt)
+    {
+        return Results.Ok(new { ignored = true, reason = "Entry predates the latest Development reset." });
+    }
+
+    await gateway.PublishLedgerEntryAsync(entry, ct);
+    return Results.Ok();
+});
 
 await app.RunAsync();
 
@@ -214,3 +485,5 @@ static string RequireActor(HttpContext http)
         throw new UnauthorizedAccessException("Authenticated management identity is required.");
     return name.Trim();
 }
+
+public sealed record FundingPolicyRequest(decimal DailyCreditLimitRate, decimal DailyCompanySubsidyRate);

@@ -3,7 +3,8 @@
     "Cafeteria Services Development": {
       "commandName": "Project",
       "dotnetRunMessages": true,
-      "launchBrowser": false,
+      "launchBrowser": true,
+      "launchUrl": "swagger",
       "applicationUrl": "http://localhost:5088",
       "environmentVariables": {
         "DOTNET_ENVIRONMENT": "Development"

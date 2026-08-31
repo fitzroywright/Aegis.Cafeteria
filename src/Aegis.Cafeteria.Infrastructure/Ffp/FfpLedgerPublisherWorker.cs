@@ -132,7 +132,7 @@ public sealed class FfpLedgerPublisherWorker(
 
     private static string BuildRecoveredPurchaseDescription(Aegis.Cafeteria.Infrastructure.Persistence.Models.OrderRow order)
     {
-        var items=string.Join("; ",order.Items.Select(x=>$"{x.ProductName} x{x.Quantity}"));
+        var items=string.Join("; ",order.Items.Select(x=>$"{x.ProductName} x{x.Quantity} @ {x.UnitPrice:N2}"));
         var total=order.Items.Sum(x=>x.UnitPrice*x.Quantity);
         var cafeteria=order.Payments.Where(x=>x.Method==(int)Aegis.Cafeteria.Domain.Orders.PaymentMethod.CafeteriaAccount).Sum(x=>x.Amount);
         return cafeteria==total?$"{items} - Total: {total:N2}":$"{items} - Order Total: {total:N2}; Cafeteria: {cafeteria:N2}";
@@ -141,7 +141,7 @@ public sealed class FfpLedgerPublisherWorker(
     private static string BuildRecoveredRefundDescription(Aegis.Cafeteria.Infrastructure.Persistence.Models.OrderRow order, Aegis.Cafeteria.Infrastructure.Persistence.Models.OrderRefundRow refund, decimal cafeteriaAmount)
     {
         var names=order.Items.ToDictionary(x=>x.Id,x=>x.ProductName);
-        var items=string.Join("; ",refund.Items.Select(x=>$"{names.GetValueOrDefault(x.OrderItemId,"Item")} x{x.Quantity}"));
+        var items=string.Join("; ",refund.Items.Select(x=>$"{names.GetValueOrDefault(x.OrderItemId,"Item")} x{x.Quantity} @ {x.UnitPrice:N2}"));
         return $"Refund - {items} - Cafeteria Refund: {cafeteriaAmount:N2}";
     }
 

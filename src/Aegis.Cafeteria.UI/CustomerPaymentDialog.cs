@@ -37,16 +37,16 @@ public sealed class CustomerPaymentDialog : Form
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var title = new Label { Text = "CUSTOMER PAYMENT", AutoSize = true, Font = new Font("Segoe UI", 16, FontStyle.Bold), ForeColor = Navy, Margin = new Padding(0, 0, 0, 2) };
-        var subtitle = new Label { Text = "Record money received from the employee. This reduces the Payroll Deduction for the current period.", AutoSize = true, MaximumSize = new Size(520, 0), ForeColor = Muted, Margin = new Padding(0, 0, 0, 14) };
+        var subtitle = new Label { Text = "Record money received from the employee. This reduces the Employee Amount Due for the current period.", AutoSize = true, MaximumSize = new Size(520, 0), ForeColor = Muted, Margin = new Padding(0, 0, 0, 14) };
         root.Controls.Add(title, 0, 0); root.SetColumnSpan(title, 2);
         root.Controls.Add(subtitle, 0, 1); root.SetColumnSpan(subtitle, 2);
 
         AddRow(root, 2, "Customer", new Label { Text = customerName, AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold) });
-        AddRow(root, 3, "Payroll Deduction before payment", new Label { Text = amountDue.ToString("C2"), AutoSize = true, Font = new Font("Segoe UI", 14, FontStyle.Bold), ForeColor = Navy });
+        AddRow(root, 3, "Employee Amount Due before payment", new Label { Text = amountDue.ToString("C2"), AutoSize = true, Font = new Font("Segoe UI", 14, FontStyle.Bold), ForeColor = Navy });
         AddRow(root, 4, "Payment amount", this.amount);
         AddRow(root, 5, "Payment method", this.method);
         AddRow(root, 6, "Reference", this.reference);
-        AddRow(root, 7, "Payroll Deduction after payment", this.remaining);
+        AddRow(root, 7, "Employee Amount Due after payment", this.remaining);
 
         var buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(0, 16, 0, 0) };
         var apply = new Button { Text = "Apply Payment", AutoSize = true, Height = 40, DialogResult = DialogResult.OK, BackColor = Green, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 10, FontStyle.Bold) };

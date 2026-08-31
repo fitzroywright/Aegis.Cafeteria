@@ -37,3 +37,21 @@ public sealed class ScheduledDispatchRow
     public DateTimeOffset SentAt { get; set; }
     public string? MessageId { get; set; }
 }
+
+public sealed class CafeteriaFundingPolicyRow
+{
+    public int Id { get; set; }
+    public decimal DailyCreditLimitRate { get; set; }
+    public decimal DailyCompanySubsidyRate { get; set; }
+    public string UpdatedBy { get; set; } = string.Empty;
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class CafeteriaFundingPolicyHistoryRow
+{
+    public long Id { get; set; }
+    public decimal DailyCreditLimitRate { get; set; }
+    public decimal DailyCompanySubsidyRate { get; set; }
+    public string UpdatedBy { get; set; } = string.Empty;
+    public DateTimeOffset UpdatedAt { get; set; }
+}

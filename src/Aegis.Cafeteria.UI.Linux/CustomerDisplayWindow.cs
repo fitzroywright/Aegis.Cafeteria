@@ -18,7 +18,7 @@ public sealed class CustomerDisplayWindow : Window
     private readonly TextBlock subsidy = ValueText();
     private readonly TextBlock employeeFunded = ValueText();
     private readonly TextBlock debt = ValueText();
-    private readonly TextBlock payrollDeduction = ValueText();
+    private readonly TextBlock employeeAmountDue = ValueText();
     private readonly TextBlock historyTitle = new() { FontSize = 20, FontWeight = FontWeight.Bold };
     private readonly ListBox history = new();
 
@@ -49,11 +49,11 @@ public sealed class CustomerDisplayWindow : Window
             subsidy.Text = Money(account.FinancialStatus.SubsidyAmountRemaining);
             employeeFunded.Text = Money(account.FinancialStatus.NonSubsidyAmountRemaining);
             debt.Text = Money(account.FinancialStatus.CarriedForwardDebt);
-            payrollDeduction.Text = Money(account.FinancialStatus.PayrollDeductionRequired);
+            employeeAmountDue.Text = Money(account.FinancialStatus.EmployeeAmountDue);
         }
         else
         {
-            available.Text = subsidy.Text = employeeFunded.Text = debt.Text = payrollDeduction.Text = "—";
+            available.Text = subsidy.Text = employeeFunded.Text = debt.Text = employeeAmountDue.Text = "—";
         }
         SetPhoto(account.Customer.Photo);
         historyTitle.Text = $"Transactions — {new DateTime(account.Period.Year, account.Period.Month, 1):MMMM yyyy}";
@@ -89,7 +89,7 @@ public sealed class CustomerDisplayWindow : Window
         AddMetric(finance, 1, "SUBSIDY REMAINING", subsidy);
         AddMetric(finance, 2, "EMPLOYEE-FUNDED REMAINING", employeeFunded);
         AddMetric(finance, 3, "DEBT BROUGHT FORWARD", debt);
-        AddMetric(finance, 4, "PAYROLL DEDUCTION", payrollDeduction);
+        AddMetric(finance, 4, "EMPLOYEE AMOUNT DUE", employeeAmountDue);
         details.Children.Add(finance);
         Grid.SetColumn(details, 1); identity.Children.Add(details); card.Child = identity;
         Grid.SetRow(card, 1); root.Children.Add(card);

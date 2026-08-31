@@ -1,147 +1,534 @@
 namespace Aegis.Cafeteria.Infrastructure.Services;
 
 using Aegis.Cafeteria.Application.Abstractions;
-using Aegis.Cafeteria.Application.Integration;
+using Aegis.Cafeteria.Application.Accounts;
 using Aegis.Cafeteria.Application.Reporting;
-using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Domain.Accounts;
+using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Infrastructure.Persistence;
 using Aegis.Cafeteria.Infrastructure.Persistence.Models;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+
 using System.Text.Json;
 
 /// <summary>
-/// Pulls immutable management/month-opening events from Aegis.Cafeteria.Services and commits them to the POS local ledger.
-/// The service is never required to complete a sale; synchronization catches up after outages.
+/// Pulls immutable management/month-opening events from Aegis.Cafeteria.Services and commits them
+/// to the POS local ledger. SignalR only wakes this durable pull path; polling remains the safety net.
 /// </summary>
-public sealed class ManagementEventSyncWorker(
-    CafeteriaServicesClient client,
-    CafeteriaServicesOptions options,
-    IDbContextFactory<LocalCafeteriaDbContext> factory,
-    ICafeteriaPersistenceStore persistence,
-    ICustomerAccountQuery accountQuery,
-    ILogger<ManagementEventSyncWorker> logger) : BackgroundService
+public sealed class ManagementEventSyncWorker : BackgroundService
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    private readonly CafeteriaServicesClient client;
+    private readonly CafeteriaServicesOptions options;
+    private readonly IDbContextFactory<LocalCafeteriaDbContext> factory;
+    private readonly ICafeteriaPersistenceStore persistence;
+    private readonly ICustomerAccountQuery accountQuery;
+    private readonly ICustomerAccountChangeNotifier accountChangeNotifier;
+    private readonly ManagementEventWakeSignal wakeSignal;
+    private readonly ILogger<ManagementEventSyncWorker> logger;
+
+    public ManagementEventSyncWorker
+    (
+          CafeteriaServicesClient client
+        , CafeteriaServicesOptions options
+        , IDbContextFactory<LocalCafeteriaDbContext> factory
+        , ICafeteriaPersistenceStore persistence
+        , ICustomerAccountQuery accountQuery
+        , ICustomerAccountChangeNotifier accountChangeNotifier
+        , ManagementEventWakeSignal wakeSignal
+        , ILogger<ManagementEventSyncWorker> logger
+    )
     {
-        if (!options.Enabled) return;
+        this.client = client;
+        this.options = options;
+        this.factory = factory;
+        this.persistence = persistence;
+        this.accountQuery = accountQuery;
+        this.accountChangeNotifier = accountChangeNotifier;
+        this.wakeSignal = wakeSignal;
+        this.logger = logger;
+    }
+
+    protected override async Task ExecuteAsync
+    (
+        CancellationToken stoppingToken
+    )
+    {
+        if (!this.options.Enabled)
+        {
+            return;
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
-            try { await PullAndApplyAsync(stoppingToken); }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
-            catch (Exception ex) { logger.LogError(ex, "Cafeteria Services event synchronization failed; POS will retry"); }
-            await Task.Delay(TimeSpan.FromSeconds(options.PollSeconds), stoppingToken);
+            try
+            {
+                await PullAndApplyAsync(stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception)
+            {
+                this.logger.LogError
+                (
+                      exception
+                    , "Cafeteria Services event synchronization failed; POS will retry"
+                );
+            }
+
+            try
+            {
+                await this.wakeSignal.WaitAsync
+                (
+                      TimeSpan.FromSeconds(this.options.PollSeconds)
+                    , stoppingToken
+                );
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
         }
     }
 
-    internal async Task<int> PullAndApplyAsync(CancellationToken cancellationToken)
+    internal async Task<int> PullAndApplyAsync
+    (
+        CancellationToken cancellationToken
+    )
     {
-        await using var checkpointDb = await factory.CreateDbContextAsync(cancellationToken);
-        var last = await checkpointDb.ManagementEventInbox
-            .Where(x => x.ProcessedAt != null)
-            .Select(x => (long?)x.Sequence)
-            .MaxAsync(cancellationToken) ?? 0L;
+        await using LocalCafeteriaDbContext checkpointDb = await this.factory.CreateDbContextAsync(cancellationToken);
 
-        var events = await client.GetEventsAsync(last, 100, cancellationToken);
-        var processed = 0;
-        foreach (var e in events.OrderBy(x => x.Sequence))
+        long lastSequence = await checkpointDb.ManagementEventInbox
+            .Where(inbox => inbox.ProcessedAt != null)
+            .Select(inbox => (long?)inbox.Sequence)
+            .MaxAsync(cancellationToken)
+            ?? 0L;
+
+        IReadOnlyList<CafeteriaServiceEventEnvelope> serviceEvents = await this.client.GetEventsAsync
+        (
+              lastSequence
+            , 100
+            , cancellationToken
+        );
+
+        int processed = 0;
+
+        foreach (CafeteriaServiceEventEnvelope serviceEvent in serviceEvents.OrderBy(serviceEvent => serviceEvent.Sequence))
         {
-            if (await IsProcessedAsync(e.OperationId, cancellationToken)) continue;
-            await SaveInboxAsync(e, cancellationToken);
+            if (await IsProcessedAsync(serviceEvent.OperationId, cancellationToken))
+            {
+                continue;
+            }
+
+            await SaveInboxAsync
+            (
+                  serviceEvent
+                , cancellationToken
+            );
+
             try
             {
-                await ApplyAsync(e, cancellationToken);
-                await MarkProcessedAsync(e.OperationId, null, cancellationToken);
+                await ApplyAsync
+                (
+                      serviceEvent
+                    , cancellationToken
+                );
+
+                await MarkProcessedAsync
+                (
+                      serviceEvent.OperationId
+                    , null
+                    , cancellationToken
+                );
+
                 processed++;
+
+                await this.accountChangeNotifier.NotifyAsync(serviceEvent.CustomerId);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                await MarkProcessedAsync(e.OperationId, ex.Message, cancellationToken);
+                await MarkProcessedAsync
+                (
+                      serviceEvent.OperationId
+                    , exception.Message
+                    , cancellationToken
+                );
+
                 throw;
             }
         }
+
         return processed;
     }
 
-    private async Task ApplyAsync(CafeteriaServiceEventEnvelope envelope, CancellationToken cancellationToken)
+    private async Task ApplyAsync
+    (
+          CafeteriaServiceEventEnvelope envelope
+        , CancellationToken cancellationToken
+    )
     {
         switch (envelope.Kind)
         {
             case CafeteriaServiceEventKind.AdditionalCredit:
             {
-                var x = JsonSerializer.Deserialize<AdditionalCreditServiceEvent>(envelope.PayloadJson) ?? throw new InvalidOperationException("Invalid Additional Credit event payload.");
-                await UpdateAdditionalCreditLimitAsync(x.CustomerId, x.AdditionalCreditLimit, cancellationToken);
-                var approval = new AdditionalCreditApproval(x.OperationId, x.CustomerId, x.Amount, x.ApprovedBy, x.ApprovedAt, x.Reason);
-                await persistence.SaveAdditionalCreditApprovalAsync(approval, cancellationToken);
-                _ = await accountQuery.GetCurrentAsync(x.CustomerId, cancellationToken) ?? throw new InvalidOperationException("Employee is not available in the local Cafeteria cache.");
+                AdditionalCreditServiceEvent additionalCredit = JsonSerializer.Deserialize<AdditionalCreditServiceEvent>
+                (
+                    envelope.PayloadJson
+                )
+                    ?? throw new InvalidOperationException("Invalid Additional Credit event payload.");
+
+                await UpdateAdditionalCreditLimitAsync
+                (
+                      additionalCredit.CustomerId
+                    , additionalCredit.AdditionalCreditLimit
+                    , cancellationToken
+                );
+
+                AdditionalCreditApproval approval = new
+                (
+                      additionalCredit.OperationId
+                    , additionalCredit.CustomerId
+                    , additionalCredit.Amount
+                    , additionalCredit.ApprovedBy
+                    , additionalCredit.ApprovedAt
+                    , additionalCredit.Reason
+                );
+
+                await this.persistence.SaveAdditionalCreditApprovalAsync
+                (
+                      approval
+                    , cancellationToken
+                );
+
+                _ = await this.accountQuery.GetCurrentAsync
+                (
+                      additionalCredit.CustomerId
+                    , cancellationToken
+                )
+                    ?? throw new InvalidOperationException("Employee is not available in the local Cafeteria cache.");
+
                 break;
             }
+
             case CafeteriaServiceEventKind.Stipend:
             {
-                var x = JsonSerializer.Deserialize<StipendServiceEvent>(envelope.PayloadJson) ?? throw new InvalidOperationException("Invalid Stipend event payload.");
-                var stipend = new Stipend(x.OperationId, x.CustomerId, x.CashAmount, x.CardReductionAmount, x.PaymentMode, x.ProcessedBy, x.ProcessedAt, x.ExpenseReportReference, x.Notes);
-                await persistence.SaveStipendAsync(stipend, cancellationToken);
-                _ = await accountQuery.GetCurrentAsync(x.CustomerId, cancellationToken) ?? throw new InvalidOperationException("Employee is not available in the local Cafeteria cache.");
+                StipendServiceEvent stipendEvent = JsonSerializer.Deserialize<StipendServiceEvent>
+                (
+                    envelope.PayloadJson
+                )
+                    ?? throw new InvalidOperationException("Invalid Stipend event payload.");
+
+                Stipend stipend = new
+                (
+                      stipendEvent.OperationId
+                    , stipendEvent.CustomerId
+                    , stipendEvent.CashAmount
+                    , stipendEvent.CardReductionAmount
+                    , stipendEvent.PaymentMode
+                    , stipendEvent.ProcessedBy
+                    , stipendEvent.ProcessedAt
+                    , stipendEvent.ExpenseReportReference
+                    , stipendEvent.Notes
+                );
+
+                await this.persistence.SaveStipendAsync
+                (
+                      stipend
+                    , cancellationToken
+                );
+
+                _ = await this.accountQuery.GetCurrentAsync
+                (
+                      stipendEvent.CustomerId
+                    , cancellationToken
+                )
+                    ?? throw new InvalidOperationException("Employee is not available in the local Cafeteria cache.");
+
                 break;
             }
+
             case CafeteriaServiceEventKind.MonthlyAllocation:
             {
-                var x = JsonSerializer.Deserialize<MonthlyAllocationServiceEvent>(envelope.PayloadJson) ?? throw new InvalidOperationException("Invalid Monthly Allocation event payload.");
-                var allocation = new MonthlyCreditAllocation(x.CustomerId, x.Year, x.Month, x.EligibleWorkingDays, x.IsEligibleForCredit, x.CreditLimitPrice, x.SubsidyCost, x.CalculatedAt);
-                await persistence.SaveMonthlyCreditAllocationAsync(allocation, cancellationToken);
-                // Services owns FFP publication for service-originated month-opening events; the POS only
-                // materializes the immutable allocation into its local account/history projection.
-                _ = await accountQuery.GetAsync(x.CustomerId, x.Year, x.Month, cancellationToken);
+                MonthlyAllocationServiceEvent monthlyAllocation = JsonSerializer.Deserialize<MonthlyAllocationServiceEvent>
+                (
+                    envelope.PayloadJson
+                )
+                    ?? throw new InvalidOperationException("Invalid Monthly Allocation event payload.");
+
+                MonthlyCreditAllocation allocation = new
+                (
+                      monthlyAllocation.CustomerId
+                    , monthlyAllocation.Year
+                    , monthlyAllocation.Month
+                    , monthlyAllocation.EligibleWorkingDays
+                    , monthlyAllocation.IsEligibleForCredit
+                    , monthlyAllocation.CreditLimitPrice
+                    , monthlyAllocation.SubsidyCost
+                    , monthlyAllocation.CalculatedAt
+                );
+
+                await this.persistence.SaveMonthlyCreditAllocationAsync
+                (
+                      allocation
+                    , cancellationToken
+                );
+
+                _ = await this.accountQuery.GetAsync
+                (
+                      monthlyAllocation.CustomerId
+                    , monthlyAllocation.Year
+                    , monthlyAllocation.Month
+                    , cancellationToken
+                );
+
                 break;
             }
+
+            case CafeteriaServiceEventKind.MonthlyAllocationRecalculation:
+            {
+                MonthlyAllocationRecalculationServiceEvent recalculation = JsonSerializer.Deserialize<MonthlyAllocationRecalculationServiceEvent>
+                (
+                    envelope.PayloadJson
+                )
+                    ?? throw new InvalidOperationException("Invalid Monthly Allocation Recalculation event payload.");
+
+                MonthlyAllocationServiceEvent replacement = recalculation.ReplacementAllocation;
+                MonthlyCreditAllocation allocation = new
+                (
+                      replacement.CustomerId
+                    , replacement.Year
+                    , replacement.Month
+                    , replacement.EligibleWorkingDays
+                    , replacement.IsEligibleForCredit
+                    , replacement.CreditLimitPrice
+                    , replacement.SubsidyCost
+                    , replacement.CalculatedAt
+                );
+
+                await ReplaceMonthlyCreditAllocationAsync
+                (
+                      allocation
+                    , cancellationToken
+                );
+
+                _ = await this.accountQuery.GetAsync
+                (
+                      replacement.CustomerId
+                    , replacement.Year
+                    , replacement.Month
+                    , cancellationToken
+                );
+
+                break;
+            }
+
+
+            case CafeteriaServiceEventKind.DevelopmentReset:
+            {
+                DevelopmentResetServiceEvent developmentReset = JsonSerializer.Deserialize<DevelopmentResetServiceEvent>
+                (
+                    envelope.PayloadJson
+                )
+                    ?? throw new InvalidOperationException("Invalid Development Reset event payload.");
+
+                await ResetLocalDevelopmentDataAsync
+                (
+                      developmentReset.PreserveProducts
+                    , cancellationToken
+                );
+
+                this.logger.LogWarning
+                (
+                      "Applied Development Cafeteria reset from {Actor} at {ResetAt}; products preserved: {PreserveProducts}"
+                    , developmentReset.ResetBy
+                    , developmentReset.ResetAt
+                    , developmentReset.PreserveProducts
+                );
+
+                break;
+            }
+
             default:
-                throw new InvalidOperationException($"Unsupported Cafeteria Services event kind {envelope.Kind}.");
+            {
+                throw new InvalidOperationException
+                (
+                    $"Unsupported Cafeteria Services event kind {envelope.Kind}."
+                );
+            }
         }
     }
 
 
-    private async Task UpdateAdditionalCreditLimitAsync(int customerId, decimal limit, CancellationToken cancellationToken)
+    private async Task ResetLocalDevelopmentDataAsync
+    (
+          bool preserveProducts
+        , CancellationToken cancellationToken
+    )
     {
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        var customer = await db.Customers.SingleOrDefaultAsync(x => x.Id == customerId, cancellationToken)
+        await using LocalCafeteriaDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
+
+        await database.OrderRefundItems.ExecuteDeleteAsync(cancellationToken);
+        await database.RefundAllocations.ExecuteDeleteAsync(cancellationToken);
+        await database.OrderRefunds.ExecuteDeleteAsync(cancellationToken);
+        await database.OrderItems.ExecuteDeleteAsync(cancellationToken);
+        await database.OrderPayments.ExecuteDeleteAsync(cancellationToken);
+        await database.Orders.ExecuteDeleteAsync(cancellationToken);
+        await database.AccountEvents.ExecuteDeleteAsync(cancellationToken);
+        await database.AccountPeriods.ExecuteDeleteAsync(cancellationToken);
+        await database.MonthlyCreditAllocations.ExecuteDeleteAsync(cancellationToken);
+        await database.WeeklySummaryDispatches.ExecuteDeleteAsync(cancellationToken);
+        await database.CustomerIdentifiers.ExecuteDeleteAsync(cancellationToken);
+        await database.Customers.ExecuteDeleteAsync(cancellationToken);
+        await database.Holidays.ExecuteDeleteAsync(cancellationToken);
+        await database.CafeteriaRatePolicies.ExecuteDeleteAsync(cancellationToken);
+        await database.FfpLedgerOutbox.ExecuteDeleteAsync(cancellationToken);
+
+        if (!preserveProducts)
+        {
+            await database.Products.ExecuteDeleteAsync(cancellationToken);
+        }
+    }
+
+    private async Task ReplaceMonthlyCreditAllocationAsync
+    (
+          MonthlyCreditAllocation allocation
+        , CancellationToken cancellationToken
+    )
+    {
+        await using LocalCafeteriaDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
+
+        MonthlyCreditAllocationRow? row = await database.MonthlyCreditAllocations.SingleOrDefaultAsync
+        (
+            candidate =>
+                   candidate.CustomerId == allocation.CustomerId
+                && candidate.Year == allocation.Year
+                && candidate.Month == allocation.Month
+            , cancellationToken
+        );
+
+        MonthlyCreditAllocationRow replacement = DomainPersistenceMapper.ToRow
+        (
+              allocation
+            , DateTimeOffset.UtcNow.Ticks
+            , DateTimeOffset.UtcNow
+        );
+
+        if (row is null)
+        {
+            database.MonthlyCreditAllocations.Add(replacement);
+        }
+        else
+        {
+            database.Entry(row).CurrentValues.SetValues(replacement);
+        }
+
+        await database.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task UpdateAdditionalCreditLimitAsync
+    (
+          int customerId
+        , decimal limit
+        , CancellationToken cancellationToken
+    )
+    {
+        await using LocalCafeteriaDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
+
+        CustomerRow customer = await database.Customers.SingleOrDefaultAsync
+        (
+              customer => customer.Id == customerId
+            , cancellationToken
+        )
             ?? throw new InvalidOperationException("Employee is not available in the local Cafeteria cache.");
-        if (customer.AdditionalCreditLimit == limit) return;
+
+        if (customer.AdditionalCreditLimit == limit)
+        {
+            return;
+        }
+
         customer.AdditionalCreditLimit = limit;
         customer.Revision = DateTimeOffset.UtcNow.UtcDateTime.Ticks;
         customer.UpdatedAt = DateTimeOffset.UtcNow;
-        await db.SaveChangesAsync(cancellationToken);
+
+        await database.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<bool> IsProcessedAsync(Guid operationId, CancellationToken cancellationToken)
+    private async Task<bool> IsProcessedAsync
+    (
+          Guid operationId
+        , CancellationToken cancellationToken
+    )
     {
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        return await db.ManagementEventInbox.AnyAsync(x => x.OperationId == operationId && x.ProcessedAt != null, cancellationToken);
+        await using LocalCafeteriaDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
+
+        return await database.ManagementEventInbox.AnyAsync
+        (
+              inbox => inbox.OperationId == operationId && inbox.ProcessedAt != null
+            , cancellationToken
+        );
     }
 
-    private async Task SaveInboxAsync(CafeteriaServiceEventEnvelope e, CancellationToken cancellationToken)
+    private async Task SaveInboxAsync
+    (
+          CafeteriaServiceEventEnvelope serviceEvent
+        , CancellationToken cancellationToken
+    )
     {
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        var row = await db.ManagementEventInbox.SingleOrDefaultAsync(x => x.OperationId == e.OperationId, cancellationToken);
-        if (row is null)
+        await using LocalCafeteriaDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
+
+        ManagementEventInboxRow? row = await database.ManagementEventInbox.SingleOrDefaultAsync
+        (
+              inbox => inbox.OperationId == serviceEvent.OperationId
+            , cancellationToken
+        );
+
+        if (row is not null)
         {
-            db.ManagementEventInbox.Add(new ManagementEventInboxRow
-            {
-                OperationId=e.OperationId, Sequence=e.Sequence, Kind=(int)e.Kind, CustomerId=e.CustomerId,
-                OccurredAt=e.OccurredAt, PayloadJson=e.PayloadJson, ReceivedAt=DateTimeOffset.UtcNow
-            });
-            await db.SaveChangesAsync(cancellationToken);
+            return;
         }
+
+        database.ManagementEventInbox.Add
+        (
+            new ManagementEventInboxRow
+            {
+                  OperationId = serviceEvent.OperationId
+                , Sequence = serviceEvent.Sequence
+                , Kind = (int)serviceEvent.Kind
+                , CustomerId = serviceEvent.CustomerId
+                , OccurredAt = serviceEvent.OccurredAt
+                , PayloadJson = serviceEvent.PayloadJson
+                , ReceivedAt = DateTimeOffset.UtcNow
+            }
+        );
+
+        await database.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task MarkProcessedAsync(Guid operationId, string? error, CancellationToken cancellationToken)
+    private async Task MarkProcessedAsync
+    (
+          Guid operationId
+        , string? error
+        , CancellationToken cancellationToken
+    )
     {
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        var row = await db.ManagementEventInbox.SingleAsync(x => x.OperationId == operationId, cancellationToken);
+        await using LocalCafeteriaDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
+
+        ManagementEventInboxRow row = await database.ManagementEventInbox.SingleAsync
+        (
+              inbox => inbox.OperationId == operationId
+            , cancellationToken
+        );
+
         row.LastError = error;
-        row.ProcessedAt = error is null ? DateTimeOffset.UtcNow : null;
-        await db.SaveChangesAsync(cancellationToken);
+        row.ProcessedAt = error is null
+            ? DateTimeOffset.UtcNow
+            : null;
+
+        await database.SaveChangesAsync(cancellationToken);
     }
 }
