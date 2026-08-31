@@ -6,6 +6,9 @@ public sealed class CustomerRow
     public string Name { get; set; } = string.Empty;
     public string NormalizedName { get; set; } = string.Empty;
     public string Department { get; set; } = string.Empty;
+    public string Manager { get; set; } = string.Empty;
+    public string EmailAddress { get; set; } = string.Empty;
+    public string Extension { get; set; } = string.Empty;
     public byte[]? Photo { get; set; }
     public bool IsEligibleForCredit { get; set; } = true;
     public decimal AdditionalCreditLimit { get; set; }
