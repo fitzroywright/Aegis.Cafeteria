@@ -5,6 +5,7 @@ public sealed class CustomerRow
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string NormalizedName { get; set; } = string.Empty;
+    public string LoginName { get; set; } = string.Empty;
     public string Department { get; set; } = string.Empty;
     public string Manager { get; set; } = string.Empty;
     public string EmailAddress { get; set; } = string.Empty;
@@ -112,7 +113,6 @@ public sealed class RefundAllocationRow
     public int Method { get; set; }
     public decimal Amount { get; set; }
 }
-
 
 public sealed class CafeteriaRatePolicyRow
 {
