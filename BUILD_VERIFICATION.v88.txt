@@ -1,0 +1,22 @@
+Aegis.Cafeteria v88 build verification
+======================================
+
+Source/static verification: PASS
+- JSON production/default configuration parses successfully.
+- scripts/static-audit.py passes through v88.
+- Production appsettings contain no plaintext JMDB01 FFP connection string.
+- CafeteriaServicesApiKey secret wiring and fail-closed startup checks are present.
+- Production deployment and FFP Manager integration documentation is present.
+- New test source is included.
+
+.NET compilation/tests: NOT RUN IN THIS EXECUTION ENVIRONMENT
+Reason: dotnet SDK/compiler is not installed in the available container.
+
+Required release gate on the Windows/.NET build machine:
+  dotnet clean
+  dotnet restore
+  dotnet build --configuration Release
+  dotnet test --configuration Release
+  python scripts\static-audit.py
+
+Do not deploy v88 until the above commands pass.

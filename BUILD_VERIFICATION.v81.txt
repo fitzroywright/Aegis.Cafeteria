@@ -1,0 +1,14 @@
+Aegis.Cafeteria v81 build verification
+
+Static audit: PASS
+New v81 source parity checks: PASS
+.NET SDK available in execution environment: NO
+dotnet build: NOT RUN
+dotnet test: NOT RUN
+
+Required deployment gate:
+1. dotnet restore
+2. dotnet build -c Release
+3. dotnet test -c Release
+4. Open representative reports on Windows and Linux.
+5. Export each representative report to XLSX and PDF and verify totals against HTML preview.

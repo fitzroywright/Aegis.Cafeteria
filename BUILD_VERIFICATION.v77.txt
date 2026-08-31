@@ -1,0 +1,21 @@
+Aegis.Cafeteria v77 build verification
+=======================================
+
+Feature scope:
+- Added Itemized Purchases by Customer report.
+- Added Purchases Summarized by Person report.
+- Added Day / Week / Month grouping selector to Windows Report Center for both reports.
+- Both reports separate Cash and Card/Account spend.
+- Both reports provide period+department+person, period+department, and period totals.
+- Split-tender item reporting is proportional and reconciles to recorded tender.
+
+Verification performed in this environment:
+- scripts/static-audit.py: PASS, including v77 regression guards.
+- Source-level inspection of reporting catalog, service, Windows report UI/menu, Linux menu, tests, and documentation: PASS.
+
+Not performed in this environment:
+- dotnet build
+- dotnet test
+
+Reason: the .NET SDK is not installed in the execution environment.
+Run scripts/test-all.ps1 or scripts/test-all.sh on a .NET 10 build machine before production deployment.

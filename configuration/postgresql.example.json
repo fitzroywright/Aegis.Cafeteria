@@ -1,0 +1,15 @@
+{
+  "SecretsManager": {
+    "ServerUrl": "",
+    "SecretIds": {
+      "CentralDatabaseConnectionString": "00000000-0000-0000-0000-000000000000"
+    }
+  },
+  "Persistence": {
+    "CentralProvider": "PostgreSql"
+  },
+  "Health": {
+    "EmployeeCacheWarningMinutes": 120,
+    "EmployeeCacheCriticalMinutes": 480
+  }
+}

@@ -1,0 +1,21 @@
+Aegis.Cafeteria v28 verification
+
+PASSED in generation environment:
+- scripts/static-audit.py
+- JSON parse validation
+- source brace/delimiter sanity scan
+- obsolete FFPJM/CreditRateQuery reference scan (active source/config/docs)
+- application/domain FFP contract leakage scan
+- ZIP integrity test
+
+NOT RUN:
+- dotnet build
+- dotnet test
+
+Reason: the generation environment does not have the .NET SDK installed.
+
+Run on the Windows development machine:
+  dotnet clean
+  dotnet build
+  dotnet test
+  .\scripts\test-ffp-live.ps1

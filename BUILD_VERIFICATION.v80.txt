@@ -1,0 +1,7 @@
+Aegis.Cafeteria v80 verification
+
+PASS: repository static audit
+PASS: Windows employee summary includes Payroll Deduction sourced from PayrollDeductionRequired
+PASS: Linux employee summary includes Payroll Deduction sourced from PayrollDeductionRequired
+PASS: customer summary reset/refresh paths include Payroll Deduction
+NOT RUN: dotnet build / dotnet test (SDK unavailable in this execution environment)

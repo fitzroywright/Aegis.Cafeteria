@@ -1,0 +1,19 @@
+Aegis.Cafeteria v41 verification
+================================
+
+Completed in artifact environment:
+- ZIP/source tree rebuilt from v40.
+- XML project/solution parsing: PASS.
+- JSON configuration parsing: PASS.
+- v41 static regression audit: PASS.
+- Destructive application-code scan: PASS (no automatic local DB delete/drop path introduced).
+- SQL Server clean baseline script presence/schema guards: PASS.
+- Documentation consistency scan for current v41 docs: PASS.
+
+Not executable in artifact environment:
+- dotnet restore
+- dotnet build --configuration Release
+- dotnet test --configuration Release
+
+Reason: .NET SDK is not installed in the artifact environment.
+These commands are mandatory on the Windows/.NET 10 development machine before release.

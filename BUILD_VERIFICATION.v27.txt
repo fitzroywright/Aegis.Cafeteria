@@ -1,0 +1,29 @@
+Aegis.Cafeteria v27 build verification
+======================================
+
+Generation environment verification:
+- JSON configuration parse: PASS
+- .csproj XML parse: PASS
+- ZIP integrity: pending packaging
+- Static source/regression checks: PASS
+- dotnet build/test: NOT RUN (the generation environment does not contain the .NET SDK)
+
+New v27 coverage:
+- Employee cache status model/service
+- Windows cache count/age indicator + detail/refresh dialog
+- Linux cache count/age indicator + refresh action
+- Heartbeat/Zabbix cache fields
+- Isolated employee/holiday/rate background refresh
+- SQLite-backed FFP refresh integration tests
+- Opt-in live JMDB01/FFPJM SQL integration test
+- TestHost /health/ffp diagnostic endpoint
+
+Recommended developer-machine verification:
+  dotnet clean
+  dotnet restore
+  dotnet build
+  dotnet test
+
+Optional live FFP test on the FFP network:
+  $env:AEGIS_FFP_LIVE_TEST = "1"
+  dotnet test --filter "FullyQualifiedName~FfpSqlLiveIntegrationTests"

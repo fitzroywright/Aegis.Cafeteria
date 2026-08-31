@@ -1,0 +1,18 @@
+Aegis.Cafeteria v79 verification
+
+PASS: python scripts/static-audit.py
+- Shared CustomerPaymentWorkflow persists voluntary payments locally.
+- FFP-enabled installations queue idempotent CustomerPayment ledger adjustments.
+- Payment amount cannot exceed current PayrollDeductionRequired.
+- Payment method, optional reference, authenticated receiving operator and timestamp are recorded.
+- Windows and Linux expose Record Payment.
+- Linux checkout shows New Customer Responsibility / pay-later guidance.
+- Linux partial refund uses selected quantities and RefundService.Refund rather than forced RefundAllRemaining.
+- Linux customer-facing display explicitly shows AVAILABLE TO SPEND.
+- Linux Daily Dashboard has quantity and value product pie charts.
+
+PASS: basic source-integrity brace check on all v79-modified C# files.
+
+NOT RUN: dotnet clean / restore / build / test
+Reason: dotnet executable is not installed in this execution environment.
+Run the normal Release build/test gate on the Windows/.NET build machine before deployment.

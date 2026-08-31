@@ -1,0 +1,7 @@
+Aegis.Cafeteria v91 Verification
+
+PASS - static audit, including v91 split-tender and refund-reason checks.
+PASS - shared TenderAllocationCalculator is used by Windows and Linux POS.
+PASS - refund default reason is generated from selected items/original sale and remains editable.
+PASS - unit tests added for tender allocation and refund reason generation.
+NOT RUN - dotnet build/test because the .NET SDK is unavailable in this execution environment.

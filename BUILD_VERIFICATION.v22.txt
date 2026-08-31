@@ -1,0 +1,11 @@
+Aegis.Cafeteria v22 verification
+
+- Solution/project XML parsing: PASS
+- JSON configuration parsing: PASS
+- Existing static regression audit (v13-v21 guards): PASS
+- Reporting project present in solution: PASS
+- Reporting test project present in solution: PASS
+- DevExpress references in reporting module: NONE
+- SQLite DateTimeOffset report filtering/sorting: performed after materialization
+- dotnet build: NOT RUN (dotnet SDK unavailable in generation environment)
+- dotnet test: NOT RUN (dotnet SDK unavailable in generation environment)

@@ -1,0 +1,18 @@
+Aegis.Cafeteria v75 build verification
+======================================
+
+Source-level change: PASS
+- Windows refund workflow opens RefundDialog.
+- Item/quantity partial refund selection implemented.
+- Full-refund shortcut implemented.
+- Split tender constrained to original remaining cafeteria-account/cash tender.
+- MainForm uses RefundService.Refund(...) rather than forcing RefundAllRemaining(...).
+
+Static audit: PASS
+- python3 scripts/static-audit.py
+
+.NET build/tests: NOT RUN
+- dotnet is not installed in this execution environment.
+- Required before deployment: dotnet clean, dotnet restore, Release build, unit/persistence tests.
+
+Database schema: unchanged (POS local schema remains 73).

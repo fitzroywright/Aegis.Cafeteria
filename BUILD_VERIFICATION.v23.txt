@@ -1,0 +1,14 @@
+Aegis.Cafeteria v23 static verification
+
+- v22 static audit: PASS
+- JSON parse: PASS
+- FFP employee SQL contract: PASS (Employees + legacy fields/fallback implementation present)
+- FFP holiday SQL contract: PASS (FFPJM dbo.Holidays / CalendarDate year query present)
+- Working-day rule: PASS (Saturday/Sunday and holiday exclusion retained)
+- Legacy integrated-security FFP connection default: PASS
+- SQLite DateTimeOffset regression guards: retained via v22 static audit
+- Outbox OperationId regression guard: retained via v22 static audit
+- Serilog absence / Microsoft.Extensions.Logging: retained via v22 static audit
+- ZIP integrity: to be checked after packaging
+
+NOTE: dotnet build/test were not run because the generation environment does not have the .NET SDK installed.

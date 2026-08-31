@@ -1,0 +1,22 @@
+Aegis.Cafeteria v73 verification
+================================
+
+Completed in the artifact environment:
+- XML project/solution parse: PASS (via scripts/static-audit.py)
+- JSON configuration parse: PASS (via scripts/static-audit.py)
+- Source guardrails/static audit: PASS
+- Aegis.Cafeteria.Services project present in solution: PASS
+- POS Services integration gateway present: PASS
+- Management event inbox/schema 73 guard present: PASS
+- Additional Credit/Stipend/Monthly Allocation service event contracts present: PASS
+- Scheduled email worker and FFP email report source present: PASS
+
+Not executable in this environment:
+- dotnet restore/build/test (the .NET SDK is not installed in the artifact container)
+
+Required developer-machine gate:
+  dotnet clean
+  dotnet restore
+  dotnet build --configuration Debug
+  dotnet test --configuration Debug
+  python scripts\static-audit.py

@@ -1,0 +1,50 @@
+{
+  "SecretsManager": {
+    "CliPath": "bws",
+    "AccessTokenEnvironmentVariable": "BWS_ACCESS_TOKEN",
+    "ServerUrl": "https://bitwarden.example.internal",
+    "CommandTimeoutSeconds": 15,
+    "SecretIds": {
+      "CafeteriaServicesApiKey": "<bitwarden-secret-uuid>",
+      "MessagingBearerToken": ""
+    }
+  },
+  "Persistence": {
+    "LocalSqliteConnectionString": "Data Source=C:\\ProgramData\\Aegis.Cafeteria\\cafeteria.local.db;Cache=Shared",
+    "TerminalId": "CAFETERIA-POS-01",
+    "FfpPublicationBatchSize": 100,
+    "FfpPoisonMessageAttemptLimit": 25
+  },
+  "FfpIntegration": {
+    "Enabled": true,
+    "ConnectionString": "",
+    "RefreshIntervalMinutes": 10,
+    "MonthlyAllocationScanType": 3,
+    "PurchaseScanType": 9,
+    "RefundScanType": 9,
+    "AdjustmentScanType": 9,
+    "CreditLimitLunchItemCode": "FFP00",
+    "SubsidyLunchItemCode": "FFP00"
+  },
+  "CafeteriaServices": {
+    "Enabled": true,
+    "BaseUrl": "https://cafeteria-services.example.internal",
+    "PollSeconds": 15,
+    "UseServiceMonthlyAllocations": true,
+    "ApiKey": ""
+  },
+  "Security": {
+    "Enabled": true,
+    "Domain": "fftpj.local",
+    "SearchBase": "DC=fftpj,DC=local",
+    "Port": 636,
+    "TimeoutSeconds": 5,
+    "Servers": ["jmad01.fftpj.local", "jmad02.fftpj.local"],
+    "AdministrativeGroups": ["Cafeteria Managers", "Cafeteria Administrators", "Domain Admins"],
+    "ManagerAuthorizationMinutes": 2
+  },
+  "Ui": {
+    "CustomerInactivityTimeoutSeconds": 30,
+    "RecentTransactionCount": 10
+  }
+}

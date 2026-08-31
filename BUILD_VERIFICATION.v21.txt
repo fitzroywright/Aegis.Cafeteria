@@ -1,0 +1,29 @@
+Aegis.Cafeteria v21 verification
+================================
+
+Generation environment: no .NET SDK installed; dotnet build/test could not be executed here.
+
+Completed structural verification:
+- all .csproj/.slnx XML parsed
+- all JSON configuration parsed
+- no NotImplementedException placeholders
+- no Serilog references in C# source
+- outbox regression guard: CreatedAt then OperationId
+- SQLite DateTimeOffset cleanup comparison is in-memory after ToListAsync
+- Development GetRequiredSecretAsync extension retained
+- Windows startup RuntimePathInitializer retained
+- startup diagnostic MessageBox catch retained
+- GELF/Graylog provider registered
+- FFP TransmissionID idempotency present
+- FFP durable local outbox + startup projection recovery present
+- ProgramData SQLite/log/health directories created automatically
+- weekly summary durable dispatch de-duplication present
+
+Test inventory: 116 [Fact]/[Theory] test methods/cases declared across the test projects.
+
+Required before production:
+1. Run dotnet restore/build/test with the .NET 10 SDK.
+2. Configure/verify FfpIntegration:HolidayQuery against the current FFP database.
+3. Configure/verify FfpIntegration:CreditRateQuery against the current FFP database.
+4. Confirm FFP ScanType mappings, especially purchase/refund/adjustment values, with current FFP reporting semantics.
+5. Run an integration test against a restored/sanitized FFPJM database.

@@ -1,0 +1,23 @@
+Aegis.Cafeteria v74 verification
+================================
+
+Static audit:
+  PASS - python3 scripts/static-audit.py
+
+Implemented regression coverage:
+  - AdditionalCreditService preserves caller-supplied OperationId.
+  - AdditionalCreditServiceEvent carries employee-specific AdditionalCreditLimit.
+  - FFP reference cache persists AdditionalCreditLimit supplied by Services.
+  - Static guards verify management actor fields are absent from request DTOs.
+  - Static guards verify Windows/AD Negotiate authorization, per-employee credit policy,
+    direct Services-to-FFP publication, and suppression of POS re-publication.
+
+.NET compilation/tests:
+  NOT RUN IN THIS EXECUTION ENVIRONMENT - the dotnet CLI/.NET 10 SDK is not installed.
+
+Required release gate on a .NET 10 build runner:
+  dotnet clean
+  dotnet restore
+  dotnet build --configuration Release
+  dotnet test --configuration Release
+  python scripts/static-audit.py

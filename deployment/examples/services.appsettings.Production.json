@@ -1,0 +1,46 @@
+{
+  "urls": "https://0.0.0.0:5088",
+  "SecretsManager": {
+    "CliPath": "bws",
+    "AccessTokenEnvironmentVariable": "BWS_ACCESS_TOKEN",
+    "ServerUrl": "https://bitwarden.example.internal",
+    "CommandTimeoutSeconds": 15,
+    "SecretIds": {
+      "FfpDatabaseConnectionString": "<bitwarden-secret-uuid>",
+      "CafeteriaServicesApiKey": "<bitwarden-secret-uuid>"
+    }
+  },
+  "FfpIntegration": {
+    "Enabled": true,
+    "ConnectionString": "",
+    "CreditLimitLunchItemCode": "FFP00",
+    "SubsidyLunchItemCode": "FFP00",
+    "MonthlyAllocationScanType": 3,
+    "PurchaseScanType": 9,
+    "RefundScanType": 9,
+    "AdjustmentScanType": 9
+  },
+  "ServicePersistence": {
+    "ConnectionString": "Data Source=C:\\ProgramData\\Aegis.Cafeteria.Services\\cafeteria.services.db"
+  },
+  "ManagementApi": {
+    "ApiKey": "",
+    "AuthorizedGroups": ["Cafeteria Managers", "Cafeteria Administrators", "Domain Admins"]
+  },
+  "MonthOpening": {
+    "Enabled": true,
+    "RunHourLocal": 1
+  },
+  "ScheduledEmail": {
+    "Enabled": false,
+    "SmtpHost": "",
+    "SmtpPort": 25,
+    "EnableSsl": false,
+    "FromAddress": "cafeteria@ffpja.org",
+    "DailySummaryRecipients": [],
+    "DailySummaryHourLocal": 17,
+    "WeeklyEmployeeDay": "Monday",
+    "WeeklyEmployeeHourLocal": 8,
+    "EmployeeEmailColumn": "Email"
+  }
+}

@@ -1,0 +1,12 @@
+Aegis.Cafeteria v78 verification
+
+PASS: python scripts/static-audit.py
+- Daily Dashboard has quantity and value product pie charts.
+- Product pies use the current-day Product Sales report data.
+- Customer-facing display explicitly says AVAILABLE TO SPEND.
+- Payment dialog exposes Available to Spend and New Customer Responsibility.
+- Checkout still requires full tender and prohibits cafeteria-account charges above available credit.
+
+NOT RUN: dotnet clean / restore / build / test
+Reason: dotnet executable is not installed in this execution environment.
+Run the normal Release build/test gate on the Windows/.NET build machine before deployment.

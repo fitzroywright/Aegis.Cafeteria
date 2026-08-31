@@ -1,0 +1,6 @@
+Aegis.Cafeteria v42 package-generation verification
+
+Static audit: run scripts/static-audit.py
+ZIP integrity: verified during packaging
+.NET restore/build/test: NOT EXECUTED in package-generation environment because dotnet SDK is unavailable.
+Required on build machine: dotnet clean; dotnet restore; dotnet build --configuration Release; dotnet test --configuration Release
