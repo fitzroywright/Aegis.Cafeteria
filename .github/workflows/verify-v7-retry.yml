@@ -59,4 +59,4 @@ jobs:
           git commit -m "Integrate and verify Aegis Engineering Diagnostics v7"
           git push origin HEAD:chatgpt/aegis-engineering-diagnostics-v7
 
-# Final verification after removing obsolete payroll-tracking overlay artifacts.
+# Verification after removing all known obsolete payroll-processing overlay components.
