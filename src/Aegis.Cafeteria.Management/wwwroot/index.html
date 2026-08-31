@@ -11,7 +11,7 @@
     <div>
       <div class="eyebrow">FOOD FOR THE POOR JAMAICA</div>
       <h1>Cafeteria Management</h1>
-      <div class="subtitle">Temporary management console backed by Cafeteria Services</div>
+      <div class="subtitle">Management console backed by Cafeteria Services</div>
     </div>
     <div class="top-actions">
       <span id="serviceStatus" class="status">Checking Services...</span>
@@ -22,7 +22,7 @@
   <main class="page">
     <section class="card employee-card">
       <div class="section-title">
-        <div><span class="step">1</span><h2>Employee</h2></div>
+        <div><h2>Employee</h2></div>
         <span id="selectedEmployee" class="selected">No employee selected</span>
       </div>
       <div class="row">
@@ -34,9 +34,17 @@
       <div id="employeeResults" class="results"></div>
     </section>
 
-    <div class="grid two">
-      <section class="card">
-        <div class="section-title"><div><span class="step">2</span><h2>Additional Credit</h2></div></div>
+    <nav class="tabs" aria-label="Cafeteria management functions">
+      <button class="tab active" data-tab="additional-credit">Additional Credit</button>
+      <button class="tab" data-tab="stipend">Process Stipend</button>
+      <button class="tab" data-tab="rates">Rates</button>
+      <button class="tab" data-tab="month-opening">Month Opening</button>
+      <button class="tab" data-tab="amount-due">Employee Amount Due</button>
+    </nav>
+
+    <section class="tab-panel active" data-panel="additional-credit">
+      <div class="card">
+        <div class="section-title"><div><h2>Additional Credit</h2></div></div>
         <div class="form-grid">
           <label>Monthly employee limit<input id="creditLimit" type="number" min="0" step="0.01" /></label>
           <div class="button-field"><button id="loadCreditPolicy" class="secondary">Load Limit</button><button id="saveCreditPolicy">Save Limit</button></div>
@@ -44,10 +52,12 @@
           <label>Reason<input id="additionalCreditReason" placeholder="Reason for approval" /></label>
         </div>
         <button id="approveAdditionalCredit" class="wide">Approve Additional Credit</button>
-      </section>
+      </div>
+    </section>
 
-      <section class="card">
-        <div class="section-title"><div><span class="step">3</span><h2>Stipend</h2></div></div>
+    <section class="tab-panel" data-panel="stipend">
+      <div class="card">
+        <div class="section-title"><div><h2>Process Stipend</h2></div></div>
         <div class="form-grid">
           <label>Cash amount<input id="stipendCash" type="number" min="0.01" step="0.01" /></label>
           <label>Card reduction<input id="stipendReduction" type="number" min="0" step="0.01" /></label>
@@ -56,46 +66,44 @@
           <label class="span-two">Notes<input id="stipendNotes" /></label>
         </div>
         <button id="processStipend" class="wide">Process Stipend</button>
-      </section>
-    </div>
+      </div>
+    </section>
 
-    <div class="grid two">
-      <section class="card">
-        <div class="section-title"><div><span class="step">4</span><h2>Funding Policy</h2></div></div>
+    <section class="tab-panel" data-panel="rates">
+      <div class="card">
+        <div class="section-title"><div><h2>Rates</h2></div></div>
+        <p class="hint">These are the authoritative cafeteria funding rates used by month opening.</p>
         <div class="form-grid">
           <label>Daily credit limit rate<input id="dailyCreditRate" type="number" min="0.01" step="0.01" /></label>
           <label>Daily company subsidy rate<input id="dailySubsidyRate" type="number" min="0.01" step="0.01" /></label>
         </div>
-        <div class="actions"><button id="loadFunding" class="secondary">Load Policy</button><button id="saveFunding">Save Policy</button></div>
-      </section>
+        <div class="actions"><button id="loadFunding" class="secondary">Load Rates</button><button id="saveFunding">Save Rates</button></div>
+      </div>
+    </section>
 
-      <section class="card">
-        <div class="section-title"><div><span class="step">5</span><h2>Month Opening</h2></div></div>
+    <section class="tab-panel" data-panel="month-opening">
+      <div class="card">
+        <div class="section-title"><div><h2>Month Opening</h2></div></div>
         <div class="form-grid">
           <label>Year<input id="monthYear" type="number" /></label>
           <label>Month<input id="monthNumber" type="number" min="1" max="12" /></label>
         </div>
         <div class="actions"><button id="runMonthOpening">Run Month Opening</button><button id="recalculateMonth" class="secondary">Recalculate</button></div>
-      </section>
-    </div>
+        <p class="hint">Month closing is not exposed here because Cafeteria Services does not currently provide a management close-period operation.</p>
+      </div>
+    </section>
 
-    <div class="grid two">
-      <section class="card">
-        <div class="section-title"><div><span class="step">6</span><h2>Employee Amount Due Report</h2></div></div>
+    <section class="tab-panel" data-panel="amount-due">
+      <div class="card">
+        <div class="section-title"><div><h2>Employee Amount Due</h2></div></div>
         <div class="form-grid">
           <label>Year<input id="reportYear" type="number" /></label>
           <label>Month<input id="reportMonth" type="number" min="1" max="12" /></label>
         </div>
         <button id="loadPayrollReport">Load Report</button>
         <pre id="payrollReport" class="output">No report loaded.</pre>
-      </section>
-
-      <section class="card development">
-        <div class="section-title"><div><span class="step">DEV</span><h2>Development Tools</h2></div></div>
-        <p>Use only while testing. Reset clears Development financial/service state while preserving configuration and product setup.</p>
-        <button id="resetDevelopment" class="danger">Reset Development Data</button>
-      </section>
-    </div>
+      </div>
+    </section>
 
     <section class="card activity-card">
       <div class="section-title"><div><h2>Result</h2></div><button id="clearResult" class="secondary small">Clear</button></div>
