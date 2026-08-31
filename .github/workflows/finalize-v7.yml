@@ -1,0 +1,46 @@
+name: Finalize Aegis Engineering Diagnostics v7
+
+on:
+  push:
+    branches:
+      - chatgpt/aegis-engineering-diagnostics-v7
+    paths:
+      - .github/workflows/finalize-v7.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply verified v7 integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -n "/^          @'$/,/^          '@ | python -$/p" .github/workflows/apply-and-verify-v7.yml | sed '1d;$d;s/^          //' | python3 -
+
+      - name: Final naming and static audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git grep -ni 'starfleet' -- src RELEASE_NOTES.v7.md; then
+            echo 'Forbidden application terminology found.' >&2
+            exit 1
+          fi
+          PYTHONUTF8=1 python3 scripts/static-audit.py
+
+      - name: Commit final v7 tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/apply-and-verify-v7.yml .github/workflows/verify-v7-retry.yml .github/workflows/finalize-v7.yml
+          git config user.name "ChatGPT"
+          git config user.email "noreply@openai.com"
+          git add src/Aegis.Cafeteria.Services/Program.cs src/Aegis.Cafeteria.UI/MainForm.cs src/Aegis.Cafeteria.UI.Linux/MainWindow.cs
+          git commit -m "Integrate Aegis Engineering Diagnostics v7"
+          git push origin HEAD:chatgpt/aegis-engineering-diagnostics-v7
