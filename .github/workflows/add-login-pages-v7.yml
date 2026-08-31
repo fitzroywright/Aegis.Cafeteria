@@ -1,0 +1,77 @@
+name: Add login pages v7
+
+on:
+  push:
+    branches:
+      - chatgpt/aegis-engineering-diagnostics-v7
+    paths:
+      - .github/workflows/add-login-pages-v7.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch-build-commit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Patch diagnostics login routing
+        shell: pwsh
+        run: |
+          $env:PYTHONUTF8 = '1'
+          @'
+          from pathlib import Path
+
+          path = Path('src/Aegis.Cafeteria.Services/Program.cs')
+          text = path.read_text(encoding='utf-8')
+
+          old_using = 'using Microsoft.AspNetCore.Authentication.Negotiate;\n'
+          new_using = 'using Microsoft.AspNetCore.Authentication;\nusing Microsoft.AspNetCore.Authentication.Negotiate;\n'
+          if 'using Microsoft.AspNetCore.Authentication;\n' not in text:
+              if old_using not in text:
+                  raise SystemExit('Authentication using marker not found')
+              text = text.replace(old_using, new_using, 1)
+
+          old_route = '''app.MapGet("/engineering/diagnostics", () => Results.Content(LcarsDiagnosticsDashboard.Html, "text/html"))\n    .RequireAuthorization("EngineeringDiagnostics");'''
+          new_route = '''app.MapGet("/engineering/login", (HttpContext http) =>\n{\n    if (http.User.Identity?.IsAuthenticated == true)\n    {\n        return Results.Redirect("/engineering/diagnostics");\n    }\n\n    return Results.Content\n    (\n          EngineeringDiagnosticsLoginPage.Html\n        , "text/html"\n    );\n});\n\napp.MapGet("/engineering/signin", async (HttpContext http) =>\n{\n    if (http.User.Identity?.IsAuthenticated == true)\n    {\n        http.Response.Redirect("/engineering/diagnostics");\n        return;\n    }\n\n    await http.ChallengeAsync(NegotiateDefaults.AuthenticationScheme);\n});\n\napp.MapGet("/engineering/diagnostics", (HttpContext http) =>\n{\n    if (http.User.Identity?.IsAuthenticated != true)\n    {\n        return Results.Redirect("/engineering/login");\n    }\n\n    return Results.Content(LcarsDiagnosticsDashboard.Html, "text/html");\n}).RequireAuthorization("EngineeringDiagnostics");'''
+          if old_route not in text:
+              raise SystemExit('Diagnostics route marker not found')
+          text = text.replace(old_route, new_route, 1)
+          path.write_text(text, encoding='utf-8')
+          '@ | python -
+
+      - name: Verify login wording
+        shell: pwsh
+        run: |
+          $diagnosticsLogin = Get-Content src/Aegis.Cafeteria.Services/Engineering/Diagnostics/EngineeringDiagnosticsLoginPage.cs -Raw
+          if ($diagnosticsLogin -match '>Aegis<' -or $diagnosticsLogin -match 'Aegis Engineering') { throw 'Diagnostics sign-in page contains Aegis-facing wording.' }
+          $management = Get-Content src/Aegis.Cafeteria.Management/Program.cs -Raw
+          if ($management -notmatch 'Sign in with FFP Windows Account') { throw 'Management login page not found.' }
+          $services = Get-Content src/Aegis.Cafeteria.Services/Program.cs -Raw
+          if ($services -notmatch '/engineering/login' -or $services -notmatch '/engineering/signin') { throw 'Diagnostics login routing not found.' }
+
+      - name: Static audit
+        shell: pwsh
+        run: |
+          $env:PYTHONUTF8 = '1'
+          python scripts/static-audit.py
+
+      - name: Build
+        run: dotnet build Aegis.Cafeteria.slnx --configuration Release
+
+      - name: Commit login integration
+        shell: pwsh
+        run: |
+          git rm .github/workflows/add-login-pages-v7.yml
+          git config user.name "ChatGPT"
+          git config user.email "noreply@openai.com"
+          git add src/Aegis.Cafeteria.Services/Program.cs src/Aegis.Cafeteria.Management/Program.cs src/Aegis.Cafeteria.Services/Engineering/Diagnostics/EngineeringDiagnosticsLoginPage.cs
+          git commit -m "Add Windows sign-in pages for management and diagnostics"
+          git push origin HEAD:chatgpt/aegis-engineering-diagnostics-v7
