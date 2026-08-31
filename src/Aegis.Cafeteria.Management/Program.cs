@@ -126,17 +126,19 @@ app.MapMethods
             }
         );
 
-        await using (response)
+        using (response)
         {
             byte[] body = await response.Content.ReadAsByteArrayAsync(cancellationToken);
             string? contentType = response.Content.Headers.ContentType?.ToString();
 
-            return Results.File
-            (
-                  body
-                , contentType ?? "application/json"
-                , statusCode: (int)response.StatusCode
-            );
+            http.Response.StatusCode = (int)response.StatusCode;
+            if (!string.IsNullOrWhiteSpace(contentType))
+            {
+                http.Response.ContentType = contentType;
+            }
+
+            await http.Response.Body.WriteAsync(body, cancellationToken);
+            return Results.Empty;
         }
     }
 ).RequireAuthorization();
