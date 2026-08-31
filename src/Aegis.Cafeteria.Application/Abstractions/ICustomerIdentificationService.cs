@@ -14,4 +14,8 @@ public sealed record CustomerSearchCandidate(
     int CustomerId,
     string Name,
     bool IsEligibleForCredit = false,
-    byte[]? Photo = null);
+    byte[]? Photo = null,
+    string Department = "",
+    string Manager = "",
+    string EmailAddress = "",
+    string Extension = "");
