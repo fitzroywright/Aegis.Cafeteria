@@ -8,6 +8,7 @@
     <Project Path="src/Aegis.Cafeteria.UI/Aegis.Cafeteria.UI.csproj" />
     <Project Path="src/Aegis.Cafeteria.UI.Linux/Aegis.Cafeteria.UI.Linux.csproj" />
     <Project Path="src/Aegis.Cafeteria.Services/Aegis.Cafeteria.Services.csproj" />
+    <Project Path="src/Aegis.Cafeteria.Management/Aegis.Cafeteria.Management.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Aegis.Cafeteria.UnitTests/Aegis.Cafeteria.UnitTests.csproj" />
