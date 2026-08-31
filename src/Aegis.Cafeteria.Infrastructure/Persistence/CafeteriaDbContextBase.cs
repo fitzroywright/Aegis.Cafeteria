@@ -45,6 +45,10 @@ public abstract class CafeteriaDbContextBase(DbContextOptions options) : DbConte
         // Explicit lengths keep the SQL Server schema indexable and document the persisted contract.
         b.Entity<CustomerRow>().Property(x => x.Name).HasMaxLength(200);
         b.Entity<CustomerRow>().Property(x => x.NormalizedName).HasMaxLength(200);
+        b.Entity<CustomerRow>().Property(x => x.Department).HasMaxLength(200);
+        b.Entity<CustomerRow>().Property(x => x.Manager).HasMaxLength(200);
+        b.Entity<CustomerRow>().Property(x => x.EmailAddress).HasMaxLength(320);
+        b.Entity<CustomerRow>().Property(x => x.Extension).HasMaxLength(32);
         b.Entity<CustomerIdentifierRow>().Property(x => x.Value).HasMaxLength(256);
         b.Entity<CustomerIdentifierRow>().Property(x => x.NormalizedValue).HasMaxLength(256);
         b.Entity<HolidayRow>().Property(x => x.Name).HasMaxLength(200);
@@ -68,7 +72,7 @@ public abstract class CafeteriaDbContextBase(DbContextOptions options) : DbConte
         b.Entity<OrderRefundRow>().HasMany(x => x.Items).WithOne().HasForeignKey(x => x.RefundId).OnDelete(DeleteBehavior.Cascade);
         b.Entity<OrderRefundRow>().HasMany(x => x.Allocations).WithOne().HasForeignKey(x => x.RefundId).OnDelete(DeleteBehavior.Cascade);
 
-        foreach (var p in b.Model.GetEntityTypes().SelectMany(e => e.GetProperties()).Where(p => p.ClrType == typeof(decimal) || p.ClrType == typeof(decimal?)))
+        foreach (Microsoft.EntityFrameworkCore.Metadata.IMutableProperty p in b.Model.GetEntityTypes().SelectMany(e => e.GetProperties()).Where(p => p.ClrType == typeof(decimal) || p.ClrType == typeof(decimal?)))
         {
             p.SetPrecision(18);
             p.SetScale(2);
