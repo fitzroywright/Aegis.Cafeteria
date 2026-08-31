@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cafeteria Management</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">FOOD FOR THE POOR JAMAICA</div>
+      <h1>Cafeteria Management</h1>
+      <div class="subtitle">Temporary management console backed by Cafeteria Services</div>
+    </div>
+    <div class="top-actions">
+      <span id="serviceStatus" class="status">Checking Services...</span>
+      <button id="diagnosticsButton" class="secondary">Diagnostics</button>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="card employee-card">
+      <div class="section-title">
+        <div><span class="step">1</span><h2>Employee</h2></div>
+        <span id="selectedEmployee" class="selected">No employee selected</span>
+      </div>
+      <div class="row">
+        <label class="grow">Find employee
+          <input id="employeeSearch" autocomplete="off" placeholder="Name, code or TRN" />
+        </label>
+        <button id="employeeSearchButton">Find</button>
+      </div>
+      <div id="employeeResults" class="results"></div>
+    </section>
+
+    <div class="grid two">
+      <section class="card">
+        <div class="section-title"><div><span class="step">2</span><h2>Additional Credit</h2></div></div>
+        <div class="form-grid">
+          <label>Monthly employee limit<input id="creditLimit" type="number" min="0" step="0.01" /></label>
+          <div class="button-field"><button id="loadCreditPolicy" class="secondary">Load Limit</button><button id="saveCreditPolicy">Save Limit</button></div>
+          <label>Approval amount<input id="additionalCreditAmount" type="number" min="0.01" step="0.01" /></label>
+          <label>Reason<input id="additionalCreditReason" placeholder="Reason for approval" /></label>
+        </div>
+        <button id="approveAdditionalCredit" class="wide">Approve Additional Credit</button>
+      </section>
+
+      <section class="card">
+        <div class="section-title"><div><span class="step">3</span><h2>Stipend</h2></div></div>
+        <div class="form-grid">
+          <label>Cash amount<input id="stipendCash" type="number" min="0.01" step="0.01" /></label>
+          <label>Card reduction<input id="stipendReduction" type="number" min="0" step="0.01" /></label>
+          <label>Payment mode<select id="stipendMode"><option value="1">Advance</option><option value="2">Reimbursement</option></select></label>
+          <label>Expense report reference<input id="stipendReference" /></label>
+          <label class="span-two">Notes<input id="stipendNotes" /></label>
+        </div>
+        <button id="processStipend" class="wide">Process Stipend</button>
+      </section>
+    </div>
+
+    <div class="grid two">
+      <section class="card">
+        <div class="section-title"><div><span class="step">4</span><h2>Funding Policy</h2></div></div>
+        <div class="form-grid">
+          <label>Daily credit limit rate<input id="dailyCreditRate" type="number" min="0.01" step="0.01" /></label>
+          <label>Daily company subsidy rate<input id="dailySubsidyRate" type="number" min="0.01" step="0.01" /></label>
+        </div>
+        <div class="actions"><button id="loadFunding" class="secondary">Load Policy</button><button id="saveFunding">Save Policy</button></div>
+      </section>
+
+      <section class="card">
+        <div class="section-title"><div><span class="step">5</span><h2>Month Opening</h2></div></div>
+        <div class="form-grid">
+          <label>Year<input id="monthYear" type="number" /></label>
+          <label>Month<input id="monthNumber" type="number" min="1" max="12" /></label>
+        </div>
+        <div class="actions"><button id="runMonthOpening">Run Month Opening</button><button id="recalculateMonth" class="secondary">Recalculate</button></div>
+      </section>
+    </div>
+
+    <div class="grid two">
+      <section class="card">
+        <div class="section-title"><div><span class="step">6</span><h2>Employee Amount Due Report</h2></div></div>
+        <div class="form-grid">
+          <label>Year<input id="reportYear" type="number" /></label>
+          <label>Month<input id="reportMonth" type="number" min="1" max="12" /></label>
+        </div>
+        <button id="loadPayrollReport">Load Report</button>
+        <pre id="payrollReport" class="output">No report loaded.</pre>
+      </section>
+
+      <section class="card development">
+        <div class="section-title"><div><span class="step">DEV</span><h2>Development Tools</h2></div></div>
+        <p>Use only while testing. Reset clears Development financial/service state while preserving configuration and product setup.</p>
+        <button id="resetDevelopment" class="danger">Reset Development Data</button>
+      </section>
+    </div>
+
+    <section class="card activity-card">
+      <div class="section-title"><div><h2>Result</h2></div><button id="clearResult" class="secondary small">Clear</button></div>
+      <pre id="result" class="output">Ready.</pre>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
