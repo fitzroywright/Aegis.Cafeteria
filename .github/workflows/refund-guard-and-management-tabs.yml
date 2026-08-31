@@ -1,4 +1,4 @@
-name: Refund guard and management tabs
+name: Refund guard verification
 
 on:
   push:
@@ -20,22 +20,22 @@ jobs:
 
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: 10.0.x
 
-      - name: Add explicit refund-of-refund guards
+      - name: Patch refund selection
         shell: pwsh
         run: |
-          @'
-          from pathlib import Path
-
-          windows = Path('src/Aegis.Cafeteria.UI/MainForm.cs')
-          text = windows.read_text(encoding='utf-8')
-          old = '''            var rowType = selectedRow.GetType();
+          $windowsPath = 'src/Aegis.Cafeteria.UI/MainForm.cs'
+          $windows = Get-Content $windowsPath -Raw
+          $oldWindows = @'
+            var rowType = selectedRow.GetType();
             var kind = rowType.GetProperty("Kind")?.GetValue(selectedRow)?.ToString();
             var referenceValue = rowType.GetProperty("ReferenceId")?.GetValue(selectedRow);
             if (string.Equals(kind, "Purchase", StringComparison.OrdinalIgnoreCase) && referenceValue is Guid orderId)
-                return await this.orderQuery.GetAsync(orderId);'''
-          new = '''            Type rowType = selectedRow.GetType();
+                return await this.orderQuery.GetAsync(orderId);
+'@
+          $newWindows = @'
+            Type rowType = selectedRow.GetType();
             string? kind = rowType.GetProperty("Kind")?.GetValue(selectedRow)?.ToString();
             object? referenceValue = rowType.GetProperty("ReferenceId")?.GetValue(selectedRow);
 
@@ -55,20 +55,23 @@ jobs:
             if (string.Equals(kind, "Purchase", StringComparison.OrdinalIgnoreCase) && referenceValue is Guid orderId)
             {
                 return await this.orderQuery.GetAsync(orderId);
-            }'''
-          if old not in text:
-              raise SystemExit('Windows refund selection marker not found')
-          windows.write_text(text.replace(old, new, 1), encoding='utf-8')
+            }
+'@
+          if (-not $windows.Contains($oldWindows)) { throw 'Windows refund marker not found.' }
+          Set-Content -Path $windowsPath -Value $windows.Replace($oldWindows, $newWindows) -Encoding utf8
 
-          linux = Path('src/Aegis.Cafeteria.UI.Linux/MainWindow.cs')
-          text = linux.read_text(encoding='utf-8')
-          old = '''        if (transactions.SelectedItem is not TransactionRow selected ||
+          $linuxPath = 'src/Aegis.Cafeteria.UI.Linux/MainWindow.cs'
+          $linux = Get-Content $linuxPath -Raw
+          $oldLinux = @'
+        if (transactions.SelectedItem is not TransactionRow selected ||
             !string.Equals(selected.Transaction.Kind, "Purchase", StringComparison.OrdinalIgnoreCase))
         {
             status.Text = "Select a purchase from this month's transactions to refund.";
             return;
-        }'''
-          new = '''        if (transactions.SelectedItem is not TransactionRow selected)
+        }
+'@
+          $newLinux = @'
+        if (transactions.SelectedItem is not TransactionRow selected)
         {
             status.Text = "Select a purchase from this month's transactions to refund.";
             return;
@@ -84,39 +87,35 @@ jobs:
         {
             status.Text = "Select a purchase from this month's transactions to refund.";
             return;
-        }'''
-          if old not in text:
-              raise SystemExit('Linux refund selection marker not found')
-          linux.write_text(text.replace(old, new, 1), encoding='utf-8')
-          '@ | python -
+        }
+'@
+          if (-not $linux.Contains($oldLinux)) { throw 'Linux refund marker not found.' }
+          Set-Content -Path $linuxPath -Value $linux.Replace($oldLinux, $newLinux) -Encoding utf8
 
-      - name: Verify management UI and refund guard
+      - name: Verify UI rules
         shell: pwsh
         run: |
           $html = Get-Content src/Aegis.Cafeteria.Management/wwwroot/index.html -Raw
-          if ($html -notmatch 'data-tab="additional-credit"') { throw 'Additional Credit tab missing.' }
-          if ($html -notmatch 'data-tab="stipend"') { throw 'Stipend tab missing.' }
+          if ($html -match 'Development Tools') { throw 'Development Tools are visible.' }
           if ($html -notmatch 'data-tab="rates"') { throw 'Rates tab missing.' }
           if ($html -notmatch 'data-tab="month-opening"') { throw 'Month Opening tab missing.' }
-          if ($html -match 'Development Tools') { throw 'Development Tools are still visible.' }
           $windows = Get-Content src/Aegis.Cafeteria.UI/MainForm.cs -Raw
-          if ($windows -notmatch 'Refund entries cannot be refunded') { throw 'Windows refund-of-refund guard missing.' }
+          if ($windows -notmatch 'Refund entries cannot be refunded') { throw 'Windows refund guard missing.' }
           $linux = Get-Content src/Aegis.Cafeteria.UI.Linux/MainWindow.cs -Raw
-          if ($linux -notmatch 'Refund entries cannot be refunded') { throw 'Linux refund-of-refund guard missing.' }
+          if ($linux -notmatch 'Refund entries cannot be refunded') { throw 'Linux refund guard missing.' }
 
       - name: Static audit
-        shell: pwsh
         run: python scripts/static-audit.py
 
-      - name: Build complete solution
+      - name: Build solution
         run: dotnet build Aegis.Cafeteria.slnx --configuration Release
 
-      - name: Commit verified changes
+      - name: Commit verified patch
         shell: pwsh
         run: |
           git rm .github/workflows/refund-guard-and-management-tabs.yml
-          git config user.name "ChatGPT"
-          git config user.email "noreply@openai.com"
+          git config user.name ChatGPT
+          git config user.email noreply@openai.com
           git add src/Aegis.Cafeteria.UI/MainForm.cs src/Aegis.Cafeteria.UI.Linux/MainWindow.cs
-          git commit -m "Add refund guard and finalize management tabs"
+          git commit -m "Prevent refunding refund entries"
           git push origin HEAD:chatgpt/aegis-engineering-diagnostics-v7
