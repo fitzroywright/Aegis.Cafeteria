@@ -37,3 +37,11 @@ public sealed class ScheduledEmailOptions
     public string[] PayrollRecipients { get; init; } = [];
     public int PayrollReportHourLocal { get; init; } = 6;
 }
+
+public sealed class ServiceBackupOptions
+{
+    public bool Enabled { get; init; } = true;
+    public string Directory { get; init; } = "backups";
+    public int RunHourLocal { get; init; } = 2;
+    public int RetentionDays { get; init; } = 30;
+}
