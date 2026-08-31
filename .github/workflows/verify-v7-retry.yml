@@ -45,13 +45,13 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore
-        run: dotnet restore Aegis.Cafeteria.sln
+        run: dotnet restore Aegis.Cafeteria.slnx
 
       - name: Build
-        run: dotnet build Aegis.Cafeteria.sln --configuration Release --no-restore
+        run: dotnet build Aegis.Cafeteria.slnx --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test Aegis.Cafeteria.sln --configuration Release --no-build
+        run: dotnet test Aegis.Cafeteria.slnx --configuration Release --no-build
 
       - name: Commit verified v7 integration
         shell: pwsh
