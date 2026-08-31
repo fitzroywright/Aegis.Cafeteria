@@ -24,42 +24,63 @@ internal sealed class StartupSplashForm : Form
         Text = "Food For The Poor Jamaica - Cafeteria";
         TopMost = false;
 
-        var header = new Panel
+        Icon? applicationIcon = Icon.ExtractAssociatedIcon(System.Windows.Forms.Application.ExecutablePath);
+        if (applicationIcon is not null)
+        {
+            Icon = applicationIcon;
+        }
+
+        Panel header = new()
         {
             BackColor = Color.FromArgb(22, 66, 105),
             Dock = DockStyle.Top,
             Height = 118
         };
 
-        var organization = new Label
+        PictureBox applicationIconView = new()
+        {
+            BackColor = Color.Transparent,
+            Location = new Point(34, 23),
+            Size = new Size(72, 72),
+            SizeMode = PictureBoxSizeMode.Zoom,
+            TabStop = false
+        };
+
+        if (applicationIcon is not null)
+        {
+            applicationIconView.Image = applicationIcon.ToBitmap();
+        }
+
+        Label organization = new()
         {
             AutoSize = true,
             ForeColor = Color.White,
             Font = new Font("Segoe UI", 19F, FontStyle.Bold),
-            Location = new Point(34, 24),
+            Location = new Point(125, 24),
             Text = "FOOD FOR THE POOR JAMAICA"
         };
 
-        var application = new Label
+        Label application = new()
         {
             AutoSize = true,
             ForeColor = Color.WhiteSmoke,
             Font = new Font("Segoe UI", 11F, FontStyle.Regular),
-            Location = new Point(37, 70),
+            Location = new Point(128, 70),
             Text = "Cafeteria"
         };
 
+        header.Controls.Add(applicationIconView);
         header.Controls.Add(organization);
         header.Controls.Add(application);
 
-        var accent = new Panel
+        Panel accent = new()
         {
             BackColor = Color.FromArgb(235, 139, 40),
             Dock = DockStyle.Top,
             Height = 7
         };
 
-        var title = new Label
+        Label title = new()
         {
             AutoSize = true,
             ForeColor = Color.FromArgb(31, 44, 55),
@@ -96,7 +117,7 @@ internal sealed class StartupSplashForm : Form
             MarqueeAnimationSpeed = 28
         };
 
-        var version = new Label
+        Label version = new()
         {
             ForeColor = Color.FromArgb(135, 140, 145),
             Font = new Font("Segoe UI", 8.5F),
@@ -114,11 +135,26 @@ internal sealed class StartupSplashForm : Form
         Controls.Add(header);
     }
 
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            foreach (PictureBox pictureBox in Controls.OfType<Panel>().SelectMany(panel => panel.Controls.OfType<PictureBox>()))
+            {
+                pictureBox.Image?.Dispose();
+            }
+        }
+
+        base.Dispose(disposing);
+    }
+
     public void SetStatus(string status, string? detail = null)
     {
         this.statusLabel.Text = status;
         if (!string.IsNullOrWhiteSpace(detail))
+        {
             this.detailLabel.Text = detail;
+        }
     }
 
     public void SetReady(string detail)
