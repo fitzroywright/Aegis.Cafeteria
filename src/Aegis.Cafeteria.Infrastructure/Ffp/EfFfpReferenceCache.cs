@@ -11,8 +11,8 @@ using Microsoft.Extensions.Logging;
 
 public sealed class EfFfpReferenceCache(
     IDbContextFactory<LocalCafeteriaDbContext> factory,
-    FfpIntegrationOptions ffpOptions,
-    ILogger<EfFfpReferenceCache> logger) : IWorkforceReferenceCache
+    FfpIntegrationOptions? ffpOptions = null,
+    ILogger<EfFfpReferenceCache>? logger = null) : IWorkforceReferenceCache
 {
     public async Task ReplaceCustomersAsync(IReadOnlyCollection<ExternalCustomerSnapshot> employees, CancellationToken cancellationToken = default)
     {
@@ -84,14 +84,15 @@ public sealed class EfFfpReferenceCache(
         IReadOnlyCollection<ExternalCustomerSnapshot> employees,
         CancellationToken cancellationToken)
     {
-        if (employees.Count == 0 || string.IsNullOrWhiteSpace(ffpOptions.ConnectionString))
+        string connectionString = ffpOptions?.ConnectionString ?? string.Empty;
+        if (employees.Count == 0 || string.IsNullOrWhiteSpace(connectionString))
         {
             return new Dictionary<int, CustomerDirectoryMetadata>();
         }
 
         try
         {
-            await using SqlConnection connection = new(ffpOptions.ConnectionString);
+            await using SqlConnection connection = new(connectionString);
             await connection.OpenAsync(cancellationToken);
 
             HashSet<string> columns = await ReadEmployeeColumnsAsync(connection, cancellationToken);
@@ -156,7 +157,7 @@ WHERE e.ID IN ({employeeIds});";
         {
             // Directory metadata is supplementary. Never block the eligible employee cache or POS startup
             // if an older FFP schema does not expose one of these optional directory fields.
-            logger.LogWarning(ex, "Could not enrich the Cafeteria employee cache with FFP manager/email/extension metadata");
+            logger?.LogWarning(ex, "Could not enrich the Cafeteria employee cache with FFP manager/email/extension metadata");
             return new Dictionary<int, CustomerDirectoryMetadata>();
         }
     }
