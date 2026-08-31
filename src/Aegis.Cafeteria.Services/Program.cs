@@ -86,6 +86,18 @@ if (builder.Environment.IsDevelopment())
 {
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
+    builder.Services.AddCors
+    (
+        options => options.AddPolicy
+        (
+              "DevelopmentManagement"
+            , policy => policy
+                .WithOrigins("http://localhost:5090")
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials()
+        )
+    );
 }
 builder.Services.AddSingleton<ServiceEventRealtimePublisher>();
 builder.Services.AddSingleton<ServiceEventStore>();
@@ -186,6 +198,7 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    app.UseCors("DevelopmentManagement");
 }
 
 app.UseAuthentication();
@@ -269,6 +282,40 @@ app.MapHub<ManagementEventsHub>("/hubs/cafeteria");
 
 app.MapGet("/api/pos/events", async (long afterSequence, int? take, ServiceEventStore store, CancellationToken ct)
     => Results.Ok(await store.GetAfterAsync(Math.Max(0,afterSequence), take ?? 100, ct)));
+
+app.MapGet("/api/management/customers", async (string? search, int? take, IWorkforceReferenceSource workforce, CancellationToken ct) =>
+{
+    string term = (search ?? string.Empty).Trim();
+    int limit = Math.Clamp(take ?? 25, 1, 100);
+
+    if (term.Length < 2)
+    {
+        return Results.Ok(Array.Empty<object>());
+    }
+
+    IReadOnlyList<ExternalCustomerSnapshot> employees = await workforce.GetCustomersAsync(ct);
+    string normalized = term.Replace(" ", string.Empty, StringComparison.Ordinal).ToUpperInvariant();
+
+    object[] matches = employees
+        .Where(employee => employee.IsEligibleForCafeteriaCredit)
+        .Where(employee =>
+               employee.Name.Contains(term, StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrWhiteSpace(employee.Code) && employee.Code.Contains(term, StringComparison.OrdinalIgnoreCase))
+            || (!string.IsNullOrWhiteSpace(employee.Trn) && employee.Trn.Replace(" ", string.Empty, StringComparison.Ordinal).Contains(normalized, StringComparison.OrdinalIgnoreCase)))
+        .OrderBy(employee => employee.Name)
+        .Take(limit)
+        .Select(employee => (object)new
+        {
+              employee.CustomerId
+            , employee.Name
+            , employee.Code
+            , employee.Trn
+            , employee.Department
+        })
+        .ToArray();
+
+    return Results.Ok(matches);
+}).RequireAuthorization("CafeteriaManagement");
 
 app.MapGet("/api/management/customers/{customerId:int}/credit-policy", async (int customerId, CustomerCreditPolicyStore policies, IWorkforceReferenceSource workforce, CancellationToken ct) =>
 {
