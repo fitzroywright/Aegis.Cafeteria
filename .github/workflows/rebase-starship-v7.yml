@@ -1,0 +1,80 @@
+name: Rebase Starfleet Diagnostics v7
+
+on:
+  push:
+    branches:
+      - chatgpt/starfleet-diagnostics-v7
+    paths:
+      - .github/workflows/rebase-starship-v7.yml
+
+permissions:
+  contents: write
+
+jobs:
+  rebase-v7:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out v7 staging branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Preserve v7 diagnostics payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/aegis-v7
+          mkdir -p /tmp/aegis-v7/Engineering
+          cp RELEASE_NOTES.v7.md /tmp/aegis-v7/RELEASE_NOTES.v7.md
+          cp src/Aegis.Cafeteria.Services/Engineering/*.cs /tmp/aegis-v7/Engineering/
+
+      - name: Rebuild v7 on current master
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin master
+          git reset --hard origin/master
+          mkdir -p src/Aegis.Cafeteria.Services/Engineering
+          cp /tmp/aegis-v7/Engineering/*.cs src/Aegis.Cafeteria.Services/Engineering/
+          cp /tmp/aegis-v7/RELEASE_NOTES.v7.md RELEASE_NOTES.v7.md
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text(encoding='utf-8')
+              if old not in text:
+                  raise SystemExit(f'Marker not found in {path}: {old[:120]!r}')
+              p.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          program = 'src/Aegis.Cafeteria.Services/Program.cs'
+          replace_once(program,
+              'using Aegis.Cafeteria.Services.Development;\nusing Aegis.Cafeteria.Services.Persistence;',
+              'using Aegis.Cafeteria.Services.Development;\nusing Aegis.Cafeteria.Services.Engineering;\nusing Aegis.Cafeteria.Services.Persistence;')
+          replace_once(program,
+              'builder.Services.AddSingleton<StipendAccountSnapshotFactory>();',
+              'builder.Services.AddSingleton<StipendAccountSnapshotFactory>();\nbuilder.Services.AddSingleton<EngineeringDiagnosticRunStore>();\nbuilder.Services.AddSingleton<CafeteriaEngineeringDiagnosticService>();')
+          replace_once(program,
+              'app.MapGet("/health", () => Results.Ok(new { status="running", application="Aegis.Cafeteria.Services", timeUtc=DateTimeOffset.UtcNow }));\n\napp.MapHub<ManagementEventsHub>("/hubs/cafeteria");',
+              '''app.MapGet("/health", () => Results.Ok(new { status="running", application="Aegis.Cafeteria.Services", timeUtc=DateTimeOffset.UtcNow }));\n\napp.MapGet("/engineering/diagnostics", () => Results.Content(LcarsDiagnosticsDashboard.Html, "text/html"))\n    .RequireAuthorization("CafeteriaManagement");\n\napp.MapGet("/api/engineering/diagnostics/runs", async (int? take, EngineeringDiagnosticRunStore store, CancellationToken ct) =>\n{\n    IReadOnlyList<EngineeringDiagnosticRun> runs = await store.GetRecentAsync(take ?? 25, ct);\n    return Results.Ok(runs);\n}).RequireAuthorization("CafeteriaManagement");\n\napp.MapGet("/api/engineering/diagnostics/runs/{runId:guid}", async (Guid runId, EngineeringDiagnosticRunStore store, CancellationToken ct) =>\n{\n    EngineeringDiagnosticRun? run = await store.GetAsync(runId, ct);\n    return run is null ? Results.NotFound() : Results.Ok(run);\n}).RequireAuthorization("CafeteriaManagement");\n\napp.MapPost("/api/engineering/diagnostics/runs/{runId:guid}/resolve", async (Guid runId, EngineeringDiagnosticResolutionRequest request, HttpContext http, EngineeringDiagnosticRunStore store, CancellationToken ct) =>\n{\n    try\n    {\n        EngineeringDiagnosticRun? run = await store.ResolveAsync\n        (\n              runId\n            , RequireActor(http)\n            , request.Resolution\n            , ct\n        );\n\n        return run is null ? Results.NotFound() : Results.Ok(run);\n    }\n    catch (ArgumentException exception)\n    {\n        return Results.BadRequest(new { error = exception.Message });\n    }\n}).RequireAuthorization("CafeteriaManagement");\n\napp.MapPost("/api/engineering/diagnostics/run", async (EngineeringDiagnosticRunRequest request, HttpContext http, CafeteriaEngineeringDiagnosticService diagnostics, CancellationToken ct) =>\n{\n    try\n    {\n        EngineeringDiagnosticRun run = await diagnostics.RunAsync\n        (\n              request.Level\n            , RequireActor(http)\n            , request.Reason\n            , ct\n        );\n\n        return Results.Ok(run);\n    }\n    catch (ArgumentException exception)\n    {\n        return Results.BadRequest(new { error = exception.Message });\n    }\n}).RequireAuthorization("CafeteriaManagement");\n\napp.MapHub<ManagementEventsHub>("/hubs/cafeteria");''')
+
+          main_form = 'src/Aegis.Cafeteria.UI/MainForm.cs'
+          replace_once(main_form,
+              'using Microsoft.Extensions.Logging;\n\nnamespace Aegis.Cafeteria.UI;',
+              'using Microsoft.Extensions.Logging;\n\nusing System.Diagnostics;\n\nnamespace Aegis.Cafeteria.UI;')
+          replace_once(main_form,
+              '''        administration.DropDownItems.Add(cafeteriaAdministration);\n        menu.Items.Add(administration);\n\n        return menu;\n    }\n\n    private async Task OpenCafeteriaAdministrationAsync()''',
+              '''        administration.DropDownItems.Add(cafeteriaAdministration);\n        menu.Items.Add(administration);\n\n        ToolStripMenuItem engineering = new("Engineering")\n        {\n            Font = new Font("Segoe UI", 10, FontStyle.Bold)\n        };\n\n        ToolStripMenuItem diagnostics = new("Starfleet Engineering Diagnostics...");\n        diagnostics.Click += (_, _) => OpenEngineeringDiagnostics();\n        engineering.DropDownItems.Add(diagnostics);\n        menu.Items.Add(engineering);\n\n        return menu;\n    }\n\n    private void OpenEngineeringDiagnostics()\n    {\n        CafeteriaServicesOptions cafeteriaServices = this.services.GetRequiredService<CafeteriaServicesOptions>();\n        string diagnosticsUrl = cafeteriaServices.BaseUrl.TrimEnd('/') + "/engineering/diagnostics";\n\n        Process.Start\n        (\n            new ProcessStartInfo\n            {\n                  FileName = diagnosticsUrl\n                , UseShellExecute = true\n            }\n        );\n    }\n\n    private async Task OpenCafeteriaAdministrationAsync()''')
+
+          linux = 'src/Aegis.Cafeteria.UI.Linux/MainWindow.cs'
+          replace_once(linux,
+              '''        administration.Items.Add(priceMaintenance);\n        menu.Items.Add(administration);\n\n        return menu;\n    }\n\n    private MenuItem BuildReportMenuItem(CafeteriaReportKind kind)''',
+              '''        administration.Items.Add(priceMaintenance);\n        menu.Items.Add(administration);\n\n        MenuItem engineering = new()\n        {\n              Header = "Engineering"\n            , FontWeight = FontWeight.Bold\n            , Foreground = new SolidColorBrush(Color.FromRgb(24, 45, 68))\n        };\n        MenuItem diagnostics = new() { Header = "Starfleet Engineering Diagnostics..." };\n        diagnostics.Click += (_, _) => OpenEngineeringDiagnostics();\n        engineering.Items.Add(diagnostics);\n        menu.Items.Add(engineering);\n\n        return menu;\n    }\n\n    private void OpenEngineeringDiagnostics()\n    {\n        CafeteriaServicesOptions cafeteriaServices = this.services.GetRequiredService<CafeteriaServicesOptions>();\n        string diagnosticsUrl = cafeteriaServices.BaseUrl.TrimEnd('/') + "/engineering/diagnostics";\n\n        Process.Start\n        (\n            new ProcessStartInfo\n            {\n                  FileName = diagnosticsUrl\n                , UseShellExecute = true\n            }\n        );\n    }\n\n    private MenuItem BuildReportMenuItem(CafeteriaReportKind kind)''')
+          PY
+
+          git config user.name "ChatGPT"
+          git config user.email "noreply@openai.com"
+          git add RELEASE_NOTES.v7.md src/Aegis.Cafeteria.Services/Engineering src/Aegis.Cafeteria.Services/Program.cs src/Aegis.Cafeteria.UI/MainForm.cs src/Aegis.Cafeteria.UI.Linux/MainWindow.cs
+          git commit -m "Add Starfleet Engineering diagnostics and LCARS console v7"
+          git push --force origin HEAD:chatgpt/starfleet-diagnostics-v7
