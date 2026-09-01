@@ -19,8 +19,6 @@ namespace Aegis.Cafeteria.UI;
 
 internal static class Program
 {
-    private static readonly TimeSpan StartupReferenceRefreshTimeout = TimeSpan.FromSeconds(5);
-
     [STAThread]
     private static async Task Main()
     {
@@ -176,7 +174,8 @@ internal static class Program
         , StartupSplashController splash
     )
     {
-        using CancellationTokenSource startupRefresh = new(StartupReferenceRefreshTimeout);
+        TimeSpan startupRefreshTimeout = TimeSpan.FromSeconds(runtime.Services.StartupRefreshTimeoutSeconds);
+        using CancellationTokenSource startupRefresh = new(startupRefreshTimeout);
 
         try
         {
@@ -202,7 +201,7 @@ internal static class Program
         {
             splash.Update
             (
-                "Online refresh timed out - starting from local cache.",
+                $"Online refresh exceeded {runtime.Services.StartupRefreshTimeoutSeconds} seconds - starting from local cache.",
                 "Cafeteria Services will synchronize again after the terminal has started."
             );
         }
