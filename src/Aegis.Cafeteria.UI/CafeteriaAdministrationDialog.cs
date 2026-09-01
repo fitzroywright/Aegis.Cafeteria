@@ -15,6 +15,11 @@ public sealed class CafeteriaAdministrationDialog : Form
         , MultiSelect = false
     };
     private readonly BindingSource productSource = new();
+    private readonly Button importFromFfp = new()
+    {
+          Text = "Import Lunch Items from FFP"
+        , AutoSize = true
+    };
 
     public CafeteriaAdministrationDialog
     (
@@ -24,8 +29,8 @@ public sealed class CafeteriaAdministrationDialog : Form
         this.products = products;
 
         Text = "POS Product & Price Maintenance";
-        Width = 780;
-        Height = 620;
+        Width = 820;
+        Height = 640;
         StartPosition = FormStartPosition.CenterParent;
         Font = new Font("Segoe UI", 10);
 
@@ -99,23 +104,26 @@ public sealed class CafeteriaAdministrationDialog : Form
         };
         delete.Click += async (_, _) => await DeleteSelectedProductAsync();
 
+        this.importFromFfp.Click += async (_, _) => await ImportFromFfpAsync();
+
         Label explanation = new()
         {
               AutoSize = true
-            , MaximumSize = new Size(700, 0)
-            , Text = "Products and current prices belong to this POS database. Completed sales preserve their own product description and unit price, so changing a product here never rewrites historical reports."
+            , MaximumSize = new Size(760, 0)
+            , Text = "Products and current prices belong to this POS database. Import from FFP is a bootstrap tool only: it adds missing LunchItems, never overwrites or deletes POS products, and ignores every FFP-prefixed code. Completed sales preserve their own product description and unit price."
         };
 
         FlowLayoutPanel buttons = new()
         {
               Dock = DockStyle.Bottom
-            , Height = 92
+            , Height = 110
             , Padding = new Padding(8)
         };
 
         buttons.Controls.Add(add);
         buttons.Controls.Add(save);
         buttons.Controls.Add(delete);
+        buttons.Controls.Add(this.importFromFfp);
         buttons.Controls.Add(explanation);
 
         page.Controls.Add(this.productGrid);
@@ -201,6 +209,56 @@ public sealed class CafeteriaAdministrationDialog : Form
 
         await this.products.DeleteAsync(row.ProductId);
         await LoadProductsAsync();
+    }
+
+    private async Task ImportFromFfpAsync()
+    {
+        DialogResult answer = MessageBox.Show
+        (
+              this
+            , "Import LunchItems from FFP into the POS catalog?\n\nOnly missing products will be added. Existing POS products and prices will not be changed, no POS products will be deleted, and all codes beginning with FFP will be ignored."
+            , "Import Lunch Items from FFP"
+            , MessageBoxButtons.YesNo
+            , MessageBoxIcon.Question
+            , MessageBoxDefaultButton.Button2
+        );
+
+        if (answer != DialogResult.Yes)
+        {
+            return;
+        }
+
+        this.importFromFfp.Enabled = false;
+
+        try
+        {
+            ProductCatalogImportResult result = await this.products.ImportFromFfpAsync();
+            await LoadProductsAsync();
+
+            MessageBox.Show
+            (
+                  this
+                , $"Import complete.\n\nAdded: {result.AddedProducts}\nAlready in POS: {result.ExistingProducts}\nFFP system/config rows ignored: {result.IgnoredFfpProducts}"
+                , "Lunch Items Imported"
+                , MessageBoxButtons.OK
+                , MessageBoxIcon.Information
+            );
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show
+            (
+                  this
+                , exception.Message
+                , "Lunch Item Import Failed"
+                , MessageBoxButtons.OK
+                , MessageBoxIcon.Error
+            );
+        }
+        finally
+        {
+            this.importFromFfp.Enabled = true;
+        }
     }
 
     private sealed class ProductEditRow
