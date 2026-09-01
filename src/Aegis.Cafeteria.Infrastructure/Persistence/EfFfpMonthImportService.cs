@@ -3,6 +3,9 @@ namespace Aegis.Cafeteria.Infrastructure.Persistence;
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Infrastructure.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 
 public sealed class EfFfpMonthImportService
 (
@@ -57,6 +60,37 @@ public sealed class EfFfpMonthImportService
                 }
             );
 
+            Guid eventId = ImportedEventId(transaction.SourceId);
+            bool eventExists = await db.AccountEvents.AnyAsync(row => row.Id == eventId, cancellationToken);
+            if (!eventExists)
+            {
+                string detail = string.IsNullOrWhiteSpace(transaction.Description)
+                    ? transaction.IdName
+                    : $"{transaction.IdName} - {transaction.Description}";
+                string eventType = $"Imported FFP - {detail}";
+                if (eventType.Length > 100)
+                {
+                    eventType = eventType[..100];
+                }
+
+                db.AccountEvents.Add
+                (
+                    new AccountEventRow
+                    {
+                          Id = eventId
+                        , EventType = eventType
+                        , CustomerId = transaction.CustomerId
+                        , AccountYear = snapshot.Year
+                        , AccountMonth = snapshot.Month
+                        , Amount = transaction.ScanValue
+                        , PayloadJson = JsonSerializer.Serialize(transaction)
+                        , OccurredAt = transaction.OccurredAt
+                        , Revision = importedAt.UtcDateTime.Ticks
+                        , UpdatedAt = importedAt
+                    }
+                );
+            }
+
             importedTransactions++;
             netImportedScanValue += transaction.ScanValue;
         }
@@ -75,5 +109,11 @@ public sealed class EfFfpMonthImportService
             , snapshot.Accounts.Count
             , netImportedScanValue
         );
+    }
+
+    private static Guid ImportedEventId(long sourceId)
+    {
+        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes($"FFP-IMPORT:{sourceId}"));
+        return new Guid(hash.AsSpan(0, 16));
     }
 }
