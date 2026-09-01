@@ -8,6 +8,7 @@ public sealed class ServicesIntegrationGateway(HttpClient http) :
       IExternalAccountingGateway
     , IWorkforceReferenceSource
     , ILunchItemBootstrapSource
+    , IFfpMonthImportSource
 {
     public async Task<IReadOnlyList<ExternalCustomerSnapshot>> GetCustomersAsync(CancellationToken cancellationToken = default)
         => await http.GetFromJsonAsync<ExternalCustomerSnapshot[]>("api/ffp/customers", cancellationToken) ?? [];
@@ -17,6 +18,10 @@ public sealed class ServicesIntegrationGateway(HttpClient http) :
 
     public async Task<IReadOnlyList<ExternalProductSnapshot>> GetLunchItemsAsync(CancellationToken cancellationToken = default)
         => await http.GetFromJsonAsync<ExternalProductSnapshot[]>("api/ffp/lunch-items", cancellationToken) ?? [];
+
+    public async Task<FfpMonthImportSnapshot> GetMonthAsync(int year, int month, CancellationToken cancellationToken = default)
+        => await http.GetFromJsonAsync<FfpMonthImportSnapshot>($"api/ffp/month-import?year={year}&month={month}", cancellationToken)
+            ?? throw new InvalidOperationException("Cafeteria Services returned no current-month import payload.");
 
     public async Task<IReadOnlyList<ExternalAccountSummary>> GetAccountSummariesAsync(CancellationToken cancellationToken = default)
         => await http.GetFromJsonAsync<ExternalAccountSummary[]>("api/ffp/accounts", cancellationToken) ?? [];
