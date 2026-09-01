@@ -12,12 +12,13 @@ public static class CashCustomerAccountViewFactory
 
     public static CustomerAccountView Create(DateOnly today)
     {
-        var publication = new FfpPublicationStatus(false, 0, 0, null, null);
+        FfpPublicationStatus publication = new(false, 0, 0, null, null);
         return new CustomerAccountView(
             new CustomerIdentityView(CashCustomerId, "Cash Customer", null, false, true),
             new AccountPeriodView(today.Year, today.Month, 0, 0m, 0m, false),
             new CustomerFinancialStatusView(
-                0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m),
+                0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m,
+                0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m),
             [],
             publication,
             new CustomerFundingStatusView(false, false, null, "Cash customer - cash tender only"));
