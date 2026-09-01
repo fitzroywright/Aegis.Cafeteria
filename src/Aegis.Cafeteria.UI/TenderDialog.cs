@@ -163,11 +163,10 @@ internal sealed class TenderDialog : Form
         TableLayoutPanel creditLayout = new() { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 2 };
         creditLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 66));
         creditLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34));
+        this.credit.ForeColor = Orange;
         creditLayout.Controls.Add(this.useCredit, 0, 0);
-        creditLayout.Controls.Add(ValueLabel("", Orange), 1, 0);
-        creditLayout.Controls[1].Dispose();
         creditLayout.Controls.Add(this.credit, 1, 0);
-        creditLayout.Controls.Add(new Label
+        Label creditHint = new()
         {
             Text = this.creditSalesAllowed
                 ? "Credit becomes Employee Amount Due. If unpaid at month-end it is carried into the next period."
@@ -176,8 +175,9 @@ internal sealed class TenderDialog : Form
             MaximumSize = new Size(360, 0),
             ForeColor = Muted,
             Font = new Font("Segoe UI", 8.5f)
-        }, 0, 1);
-        creditLayout.SetColumnSpan(creditLayout.Controls[2], 2);
+        };
+        creditLayout.Controls.Add(creditHint, 0, 1);
+        creditLayout.SetColumnSpan(creditHint, 2);
         creditPanel.Controls.Add(creditLayout);
         table.Controls.Add(creditPanel, 0, 5);
         table.SetColumnSpan(creditPanel, 2);
