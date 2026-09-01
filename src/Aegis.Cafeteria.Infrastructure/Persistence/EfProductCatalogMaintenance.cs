@@ -1,10 +1,15 @@
 namespace Aegis.Cafeteria.Infrastructure.Persistence;
 
 using Aegis.Cafeteria.Application.Abstractions;
+using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Infrastructure.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
 
-public sealed class EfProductCatalogMaintenance(IDbContextFactory<LocalCafeteriaDbContext> factory) : IProductCatalogMaintenance
+public sealed class EfProductCatalogMaintenance
+(
+      IDbContextFactory<LocalCafeteriaDbContext> factory
+    , ILunchItemBootstrapSource? lunchItemSource = null
+) : IProductCatalogMaintenance
 {
     public async Task<IReadOnlyList<ProductCatalogItem>> GetAllAsync
     (
@@ -92,6 +97,79 @@ public sealed class EfProductCatalogMaintenance(IDbContextFactory<LocalCafeteria
 
         db.Products.Remove(row);
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<ProductCatalogImportResult> ImportFromFfpAsync
+    (
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (lunchItemSource is null)
+        {
+            throw new InvalidOperationException("FFP LunchItems import is not available because FFP integration is not configured.");
+        }
+
+        IReadOnlyList<ExternalProductSnapshot> sourceItems = await lunchItemSource.GetLunchItemsAsync(cancellationToken);
+        int ignoredFfpProducts = sourceItems.Count
+        (
+            item => item.Code.Trim().StartsWith("FFP", StringComparison.OrdinalIgnoreCase)
+        );
+
+        ExternalProductSnapshot[] importable = sourceItems
+            .Where(item => !item.Code.Trim().StartsWith("FFP", StringComparison.OrdinalIgnoreCase))
+            .Where(item => item.ProductId > 0)
+            .Where(item => !string.IsNullOrWhiteSpace(item.Name))
+            .Where(item => item.Price >= 0m)
+            .GroupBy(item => item.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
+
+        await using LocalCafeteriaDbContext db = await factory.CreateDbContextAsync(cancellationToken);
+        List<ProductRow> existing = await db.Products.ToListAsync(cancellationToken);
+        HashSet<string> existingNames = existing
+            .Where(product => !string.IsNullOrWhiteSpace(product.Name))
+            .Select(product => product.Name.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        int existingProducts = 0;
+        int addedProducts = 0;
+        int nextId = existing.Select(product => product.Id).DefaultIfEmpty(0).Max() + 1;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        foreach (ExternalProductSnapshot item in importable)
+        {
+            string name = item.Name.Trim();
+            if (!existingNames.Add(name))
+            {
+                existingProducts++;
+                continue;
+            }
+
+            db.Products.Add
+            (
+                new ProductRow
+                {
+                      Id = nextId++
+                    , Name = name
+                    , Price = item.Price
+                    , Revision = now.UtcDateTime.Ticks
+                    , UpdatedAt = now
+                }
+            );
+            addedProducts++;
+        }
+
+        if (addedProducts > 0)
+        {
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        return new ProductCatalogImportResult
+        (
+              addedProducts
+            , existingProducts
+            , ignoredFfpProducts
+        );
     }
 
     private static void Validate
