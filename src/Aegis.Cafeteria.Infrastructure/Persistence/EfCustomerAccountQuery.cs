@@ -105,7 +105,8 @@ public sealed class EfCustomerAccountQuery(
                 CustomerPayments: snapshot.CustomerPayments,
                 CustomerResponsibility: snapshot.CustomerResponsibilityForCurrentCharges,
                 EmployeeAmountDue: snapshot.EmployeeAmountDue,
-                TotalRefunds: snapshot.TotalRefunds);
+                TotalRefunds: snapshot.TotalRefunds,
+                CurrentCreditSaleDebt: snapshot.CurrentCreditSaleDebt);
         }
 
         FfpPublicationStatus publication = await publicationStatusProvider.GetAsync(cancellationToken);
@@ -171,7 +172,8 @@ public sealed class EfCustomerAccountQuery(
         CustomerPayments: 0m,
         CustomerResponsibility: 0m,
         EmployeeAmountDue: 0m,
-        TotalRefunds: 0m);
+        TotalRefunds: 0m,
+        CurrentCreditSaleDebt: 0m);
 
     private static CustomerFundingStatusView BuildFundingStatus(bool eligibleForCredit, MonthlyCreditAllocation allocation)
     {
@@ -196,10 +198,18 @@ public sealed class EfCustomerAccountQuery(
         foreach (OrderRow order in orders.Where(x => x.Status == (int)OrderStatus.Completed && x.CompletedAt.HasValue))
         {
             string description = order.Items.Count == 0 ? "Cafeteria purchase" : string.Join(", ", order.Items.Select(x => x.Quantity == 1 ? x.ProductName : $"{x.Quantity} x {x.ProductName}"));
+            decimal creditAmount = order.Payments.Where(x => x.Method == (int)PaymentMethod.Credit).Sum(x => x.Amount);
+            if (creditAmount > 0m)
+                description += $" • Employee Credit {creditAmount:C2}";
+
             items.Add(new(order.CompletedAt!.Value, "Purchase", description, order.Items.Sum(x => x.UnitPrice * x.Quantity), order.Payments.Where(x => x.Method == (int)PaymentMethod.CafeteriaAccount).Sum(x => x.Amount), order.Payments.Where(x => x.Method == (int)PaymentMethod.Cash).Sum(x => x.Amount), order.Id));
             foreach (OrderRefundRow refund in order.Refunds.Where(x => x.RefundedAt.Year == year && x.RefundedAt.Month == month))
             {
-                items.Add(new(refund.RefundedAt, "Refund", refund.Reason, -refund.Items.Sum(x => x.UnitPrice * x.Quantity), -refund.Allocations.Where(x => x.Method == (int)PaymentMethod.CafeteriaAccount).Sum(x => x.Amount), -refund.Allocations.Where(x => x.Method == (int)PaymentMethod.Cash).Sum(x => x.Amount), refund.Id));
+                decimal creditRefund = refund.Allocations.Where(x => x.Method == (int)PaymentMethod.Credit).Sum(x => x.Amount);
+                string refundDescription = creditRefund > 0m
+                    ? $"{refund.Reason} • Employee Credit reduced {creditRefund:C2}"
+                    : refund.Reason;
+                items.Add(new(refund.RefundedAt, "Refund", refundDescription, -refund.Items.Sum(x => x.UnitPrice * x.Quantity), -refund.Allocations.Where(x => x.Method == (int)PaymentMethod.CafeteriaAccount).Sum(x => x.Amount), -refund.Allocations.Where(x => x.Method == (int)PaymentMethod.Cash).Sum(x => x.Amount), refund.Id));
             }
         }
 
