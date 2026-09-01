@@ -35,5 +35,8 @@ public interface IProductCatalogMaintenance
     Task<ProductCatalogImportResult> ImportFromFfpAsync
     (
         CancellationToken cancellationToken = default
-    );
+    )
+    {
+        throw new NotSupportedException("FFP LunchItems bootstrap import is not available for this product catalog implementation.");
+    }
 }
