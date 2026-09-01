@@ -183,7 +183,7 @@ public static class CafeteriaInfrastructure
             client =>
             {
                 client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
-                client.Timeout = TimeSpan.FromSeconds(5);
+                client.Timeout = TimeSpan.FromSeconds(options.RequestTimeoutSeconds);
             }
         )
         .ConfigurePrimaryHttpMessageHandler
@@ -210,7 +210,7 @@ public static class CafeteriaInfrastructure
     )
     {
         client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
-        client.Timeout = TimeSpan.FromSeconds(5);
+        client.Timeout = TimeSpan.FromSeconds(options.RequestTimeoutSeconds);
 
         if (!string.IsNullOrWhiteSpace(options.ApiKey))
         {
