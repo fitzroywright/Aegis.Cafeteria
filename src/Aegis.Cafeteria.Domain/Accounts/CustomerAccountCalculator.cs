@@ -30,79 +30,88 @@ public sealed class CustomerAccountCalculator
         if (allocation.CustomerId != customer.Id || allocation.Year != period.Year || allocation.Month != period.Month)
             throw new InvalidOperationException("The monthly allocation does not belong to the supplied customer and account period.");
 
-        var baseMonthlyCredit = allocation.TotalCreditLimit;
-        var subsidyLimit = allocation.SubsidyAllocation;
+        decimal baseMonthlyCredit = allocation.TotalCreditLimit;
+        decimal subsidyLimit = allocation.SubsidyAllocation;
 
-        var carriedDebt = carriedForwardDebts
+        decimal carriedDebt = carriedForwardDebts
             .Where(x => x.CustomerId == customer.Id && x.AppliedYear == period.Year && x.AppliedMonth == period.Month)
             .Sum(x => x.Amount);
 
         // Retained for explicit discovered/corrected prior-period amounts. Normal unpaid debt is represented by CarriedForwardDebt.
-        var settlementAmount = priorPeriodSettlements
+        decimal settlementAmount = priorPeriodSettlements
             .Where(x => x.CustomerId == customer.Id && x.SettlementYear == period.Year && x.SettlementMonth == period.Month)
             .Sum(x => x.Amount);
 
-        var periodStipends = stipends
+        Stipend[] periodStipends = stipends
             .Where(x => x.CustomerId == customer.Id && period.Contains(x.ProcessedAt))
             .ToArray();
-        var stipendCashPaid = periodStipends.Sum(x => x.CashAmount);
-        var stipendCardReduction = periodStipends.Sum(x => x.CardReduction);
+        decimal stipendCashPaid = periodStipends.Sum(x => x.CashAmount);
+        decimal stipendCardReduction = periodStipends.Sum(x => x.CardReduction);
 
         if (stipendCardReduction > subsidyLimit)
             throw new InvalidOperationException("Stipend card reductions cannot exceed the period subsidy allocation.");
 
-        var baseCreditAvailableForCurrentPurchases = Math.Max(0m, baseMonthlyCredit - settlementAmount - stipendCardReduction - carriedDebt);
-        var remainingCompanyContribution = Math.Max(0m, subsidyLimit - stipendCardReduction);
+        decimal baseCreditAvailableForCurrentPurchases = Math.Max(0m, baseMonthlyCredit - settlementAmount - stipendCardReduction - carriedDebt);
+        decimal remainingCompanyContribution = Math.Max(0m, subsidyLimit - stipendCardReduction);
 
-        var periodOrders = orders
+        Order[] periodOrders = orders
             .Where(order => order.CustomerId == customer.Id && order.Status == OrderStatus.Completed && order.CompletedAt.HasValue && period.Contains(order.CompletedAt.Value))
             .ToArray();
 
-        var totalOrderSales = periodOrders.Sum(order => order.Total);
-        var cafeteriaAccountTendered = periodOrders.Sum(order => order.CafeteriaAccountPaid);
-        var cashTendered = periodOrders.Sum(order => order.CashPaid);
+        decimal totalOrderSales = periodOrders.Sum(order => order.Total);
+        decimal cafeteriaAccountTendered = periodOrders.Sum(order => order.CafeteriaAccountPaid);
+        decimal cashTendered = periodOrders.Sum(order => order.CashPaid);
+        decimal creditTendered = periodOrders.Sum(order => order.CreditPaid);
 
-        var periodRefunds = periodOrders.SelectMany(order => order.Refunds).Where(refund => period.Contains(refund.RefundedAt)).ToArray();
-        var totalRefunds = periodRefunds.Sum(x => x.Total);
-        var cafeteriaAccountRefunded = periodRefunds.Sum(x => x.CafeteriaAccountAmount);
-        var cashRefunded = periodRefunds.Sum(x => x.CashAmount);
-        var totalCharges = Math.Max(0m, cafeteriaAccountTendered - cafeteriaAccountRefunded);
+        OrderRefund[] periodRefunds = periodOrders.SelectMany(order => order.Refunds).Where(refund => period.Contains(refund.RefundedAt)).ToArray();
+        decimal totalRefunds = periodRefunds.Sum(x => x.Total);
+        decimal cafeteriaAccountRefunded = periodRefunds.Sum(x => x.CafeteriaAccountAmount);
+        decimal cashRefunded = periodRefunds.Sum(x => x.CashAmount);
+        decimal creditRefunded = periodRefunds.Sum(x => x.CreditAmount);
+        decimal totalCharges = Math.Max(0m, cafeteriaAccountTendered - cafeteriaAccountRefunded);
+        decimal currentCreditSaleDebt = Math.Max(0m, creditTendered - creditRefunded);
 
-        var additionalCreditApproved = additionalCreditApprovals
+        decimal additionalCreditApproved = additionalCreditApprovals
             .Where(x => x.CustomerId == customer.Id && period.Contains(x.ApprovedAt))
             .Sum(x => x.Amount);
         if (additionalCreditApproved > customer.AdditionalCreditLimit)
             throw new InvalidOperationException("Approved additional credit exceeds the customer's additional credit limit.");
 
-        var priorRefundCredits = (priorPeriodRefundCredits ?? [])
+        decimal priorRefundCredits = (priorPeriodRefundCredits ?? [])
             .Where(x => x.CustomerId == customer.Id && x.AppliedYear == period.Year && x.AppliedMonth == period.Month)
             .Sum(x => x.CafeteriaAccountAmount);
 
-        var subsidyEligibleCharges = Math.Min(totalCharges, baseCreditAvailableForCurrentPurchases);
-        var companyResponsibility = Math.Min(subsidyEligibleCharges, remainingCompanyContribution);
-        var companyContributionUsed = stipendCardReduction + companyResponsibility;
+        decimal subsidyEligibleCharges = Math.Min(totalCharges, baseCreditAvailableForCurrentPurchases);
+        decimal companyResponsibility = Math.Min(subsidyEligibleCharges, remainingCompanyContribution);
+        decimal companyContributionUsed = stipendCardReduction + companyResponsibility;
         remainingCompanyContribution = Math.Max(0m, subsidyLimit - companyContributionUsed);
 
-        var customerResponsibilityForCurrentCharges = Math.Max(0m, totalCharges - companyResponsibility);
-        var grossCustomerLiability = carriedDebt + settlementAmount + customerResponsibilityForCurrentCharges;
-        var customerPayments = payments
+        decimal customerResponsibilityForCurrentCharges = Math.Max(0m, totalCharges - companyResponsibility);
+        decimal grossCustomerLiability = carriedDebt + settlementAmount + customerResponsibilityForCurrentCharges + currentCreditSaleDebt;
+        decimal customerPayments = payments
             .Where(x => x.CustomerId == customer.Id && period.Contains(x.ReceivedAt))
             .Sum(x => x.Amount);
         if (customerPayments > grossCustomerLiability)
             throw new InvalidOperationException("Customer payments cannot exceed the customer's outstanding responsibility.");
-        var employeeAmountDue = Math.Max(0m, grossCustomerLiability - customerPayments);
 
-        // Positive unused balances are period-scoped and expire at close. Carried debt reduces current capacity,
-        // but a customer payment clears liability and therefore re-opens the corresponding revolving credit.
-        // Payments never restore availability above the approved period spending capacity.
-        var totalSpendingCapacity = baseMonthlyCredit + additionalCreditApproved + priorRefundCredits;
-        var totalAllocationUsage = carriedDebt + settlementAmount + stipendCardReduction + totalCharges;
-        var netAllocationUsage = Math.Max(0m, totalAllocationUsage - customerPayments);
-        var availableCredit = Math.Clamp(totalSpendingCapacity - netAllocationUsage, 0m, totalSpendingCapacity);
+        decimal employeeAmountDue = Math.Max(0m, grossCustomerLiability - customerPayments);
 
-        var usageBeyondBase = Math.Max(0m, netAllocationUsage - baseMonthlyCredit);
-        var additionalCreditUsed = Math.Min(additionalCreditApproved, usageBeyondBase);
-        var unusedAdditionalCredit = Math.Max(0m, additionalCreditApproved - additionalCreditUsed);
+        // Credit-sale debt is deliberately outside the employee-card allocation. Payments clear that debt first,
+        // so paying off an over-limit credit sale cannot create fresh cafeteria-card spending capacity.
+        decimal paymentsAppliedToCreditDebt = Math.Min(customerPayments, currentCreditSaleDebt);
+        decimal paymentsAppliedToAllocationLiability = Math.Max(0m, customerPayments - paymentsAppliedToCreditDebt);
+
+        // Positive unused balances are period-scoped and expire at close. Carried debt reduces current capacity.
+        // Payments against allocation liability may re-open the corresponding revolving card capacity, but never
+        // above the approved period spending capacity.
+        decimal totalSpendingCapacity = baseMonthlyCredit + additionalCreditApproved + priorRefundCredits;
+        decimal totalAllocationUsage = carriedDebt + settlementAmount + stipendCardReduction + totalCharges;
+        decimal netAllocationUsage = Math.Max(0m, totalAllocationUsage - paymentsAppliedToAllocationLiability);
+        decimal availableCredit = Math.Clamp(totalSpendingCapacity - netAllocationUsage, 0m, totalSpendingCapacity);
+
+        decimal usageBeyondBase = Math.Max(0m, netAllocationUsage - baseMonthlyCredit);
+        decimal additionalCreditUsed = Math.Min(additionalCreditApproved, usageBeyondBase);
+        decimal unusedAdditionalCredit = Math.Max(0m, additionalCreditApproved - additionalCreditUsed);
 
         return new CustomerAccountSnapshot(
             BaseMonthlyCredit: baseMonthlyCredit,
@@ -125,14 +134,16 @@ public sealed class CustomerAccountCalculator
             TotalOrderSales: totalOrderSales,
             CafeteriaAccountTendered: cafeteriaAccountTendered,
             CashTendered: cashTendered,
+            CreditTendered: creditTendered,
             TotalRefunds: totalRefunds,
             CafeteriaAccountRefunded: cafeteriaAccountRefunded,
             CashRefunded: cashRefunded,
+            CreditRefunded: creditRefunded,
             PriorPeriodRefundCredits: priorRefundCredits,
             MonthlyEmployeeFundedAllocation: allocation.EmployeeFundedAllocation,
             MonthlySubsidyAllocation: allocation.SubsidyAllocation,
             CarriedForwardDebt: carriedDebt,
+            CurrentCreditSaleDebt: currentCreditSaleDebt,
             GrossCustomerLiability: grossCustomerLiability);
     }
-
 }
