@@ -208,20 +208,19 @@ internal static class Program
         }
         catch (Exception ex)
         {
+            ILogger logger = host.Services.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("Aegis.Cafeteria.Startup");
+            logger.LogWarning
+            (
+                  ex
+                , "Cafeteria Services unavailable during startup reference refresh. Endpoint: {Endpoint}. Continuing from local cache."
+                , runtime.Services.BaseUrl
+            );
+
             splash.Update
             (
                 "Cafeteria Services unavailable - using local cache.",
                 "The terminal is continuing in offline mode."
-            );
-
-            MessageBox.Show
-            (
-                "Aegis.Cafeteria.Services is currently unavailable or could not authorize this terminal.\n\n" +
-                $"Services endpoint: {runtime.Services.BaseUrl}\n\n" + ex.Message +
-                "\n\nThe POS will continue in offline mode using locally cached data. New local transactions remain available and FFP publication stays queued for later delivery.",
-                "Offline mode",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning
             );
         }
     }
