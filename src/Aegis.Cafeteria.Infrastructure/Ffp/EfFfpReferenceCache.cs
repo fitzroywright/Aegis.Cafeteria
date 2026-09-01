@@ -2,8 +2,8 @@ namespace Aegis.Cafeteria.Infrastructure.Ffp;
 
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Domain.Identification;
+using Aegis.Cafeteria.Infrastructure.ActiveDirectory;
 using Aegis.Cafeteria.Infrastructure.Configuration;
-using Aegis.Cafeteria.Infrastructure.Directory;
 using Aegis.Cafeteria.Infrastructure.Persistence;
 using Aegis.Cafeteria.Infrastructure.Persistence.Models;
 using Microsoft.Data.SqlClient;
