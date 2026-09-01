@@ -25,15 +25,15 @@ public sealed class OrderRefund
         if (string.IsNullOrWhiteSpace(reason))
             throw new ArgumentException("A refund reason is required.", nameof(reason));
 
-        var itemArray = items.ToArray();
-        var allocationArray = allocations.ToArray();
+        OrderRefundItem[] itemArray = items.ToArray();
+        RefundAllocation[] allocationArray = allocations.ToArray();
         if (itemArray.Length == 0)
             throw new ArgumentException("A refund must contain at least one item.", nameof(items));
         if (allocationArray.Length == 0)
             throw new ArgumentException("A refund must contain at least one tender allocation.", nameof(allocations));
 
-        var itemTotal = itemArray.Sum(x => x.Total);
-        var allocationTotal = allocationArray.Sum(x => x.Amount);
+        decimal itemTotal = itemArray.Sum(x => x.Total);
+        decimal allocationTotal = allocationArray.Sum(x => x.Amount);
         if (itemTotal != allocationTotal)
             throw new ArgumentException("Refund allocations must equal the refunded item total.", nameof(allocations));
 
@@ -56,4 +56,5 @@ public sealed class OrderRefund
     public decimal Total => Items.Sum(x => x.Total);
     public decimal CafeteriaAccountAmount => Allocations.Where(x => x.Method == PaymentMethod.CafeteriaAccount).Sum(x => x.Amount);
     public decimal CashAmount => Allocations.Where(x => x.Method == PaymentMethod.Cash).Sum(x => x.Amount);
+    public decimal CreditAmount => Allocations.Where(x => x.Method == PaymentMethod.Credit).Sum(x => x.Amount);
 }
