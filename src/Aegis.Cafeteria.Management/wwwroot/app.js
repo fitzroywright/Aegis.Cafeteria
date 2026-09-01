@@ -1,4 +1,4 @@
-let servicesBaseUrl = 'http://localhost:5088';
+let servicesBaseUrl = '/api/services';
 let selectedCustomerId = null;
 let selectedCustomerName = null;
 
@@ -25,6 +25,11 @@ async function api(path, options = {}) {
     let value = text;
     if (text) {
         try { value = JSON.parse(text); } catch { }
+    }
+
+    if (response.status === 401) {
+        window.location.assign('/login');
+        throw new Error('Your management session has expired. Sign in again.');
     }
 
     if (!response.ok) {
@@ -97,6 +102,12 @@ async function searchEmployees() {
 }
 
 async function initialize() {
+    const sessionResponse = await fetch('/api/session', { credentials: 'include' });
+    if (!sessionResponse.ok) {
+        window.location.assign('/login');
+        return;
+    }
+
     const configResponse = await fetch('/api/config', { credentials: 'include' });
     if (configResponse.ok) {
         const config = await configResponse.json();
@@ -205,7 +216,14 @@ wire('loadPayrollReport', async () => {
     showResult('Employee Amount Due report loaded', { year, month });
 });
 wire('diagnosticsButton', async () => {
-    window.open(`${servicesBaseUrl}/engineering/diagnostics`, '_blank', 'noopener');
+    window.open('/engineering/diagnostics', '_blank', 'noopener');
+});
+wire('logoutButton', async () => {
+    const form = document.createElement('form');
+    form.method = 'post';
+    form.action = '/logout';
+    document.body.appendChild(form);
+    form.submit();
 });
 wire('clearResult', async () => {
     result.textContent = 'Ready.';
