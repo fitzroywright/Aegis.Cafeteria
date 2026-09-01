@@ -3,6 +3,7 @@ namespace Aegis.Cafeteria.Infrastructure.Persistence;
 using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Reporting;
 using Aegis.Cafeteria.Domain.Orders;
+using Aegis.Cafeteria.Infrastructure.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
 
 public sealed class EfRecentTransactionQuery(IDbContextFactory<LocalCafeteriaDbContext> factory) : IRecentTransactionQuery
@@ -34,7 +35,7 @@ public sealed class EfRecentTransactionQuery(IDbContextFactory<LocalCafeteriaDbC
         if (selected.Length == 0) return [];
 
         Guid[] orderIds = selected.Select(x => x.Id).ToArray();
-        Dictionary<Guid, OrderEntity> details = await db.Orders.AsNoTracking()
+        Dictionary<Guid, OrderRow> details = await db.Orders.AsNoTracking()
             .Include(x => x.Items)
             .Include(x => x.Payments)
             .Where(x => orderIds.Contains(x.Id))
@@ -53,7 +54,7 @@ public sealed class EfRecentTransactionQuery(IDbContextFactory<LocalCafeteriaDbC
 
         return selected.Select(x =>
         {
-            OrderEntity order = details[x.Id];
+            OrderRow order = details[x.Id];
             decimal card = order.Payments.Where(p => p.Method == (int)PaymentMethod.CafeteriaAccount).Sum(p => p.Amount);
             decimal cash = order.Payments.Where(p => p.Method == (int)PaymentMethod.Cash).Sum(p => p.Amount);
             decimal credit = order.Payments.Where(p => p.Method == (int)PaymentMethod.Credit).Sum(p => p.Amount);
