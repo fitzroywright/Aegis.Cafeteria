@@ -7,20 +7,22 @@ public interface IWorkforceReferenceSource
     Task<IReadOnlyCollection<DateOnly>> GetHolidaysAsync(int year, int month, CancellationToken cancellationToken = default);
 }
 
-public sealed record ExternalCustomerSnapshot(
-    int CustomerId,
-    string Name,
-    bool IsEligibleForCafeteriaCredit,
-    string? Nfc,
-    string? Code,
-    string? Trn,
-    byte[]? Photo,
-    string Department = "",
-    decimal AdditionalCreditLimit = 0m,
-    string Manager = "",
-    string EmailAddress = "",
-    string Extension = "",
-    string LoginName = "");
+public sealed record ExternalCustomerSnapshot
+{
+    public int CustomerId { get; init; }
+    public string Name { get; init; } = string.Empty;
+    public bool IsEligibleForCafeteriaCredit { get; init; }
+    public string? Nfc { get; init; }
+    public string? Code { get; init; }
+    public string? Trn { get; init; }
+    public byte[]? Photo { get; init; }
+    public string Department { get; init; } = string.Empty;
+    public decimal AdditionalCreditLimit { get; init; }
+    public string Manager { get; init; } = string.Empty;
+    public string EmailAddress { get; init; } = string.Empty;
+    public string Extension { get; init; } = string.Empty;
+    public string LoginName { get; init; } = string.Empty;
+}
 
 public interface IWorkforceReferenceCache
 {
