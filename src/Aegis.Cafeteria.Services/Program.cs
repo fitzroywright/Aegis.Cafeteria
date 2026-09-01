@@ -63,9 +63,11 @@ if (developmentDataEnabled)
 {
     builder.Services.AddSingleton<DevelopmentFfpGateway>();
     builder.Services.AddSingleton<DevelopmentLunchItemBootstrapSource>();
+    builder.Services.AddSingleton<DevelopmentFfpMonthImportSource>();
     builder.Services.AddSingleton<IExternalAccountingGateway>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
     builder.Services.AddSingleton<IWorkforceReferenceSource>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
     builder.Services.AddSingleton<ILunchItemBootstrapSource>(sp => sp.GetRequiredService<DevelopmentLunchItemBootstrapSource>());
+    builder.Services.AddSingleton<IFfpMonthImportSource>(sp => sp.GetRequiredService<DevelopmentFfpMonthImportSource>());
     builder.Services.AddSingleton<IFundingPolicyCompatibilityGateway>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
     builder.Services.AddSingleton<IMonthRecalculationGuard>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
     builder.Services.AddSingleton<IDevelopmentDataResetGateway>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
@@ -76,9 +78,11 @@ else
 {
     builder.Services.AddSingleton<FfpSqlApplicationGateway>();
     builder.Services.AddSingleton<FfpLunchItemBootstrapSource>();
+    builder.Services.AddSingleton<FfpMonthImportSource>();
     builder.Services.AddSingleton<IExternalAccountingGateway>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
     builder.Services.AddSingleton<IWorkforceReferenceSource>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
     builder.Services.AddSingleton<ILunchItemBootstrapSource>(sp => sp.GetRequiredService<FfpLunchItemBootstrapSource>());
+    builder.Services.AddSingleton<IFfpMonthImportSource>(sp => sp.GetRequiredService<FfpMonthImportSource>());
     builder.Services.AddSingleton<IFundingPolicyCompatibilityGateway>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
     builder.Services.AddSingleton<IMonthRecalculationGuard>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
     builder.Services.AddSingleton<IDevelopmentDataResetGateway>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
@@ -119,8 +123,6 @@ builder.Services.AddSingleton<StipendAccountSnapshotFactory>();
 builder.Services.AddSingleton<EngineeringDiagnosticRunStore>();
 builder.Services.AddSingleton<CafeteriaEngineeringDiagnosticService>();
 
-// Management financial operations are authenticated by Windows/AD. The client does not supply
-// ApprovedBy/ProcessedBy; the service derives the actor from HttpContext.User.
 builder.Services.AddAuthentication(NegotiateDefaults.AuthenticationScheme).AddNegotiate();
 builder.Services.AddAuthorization(options =>
 {
@@ -209,8 +211,6 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
-// POS-to-Service integration uses a service credential. Management endpoints deliberately do not
-// use this credential because financial actor identity must come from authenticated Windows/AD.
 app.Use(async (context, next) =>
 {
     bool serviceEndpoint = context.Request.Path.StartsWithSegments("/api/pos")
@@ -237,11 +237,7 @@ app.MapGet("/engineering/login", (HttpContext http) =>
         return Results.Redirect("/engineering/diagnostics");
     }
 
-    return Results.Content
-    (
-          EngineeringDiagnosticsLoginPage.Html
-        , "text/html"
-    );
+    return Results.Content(EngineeringDiagnosticsLoginPage.Html, "text/html");
 });
 
 app.MapGet("/engineering/signin", async (HttpContext http) =>
@@ -281,13 +277,7 @@ app.MapPost("/api/engineering/diagnostics/runs/{runId:guid}/resolve", async (Gui
 {
     try
     {
-        EngineeringDiagnosticRun? run = await store.ResolveAsync
-        (
-              runId
-            , RequireActor(http)
-            , request.Resolution
-            , ct
-        );
+        EngineeringDiagnosticRun? run = await store.ResolveAsync(runId, RequireActor(http), request.Resolution, ct);
         return run is null ? Results.NotFound() : Results.Ok(run);
     }
     catch (ArgumentException exception)
@@ -300,13 +290,7 @@ app.MapPost("/api/engineering/diagnostics/run", async (EngineeringDiagnosticRunR
 {
     try
     {
-        EngineeringDiagnosticRun run = await diagnostics.RunAsync
-        (
-              request.Level
-            , RequireActor(http)
-            , request.Reason
-            , ct
-        );
+        EngineeringDiagnosticRun run = await diagnostics.RunAsync(request.Level, RequireActor(http), request.Reason, ct);
         return Results.Ok(run);
     }
     catch (ArgumentException exception)
@@ -316,7 +300,6 @@ app.MapPost("/api/engineering/diagnostics/run", async (EngineeringDiagnosticRunR
 }).RequireAuthorization("EngineeringDiagnostics");
 
 app.MapHub<ManagementEventsHub>("/hubs/cafeteria");
-
 app.MapGet("/api/pos/events", async (long afterSequence, int? take, ServiceEventStore store, CancellationToken ct)
     => Results.Ok(await store.GetAfterAsync(Math.Max(0,afterSequence), take ?? 100, ct)));
 
@@ -400,7 +383,7 @@ app.MapPost("/api/management/additional-credit", async (AdditionalCreditRequest 
         var e=await store.AppendAsync(approval.Id,CafeteriaServiceEventKind.AdditionalCredit,approval.CustomerId,approval.ApprovedAt,payload,ct);
         return Results.Created($"/api/events/{e.Sequence}",e);
     }
-    catch(UnauthorizedAccessException ex){return Results.Forbid();}
+    catch(UnauthorizedAccessException){return Results.Forbid();}
     catch(InvalidOperationException ex){return Results.BadRequest(ex.Message);}
     catch(ArgumentException ex){return Results.BadRequest(ex.Message);}
 }).RequireAuthorization("CafeteriaManagement");
@@ -424,140 +407,56 @@ app.MapPost("/api/management/stipends", async
     if (request.OperationId is Guid requestedId)
     {
         CafeteriaServiceEventEnvelope? existing = await store.GetByOperationAsync(requestedId, ct);
-
-        if (existing is not null)
-        {
-            return Results.Ok(existing);
-        }
+        if (existing is not null) return Results.Ok(existing);
     }
 
     IReadOnlyList<ExternalCustomerSnapshot> employees = await workforce.GetCustomersAsync(ct);
     ExternalCustomerSnapshot? employee = employees.SingleOrDefault(candidate => candidate.CustomerId == request.CustomerId);
-
-    if (employee is null)
-    {
-        return Results.NotFound("Employee was not found in FFP.");
-    }
-
-    if (!employee.IsEligibleForCafeteriaCredit)
-    {
-        return Results.BadRequest("Employee is not eligible for cafeteria credit.");
-    }
+    if (employee is null) return Results.NotFound("Employee was not found in FFP.");
+    if (!employee.IsEligibleForCafeteriaCredit) return Results.BadRequest("Employee is not eligible for cafeteria credit.");
 
     string actor = RequireActor(http);
     DateTimeOffset processedAt = request.ProcessedAt ?? DateTimeOffset.Now;
 
     try
     {
-        CustomerAccountSnapshot account = await accountFactory.BuildAsync
-        (
-              request.CustomerId
-            , processedAt.Year
-            , processedAt.Month
-            , ct
-        );
-
+        CustomerAccountSnapshot account = await accountFactory.BuildAsync(request.CustomerId, processedAt.Year, processedAt.Month, ct);
         Customer customer = new(employee.CustomerId, employee.Name, employee.Photo, true, 0m);
-        Stipend stipend = stipendService.Process
-        (
-              customer
-            , account
-            , request.CashAmount
-            , request.PaymentMode
-            , actor
-            , processedAt
-            , request.ExpenseReportReference
-            , request.Notes
-        );
+        Stipend stipend = stipendService.Process(customer, account, request.CashAmount, request.PaymentMode, actor, processedAt, request.ExpenseReportReference, request.Notes);
 
         if (request.CardReductionAmount != stipend.CardReduction)
         {
-            return Results.BadRequest
-            (
-                $"Card reduction must be {stipend.CardReduction:N2} for the employee's current subsidy and cafeteria balance."
-            );
+            return Results.BadRequest($"Card reduction must be {stipend.CardReduction:N2} for the employee's current subsidy and cafeteria balance.");
         }
 
         Guid operationId = request.OperationId.GetValueOrDefault(Guid.NewGuid());
-        StipendServiceEvent payload = new
-        (
-              operationId
-            , request.CustomerId
-            , stipend.CashAmount
-            , stipend.CardReduction
-            , stipend.PaymentMode
-            , actor
-            , stipend.ProcessedAt
-            , stipend.ExpenseReportReference
-            , stipend.Notes
-        );
-        CafeteriaServiceEventEnvelope serviceEvent = await store.AppendAsync
-        (
-              operationId
-            , CafeteriaServiceEventKind.Stipend
-            , request.CustomerId
-            , processedAt
-            , payload
-            , ct
-        );
-
+        StipendServiceEvent payload = new(operationId, request.CustomerId, stipend.CashAmount, stipend.CardReduction, stipend.PaymentMode, actor, stipend.ProcessedAt, stipend.ExpenseReportReference, stipend.Notes);
+        CafeteriaServiceEventEnvelope serviceEvent = await store.AppendAsync(operationId, CafeteriaServiceEventKind.Stipend, request.CustomerId, processedAt, payload, ct);
         return Results.Created($"/api/events/{serviceEvent.Sequence}", serviceEvent);
     }
-    catch (UnauthorizedAccessException)
-    {
-        return Results.Forbid();
-    }
-    catch (InvalidOperationException exception)
-    {
-        return Results.Conflict(new { error = exception.Message });
-    }
-    catch (ArgumentException exception)
-    {
-        return Results.BadRequest(exception.Message);
-    }
+    catch (UnauthorizedAccessException){return Results.Forbid();}
+    catch (InvalidOperationException exception){return Results.Conflict(new { error = exception.Message });}
+    catch (ArgumentException exception){return Results.BadRequest(exception.Message);}
 }).RequireAuthorization("CafeteriaManagement");
 
-app.MapGet("/api/management/funding-policy", async (CafeteriaFundingPolicyStore fundingPolicy, CancellationToken ct) =>
-{
-    return Results.Ok(await fundingPolicy.GetFundingPolicyAsync(ct));
-}).RequireAuthorization("CafeteriaManagement");
+app.MapGet("/api/management/funding-policy", async (CafeteriaFundingPolicyStore fundingPolicy, CancellationToken ct)
+    => Results.Ok(await fundingPolicy.GetFundingPolicyAsync(ct))).RequireAuthorization("CafeteriaManagement");
 
 app.MapPut("/api/management/funding-policy", async (FundingPolicyRequest request, HttpContext http, FundingPolicyManagementService fundingPolicy, CancellationToken ct) =>
 {
     if (request.DailyCreditLimitRate <= 0m || request.DailyCompanySubsidyRate <= 0m || request.DailyCompanySubsidyRate > request.DailyCreditLimitRate)
-    {
         return Results.BadRequest("Funding rates must be positive and the company subsidy rate cannot exceed the credit-limit rate.");
-    }
-
     string actor = RequireActor(http);
-    return Results.Ok
-    (
-        await fundingPolicy.SetFundingPolicyAsync
-        (
-              request.DailyCreditLimitRate
-            , request.DailyCompanySubsidyRate
-            , actor
-            , ct
-        )
-    );
+    return Results.Ok(await fundingPolicy.SetFundingPolicyAsync(request.DailyCreditLimitRate, request.DailyCompanySubsidyRate, actor, ct));
 }).RequireAuthorization("CafeteriaManagement");
 
-app.MapGet("/api/management/payroll-report", async (int year, int month, PayrollDeductionReportSource payroll, CancellationToken ct) =>
-{
-    return Results.Ok(await payroll.BuildAsync(year, month, ct));
-}).RequireAuthorization("CafeteriaManagement");
+app.MapGet("/api/management/payroll-report", async (int year, int month, PayrollDeductionReportSource payroll, CancellationToken ct)
+    => Results.Ok(await payroll.BuildAsync(year, month, ct))).RequireAuthorization("CafeteriaManagement");
 
 app.MapPost("/api/management/payroll-report/send", async (int year, int month, bool? force, ScheduledEmailWorker worker, CancellationToken ct) =>
 {
     PayrollDeductionReportPackage report = await worker.SendPayrollReportAsync(year, month, force ?? false, ct);
-    return Results.Ok(new
-    {
-          report.Year
-        , report.Month
-        , report.EmployeesWithAmountDue
-        , report.TotalEmployeeAmountDue
-        , Forced = force ?? false
-    });
+    return Results.Ok(new { report.Year, report.Month, report.EmployeesWithAmountDue, report.TotalEmployeeAmountDue, Forced = force ?? false });
 }).RequireAuthorization("CafeteriaManagement");
 
 app.MapPost("/api/month-opening/run", async (int? year, int? month, MonthOpeningWorker worker, CancellationToken ct) =>
@@ -572,28 +471,13 @@ app.MapPost("/api/month-opening/recalculate", async (int? year, int? month, Http
     DateTime now = DateTime.Now;
     int selectedYear = year ?? now.Year;
     int selectedMonth = month ?? now.Month;
-
-    if (selectedMonth is < 1 or > 12)
-    {
-        return Results.BadRequest("Month must be 1-12.");
-    }
-
+    if (selectedMonth is < 1 or > 12) return Results.BadRequest("Month must be 1-12.");
     try
     {
-        MonthRecalculationResult result = await worker.RecalculateMonthAsync
-        (
-              selectedYear
-            , selectedMonth
-            , RequireActor(http)
-            , ct
-        );
-
+        MonthRecalculationResult result = await worker.RecalculateMonthAsync(selectedYear, selectedMonth, RequireActor(http), ct);
         return Results.Ok(result);
     }
-    catch (InvalidOperationException exception)
-    {
-        return Results.Conflict(new { error = exception.Message });
-    }
+    catch (InvalidOperationException exception){return Results.Conflict(new { error = exception.Message });}
 }).RequireAuthorization("CafeteriaManagement");
 
 if (app.Environment.IsDevelopment())
@@ -614,16 +498,13 @@ app.MapGet("/api/ffp/customers", async (IWorkforceReferenceSource source,Custome
 });
 app.MapGet("/api/ffp/holidays", async (int year,int month,IWorkforceReferenceSource source,CancellationToken ct)=>Results.Ok(await source.GetHolidaysAsync(year,month,ct)));
 app.MapGet("/api/ffp/lunch-items", async (ILunchItemBootstrapSource source,CancellationToken ct)=>Results.Ok(await source.GetLunchItemsAsync(ct)));
+app.MapGet("/api/ffp/month-import", async (int year, int month, IFfpMonthImportSource source, CancellationToken ct)=>Results.Ok(await source.GetMonthAsync(year, month, ct)));
 app.MapGet("/api/ffp/accounts", async (IExternalAccountingGateway gateway,CancellationToken ct)=>Results.Ok(await gateway.GetAccountSummariesAsync(ct)));
 app.MapPost("/api/ffp/ledger", async (ExternalLedgerEntry entry, IExternalAccountingGateway gateway, ServiceEventStore store, CancellationToken ct) =>
 {
     DateTimeOffset? latestResetAt = await store.GetLatestDevelopmentResetAtAsync(ct);
-
     if (app.Environment.IsDevelopment() && latestResetAt is DateTimeOffset resetAt && entry.OccurredAt <= resetAt)
-    {
         return Results.Ok(new { ignored = true, reason = "Entry predates the latest Development reset." });
-    }
-
     await gateway.PublishLedgerEntryAsync(entry, ct);
     return Results.Ok();
 });
