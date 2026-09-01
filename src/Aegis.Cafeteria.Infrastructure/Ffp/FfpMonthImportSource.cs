@@ -7,8 +7,8 @@ using Microsoft.Data.SqlClient;
 /// <summary>
 /// Service-side read-only source used during mid-month cutover. POS terminals never access FFP SQL.
 /// The legacy lunch system contains allocations, purchases and stipends only; it did not record refunds.
-/// Legacy purchase rows may use IDName for the actual item name, so import selection is based on the
-/// configured allocation/purchase/adjustment ScanType values rather than modern Aegis IDName labels.
+/// Legacy purchase rows may use IDName for the actual item name, so import selection uses the exact
+/// legacy scan-type mapping: 3 = allocation, 8 = purchase, 4 = stipend.
 /// </summary>
 public sealed class FfpMonthImportSource(FfpIntegrationOptions options) : IFfpMonthImportSource
 {
@@ -59,7 +59,7 @@ WHERE s.ScanDate >= @Start
   (
         @MonthlyAllocationScanType
       , @PurchaseScanType
-      , @AdjustmentScanType
+      , @StipendScanType
   )
 ORDER BY s.ScanDate, s.ID;";
 
@@ -85,7 +85,7 @@ ORDER BY e.ID;";
             command.Parameters.AddWithValue("@ThroughAt", throughAt.LocalDateTime);
             command.Parameters.AddWithValue("@MonthlyAllocationScanType", options.MonthlyAllocationScanType);
             command.Parameters.AddWithValue("@PurchaseScanType", options.PurchaseScanType);
-            command.Parameters.AddWithValue("@AdjustmentScanType", options.AdjustmentScanType);
+            command.Parameters.AddWithValue("@StipendScanType", options.StipendScanType);
 
             await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
