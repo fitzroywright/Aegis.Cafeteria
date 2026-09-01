@@ -1,7 +1,7 @@
 namespace Aegis.Cafeteria.Services.Email;
 
+using Aegis.Cafeteria.Infrastructure.ActiveDirectory;
 using Aegis.Cafeteria.Infrastructure.Configuration;
-using Aegis.Cafeteria.Infrastructure.Directory;
 using Microsoft.Data.SqlClient;
 
 public sealed record DailyLedgerSummary(int Transactions, decimal Purchases, decimal Refunds, decimal AdditionalCredit, decimal StipendReductions);
