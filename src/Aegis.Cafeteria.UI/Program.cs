@@ -131,6 +131,7 @@ internal static class Program
             splash.Update("Operator sign-in required...", "Authenticating against FFTPJ Active Directory over LDAPS.");
             splash.Close();
 
+            using WinFormsBusySynchronizationContext busyContext = WinFormsBusySynchronizationContext.Install();
             using (OperatorLoginForm login = new
             (
                   host.Services.GetRequiredService<IOperatorAuthenticator>()
