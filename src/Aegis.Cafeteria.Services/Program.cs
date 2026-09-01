@@ -62,8 +62,10 @@ builder.Services.AddSingleton<MonthlyAllocationCalculator>();
 if (developmentDataEnabled)
 {
     builder.Services.AddSingleton<DevelopmentFfpGateway>();
+    builder.Services.AddSingleton<DevelopmentLunchItemBootstrapSource>();
     builder.Services.AddSingleton<IExternalAccountingGateway>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
     builder.Services.AddSingleton<IWorkforceReferenceSource>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
+    builder.Services.AddSingleton<ILunchItemBootstrapSource>(sp => sp.GetRequiredService<DevelopmentLunchItemBootstrapSource>());
     builder.Services.AddSingleton<IFundingPolicyCompatibilityGateway>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
     builder.Services.AddSingleton<IMonthRecalculationGuard>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
     builder.Services.AddSingleton<IDevelopmentDataResetGateway>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
@@ -73,8 +75,10 @@ if (developmentDataEnabled)
 else
 {
     builder.Services.AddSingleton<FfpSqlApplicationGateway>();
+    builder.Services.AddSingleton<FfpLunchItemBootstrapSource>();
     builder.Services.AddSingleton<IExternalAccountingGateway>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
     builder.Services.AddSingleton<IWorkforceReferenceSource>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
+    builder.Services.AddSingleton<ILunchItemBootstrapSource>(sp => sp.GetRequiredService<FfpLunchItemBootstrapSource>());
     builder.Services.AddSingleton<IFundingPolicyCompatibilityGateway>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
     builder.Services.AddSingleton<IMonthRecalculationGuard>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
     builder.Services.AddSingleton<IDevelopmentDataResetGateway>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
@@ -538,8 +542,6 @@ app.MapPut("/api/management/funding-policy", async (FundingPolicyRequest request
     );
 }).RequireAuthorization("CafeteriaManagement");
 
-
-
 app.MapGet("/api/management/payroll-report", async (int year, int month, PayrollDeductionReportSource payroll, CancellationToken ct) =>
 {
     return Results.Ok(await payroll.BuildAsync(year, month, ct));
@@ -611,6 +613,7 @@ app.MapGet("/api/ffp/customers", async (IWorkforceReferenceSource source,Custome
     return Results.Ok(customers.Select(x=>x with { AdditionalCreditLimit=limits.GetValueOrDefault(x.CustomerId,0m) }).ToArray());
 });
 app.MapGet("/api/ffp/holidays", async (int year,int month,IWorkforceReferenceSource source,CancellationToken ct)=>Results.Ok(await source.GetHolidaysAsync(year,month,ct)));
+app.MapGet("/api/ffp/lunch-items", async (ILunchItemBootstrapSource source,CancellationToken ct)=>Results.Ok(await source.GetLunchItemsAsync(ct)));
 app.MapGet("/api/ffp/accounts", async (IExternalAccountingGateway gateway,CancellationToken ct)=>Results.Ok(await gateway.GetAccountSummariesAsync(ct)));
 app.MapPost("/api/ffp/ledger", async (ExternalLedgerEntry entry, IExternalAccountingGateway gateway, ServiceEventStore store, CancellationToken ct) =>
 {
