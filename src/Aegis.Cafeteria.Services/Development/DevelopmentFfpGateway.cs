@@ -20,8 +20,26 @@ public sealed class DevelopmentFfpGateway :
 
     private static readonly ExternalCustomerSnapshot[] Customers =
     [
-          new ExternalCustomerSnapshot(900001, "Test Employee One", true, "TEST-NFC-001", "TEST001", "111111111", null, "Information Systems")
-        , new ExternalCustomerSnapshot(900002, "Test Employee Two", true, "TEST-NFC-002", "TEST002", "222222222", null, "Finance")
+        new ExternalCustomerSnapshot
+        {
+              CustomerId = 900001
+            , Name = "Test Employee One"
+            , IsEligibleForCafeteriaCredit = true
+            , Nfc = "TEST-NFC-001"
+            , Code = "TEST001"
+            , Trn = "111111111"
+            , Department = "Information Systems"
+        },
+        new ExternalCustomerSnapshot
+        {
+              CustomerId = 900002
+            , Name = "Test Employee Two"
+            , IsEligibleForCafeteriaCredit = true
+            , Nfc = "TEST-NFC-002"
+            , Code = "TEST002"
+            , Trn = "222222222"
+            , Department = "Finance"
+        }
     ];
 
     public DevelopmentFfpGateway()
@@ -86,6 +104,7 @@ public sealed class DevelopmentFfpGateway :
 
         return Task.FromResult(summaries);
     }
+
     public IReadOnlyList<ExternalLedgerEntry> GetPublishedLedgerEntries()
     {
         return this.ledgerEntries.Values
@@ -93,7 +112,6 @@ public sealed class DevelopmentFfpGateway :
             .ThenBy(entry => entry.OperationId)
             .ToArray();
     }
-
 
     public Task<MonthRecalculationGuardResult> CheckAsync
     (
@@ -122,7 +140,6 @@ public sealed class DevelopmentFfpGateway :
 
         return Task.FromResult(result);
     }
-
 
     public Task<DevelopmentDataResetResult> ResetAsync
     (
@@ -162,5 +179,4 @@ public sealed class DevelopmentFfpGateway :
     {
         return Task.CompletedTask;
     }
-
 }
