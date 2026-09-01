@@ -25,6 +25,14 @@ public static class CafeteriaInfrastructure
         , CafeteriaRuntimeOptions runtime
     )
     {
+        if (!runtime.Services.Enabled)
+        {
+            throw new InvalidOperationException
+            (
+                "Aegis.Cafeteria POS requires Aegis.Cafeteria.Services. Direct FFP SQL access from POS terminals is no longer supported."
+            );
+        }
+
         services.AddSingleton(runtime);
         services.AddSingleton(runtime.Persistence);
         services.AddSingleton(runtime.FfpIntegration);
@@ -117,14 +125,11 @@ public static class CafeteriaInfrastructure
             services.AddSingleton<ICafeteriaMessagingGateway, DisabledCafeteriaMessagingGateway>();
         }
 
-        if (runtime.Services.Enabled)
-        {
-            ConfigureCafeteriaServicesIntegration
-            (
-                  services
-                , runtime.Services
-            );
-        }
+        ConfigureCafeteriaServicesIntegration
+        (
+              services
+            , runtime.Services
+        );
 
         services.AddSingleton<PersistenceInitializer>();
         services.AddHostedService<CafeteriaHeartbeatWorker>();
@@ -138,43 +143,27 @@ public static class CafeteriaInfrastructure
         , CafeteriaRuntimeOptions runtime
     )
     {
-        if (runtime.Services.Enabled)
-        {
-            services.AddHttpClient<ServicesIntegrationGateway>
+        services.AddHttpClient<ServicesIntegrationGateway>
+        (
+            client => ConfigureServicesHttpClient
             (
-                client => ConfigureServicesHttpClient
-                (
-                      client
-                    , runtime.Services
-                )
-            );
+                  client
+                , runtime.Services
+            )
+        );
 
-            services.AddSingleton<IExternalAccountingGateway>
-            (
-                serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
-            );
-            services.AddSingleton<IWorkforceReferenceSource>
-            (
-                serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
-            );
-        }
-        else
-        {
-            services.AddSingleton<FfpSqlApplicationGateway>();
-            services.AddSingleton<FfpLunchItemBootstrapSource>();
-            services.AddSingleton<IExternalAccountingGateway>
-            (
-                serviceProvider => serviceProvider.GetRequiredService<FfpSqlApplicationGateway>()
-            );
-            services.AddSingleton<IWorkforceReferenceSource>
-            (
-                serviceProvider => serviceProvider.GetRequiredService<FfpSqlApplicationGateway>()
-            );
-            services.AddSingleton<ILunchItemBootstrapSource>
-            (
-                serviceProvider => serviceProvider.GetRequiredService<FfpLunchItemBootstrapSource>()
-            );
-        }
+        services.AddSingleton<IExternalAccountingGateway>
+        (
+            serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
+        );
+        services.AddSingleton<IWorkforceReferenceSource>
+        (
+            serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
+        );
+        services.AddSingleton<ILunchItemBootstrapSource>
+        (
+            serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
+        );
 
         services.AddSingleton<IWorkforceReferenceCache, EfFfpReferenceCache>();
         services.AddSingleton<ReferenceDataRefreshService>();
