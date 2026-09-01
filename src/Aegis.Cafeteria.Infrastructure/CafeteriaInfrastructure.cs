@@ -75,12 +75,14 @@ public static class CafeteriaInfrastructure
         services.AddSingleton<ICustomerAccountQuery, EfCustomerAccountQuery>();
         services.AddSingleton<ICustomerIdentificationService, EfCustomerIdentificationService>();
         services.AddSingleton<IProductCatalogQuery, EfProductCatalogQuery>();
+        services.AddSingleton<IFfpMonthImportService, EfFfpMonthImportService>();
         services.AddSingleton<IProductCatalogMaintenance>
         (
             serviceProvider => new EfProductCatalogMaintenance
             (
                   serviceProvider.GetRequiredService<IDbContextFactory<LocalCafeteriaDbContext>>()
                 , serviceProvider.GetService<ILunchItemBootstrapSource>()
+                , serviceProvider.GetService<IFfpMonthImportService>()
             )
         );
         services.AddSingleton<IOrderQuery, EfOrderQuery>();
@@ -161,6 +163,10 @@ public static class CafeteriaInfrastructure
             serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
         );
         services.AddSingleton<ILunchItemBootstrapSource>
+        (
+            serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
+        );
+        services.AddSingleton<IFfpMonthImportSource>
         (
             serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
         );
