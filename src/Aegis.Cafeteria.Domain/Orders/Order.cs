@@ -39,11 +39,14 @@ public sealed class Order
     public decimal AmountPaid => this.payments.Sum(payment => payment.Amount);
     public decimal CafeteriaAccountPaid => this.payments.Where(x => x.Method == PaymentMethod.CafeteriaAccount).Sum(x => x.Amount);
     public decimal CashPaid => this.payments.Where(x => x.Method == PaymentMethod.Cash).Sum(x => x.Amount);
+    public decimal CreditPaid => this.payments.Where(x => x.Method == PaymentMethod.Credit).Sum(x => x.Amount);
     public decimal RefundedAmount => this.refunds.Sum(x => x.Total);
     public decimal CafeteriaAccountRefunded => this.refunds.Sum(x => x.CafeteriaAccountAmount);
     public decimal CashRefunded => this.refunds.Sum(x => x.CashAmount);
+    public decimal CreditRefunded => this.refunds.Sum(x => x.CreditAmount);
     public decimal NetCafeteriaAccountCharge => CafeteriaAccountPaid - CafeteriaAccountRefunded;
     public decimal NetCashCollected => CashPaid - CashRefunded;
+    public decimal NetCreditDebt => Math.Max(0m, CreditPaid - CreditRefunded);
     public decimal NetTotal => Total - RefundedAmount;
     public RefundStatus RefundStatus => RefundedAmount == 0m
         ? RefundStatus.None
@@ -59,7 +62,7 @@ public sealed class Order
     public void RemoveItem(Guid orderItemId)
     {
         EnsureDraft();
-        var item = this.items.SingleOrDefault(x => x.Id == orderItemId)
+        OrderItem item = this.items.SingleOrDefault(x => x.Id == orderItemId)
             ?? throw new InvalidOperationException("The order item was not found.");
         this.items.Remove(item);
     }
@@ -83,7 +86,7 @@ public sealed class Order
             throw new InvalidOperationException("Only a submitted order can be completed.");
         ArgumentNullException.ThrowIfNull(payments);
 
-        var paymentArray = payments.ToArray();
+        OrderPayment[] paymentArray = payments.ToArray();
         if (paymentArray.Length == 0)
             throw new InvalidOperationException("A completed order must have payment.");
         if (paymentArray.Sum(x => x.Amount) != Total)
@@ -131,24 +134,27 @@ public sealed class Order
         if (RefundedAmount + refund.Total > Total)
             throw new InvalidOperationException("Refunds cannot exceed the original order total.");
 
-        foreach (var refundItem in refund.Items)
+        foreach (OrderRefundItem refundItem in refund.Items)
         {
-            var originalItem = this.items.SingleOrDefault(x => x.Id == refundItem.OrderItemId)
+            OrderItem originalItem = this.items.SingleOrDefault(x => x.Id == refundItem.OrderItemId)
                 ?? throw new InvalidOperationException("A refunded item does not exist on the original order.");
             if (refundItem.UnitPrice != originalItem.UnitPrice)
                 throw new InvalidOperationException("Refund item price must match the original order item price.");
 
-            var remainingQuantity = originalItem.Quantity - GetRefundedQuantity(originalItem.Id);
+            int remainingQuantity = originalItem.Quantity - GetRefundedQuantity(originalItem.Id);
             if (refundItem.Quantity > remainingQuantity)
                 throw new InvalidOperationException("Refund quantity exceeds the remaining refundable quantity.");
         }
 
-        var remainingAccountTender = CafeteriaAccountPaid - CafeteriaAccountRefunded;
-        var remainingCashTender = CashPaid - CashRefunded;
+        decimal remainingAccountTender = CafeteriaAccountPaid - CafeteriaAccountRefunded;
+        decimal remainingCashTender = CashPaid - CashRefunded;
+        decimal remainingCreditTender = CreditPaid - CreditRefunded;
         if (refund.CafeteriaAccountAmount > remainingAccountTender)
             throw new InvalidOperationException("Cafeteria-account refund exceeds the remaining cafeteria-account tender.");
         if (refund.CashAmount > remainingCashTender)
             throw new InvalidOperationException("Cash refund exceeds the remaining cash tender.");
+        if (refund.CreditAmount > remainingCreditTender)
+            throw new InvalidOperationException("Credit refund exceeds the remaining credit-sale debt.");
 
         this.refunds.Add(refund);
     }
