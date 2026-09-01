@@ -9,6 +9,7 @@ public sealed class EfProductCatalogMaintenance
 (
       IDbContextFactory<LocalCafeteriaDbContext> factory
     , ILunchItemBootstrapSource? lunchItemSource = null
+    , IFfpMonthImportService? monthImportService = null
 ) : IProductCatalogMaintenance
 {
     public async Task<IReadOnlyList<ProductCatalogItem>> GetAllAsync
@@ -106,7 +107,7 @@ public sealed class EfProductCatalogMaintenance
     {
         if (lunchItemSource is null)
         {
-            throw new InvalidOperationException("FFP LunchItems import is not available because FFP integration is not configured.");
+            throw new InvalidOperationException("FFP LunchItems import is not available because Cafeteria Services is not configured.");
         }
 
         IReadOnlyList<ExternalProductSnapshot> sourceItems = await lunchItemSource.GetLunchItemsAsync(cancellationToken);
@@ -170,6 +171,20 @@ public sealed class EfProductCatalogMaintenance
             , existingProducts
             , ignoredFfpProducts
         );
+    }
+
+    public Task<FfpMonthImportResult> ImportCurrentMonthFromFfpAsync
+    (
+        CancellationToken cancellationToken = default
+    )
+    {
+        if (monthImportService is null)
+        {
+            throw new InvalidOperationException("FFP current-month import is not available because Cafeteria Services is not configured.");
+        }
+
+        DateTimeOffset now = DateTimeOffset.Now;
+        return monthImportService.ImportAsync(now.Year, now.Month, cancellationToken);
     }
 
     private static void Validate
