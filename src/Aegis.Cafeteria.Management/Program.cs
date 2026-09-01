@@ -68,11 +68,16 @@ app.UseStaticFiles();
 app.MapGet
 (
       "/login"
-    , (HttpContext http) =>
+    , async (HttpContext http, ManagementSessionStore sessions) =>
     {
-        if (http.User.Identity?.IsAuthenticated == true)
+        if (TryGetSession(http, sessions, out ManagementSession? session))
         {
             return Results.Redirect("/");
+        }
+
+        if (http.User.Identity?.IsAuthenticated == true)
+        {
+            await http.SignOutAsync(ManagementAuthenticationScheme);
         }
 
         return Results.Content(ManagementLoginPage.Build(), "text/html");
@@ -283,9 +288,9 @@ app.MapMethods
 app.MapGet
 (
       "/"
-    , (HttpContext http) =>
+    , (HttpContext http, ManagementSessionStore sessions) =>
     {
-        if (http.User.Identity?.IsAuthenticated != true)
+        if (!TryGetSession(http, sessions, out ManagementSession? session))
         {
             return Results.Redirect("/login");
         }
