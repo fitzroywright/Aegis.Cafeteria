@@ -31,7 +31,6 @@ internal static class Program
         var builder = Host.CreateApplicationBuilder();
         builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
             .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: false)
-            .AddJsonFile("appsettings.ServicesOnly.json", optional: false, reloadOnChange: false)
             .AddEnvironmentVariables();
 
         splash.Update("Loading secure configuration...", "Resolving Cafeteria Services settings.");
@@ -42,9 +41,14 @@ internal static class Program
         {
             runtime = await CafeteriaRuntimeOptionsResolver.ResolveAsync(builder.Configuration, secretProvider);
             if (!runtime.Services.Enabled)
+            {
                 throw new InvalidOperationException("Aegis.Cafeteria POS requires Aegis.Cafeteria.Services.");
+            }
+
             if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(runtime.Services.ApiKey))
+            {
                 throw new InvalidOperationException("CafeteriaServicesApiKey is not configured.");
+            }
         }
         catch (Exception ex)
         {
