@@ -39,7 +39,6 @@ public sealed record CustomerFinancialStatusView(
     decimal NonSubsidyAmountRemaining,
     decimal TotalAvailableToSpend,
     decimal CarriedForwardDebt,
-    decimal CurrentCreditSaleDebt,
     decimal GrossCustomerLiability,
     decimal TotalOrderSales,
     decimal CafeteriaAccountSpending,
@@ -54,7 +53,8 @@ public sealed record CustomerFinancialStatusView(
     decimal CustomerPayments,
     decimal CustomerResponsibility,
     decimal EmployeeAmountDue,
-    decimal TotalRefunds)
+    decimal TotalRefunds,
+    decimal CurrentCreditSaleDebt = 0m)
 {
     public decimal TotalCreditLimit => CreditLimit + AdditionalCreditApproved + PriorPeriodRefundCredits;
 }
