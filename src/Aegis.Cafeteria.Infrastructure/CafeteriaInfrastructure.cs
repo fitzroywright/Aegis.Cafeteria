@@ -139,10 +139,7 @@ public static class CafeteriaInfrastructure
         return services;
     }
 
-    private static void ConfigureLocalFfpProjection
-    (
-        IServiceCollection services
-    )
+    private static void ConfigureLocalFfpProjection(IServiceCollection services)
     {
         services.AddSingleton<IExternalLedgerOutbox, EfFfpLedgerOutbox>();
         services.AddSingleton<IExternalLedgerProjectionService, ExternalLedgerProjectionService>();
@@ -156,31 +153,14 @@ public static class CafeteriaInfrastructure
     {
         services.AddHttpClient<ServicesIntegrationGateway>
         (
-            client => ConfigureServicesHttpClient
-            (
-                  client
-                , runtime.Services
-            )
+            client => ConfigureServicesHttpClient(client, runtime.Services)
         );
 
-        services.AddSingleton<IExternalAccountingGateway>
-        (
-            serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
-        );
-        services.AddSingleton<IWorkforceReferenceSource>
-        (
-            serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
-        );
-        services.AddSingleton<ILunchItemBootstrapSource>
-        (
-            serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
-        );
-        services.AddSingleton<IFfpMonthImportSource>
-        (
-            serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
-        );
+        services.AddSingleton<IExternalAccountingGateway>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
+        services.AddSingleton<IWorkforceReferenceSource>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
+        services.AddSingleton<ILunchItemBootstrapSource>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
+        services.AddSingleton<IFfpMonthImportSource>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
         services.AddSingleton<IFfpMonthImportService, EfFfpMonthImportService>();
-
         services.AddSingleton<IWorkforceReferenceCache, EfFfpReferenceCache>();
         services.AddSingleton<ReferenceDataRefreshService>();
         services.AddHostedService<FfpReferenceRefreshWorker>();
@@ -195,11 +175,7 @@ public static class CafeteriaInfrastructure
     {
         services.AddHttpClient<CafeteriaServicesClient>
         (
-            client => ConfigureServicesHttpClient
-            (
-                  client
-                , options
-            )
+            client => ConfigureServicesHttpClient(client, options)
         );
 
         services.AddHttpClient<CafeteriaManagementClient>
@@ -207,6 +183,7 @@ public static class CafeteriaInfrastructure
             client =>
             {
                 client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+                client.Timeout = TimeSpan.FromSeconds(5);
             }
         )
         .ConfigurePrimaryHttpMessageHandler
@@ -232,18 +209,12 @@ public static class CafeteriaInfrastructure
         , CafeteriaServicesOptions options
     )
     {
-        client.BaseAddress = new Uri
-        (
-            options.BaseUrl.TrimEnd('/') + "/"
-        );
+        client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
+        client.Timeout = TimeSpan.FromSeconds(5);
 
         if (!string.IsNullOrWhiteSpace(options.ApiKey))
         {
-            client.DefaultRequestHeaders.Add
-            (
-                  "X-Cafeteria-Api-Key"
-                , options.ApiKey
-            );
+            client.DefaultRequestHeaders.Add("X-Cafeteria-Api-Key", options.ApiKey);
         }
     }
 }
