@@ -157,10 +157,6 @@ public static class CafeteriaInfrastructure
             (
                 serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
             );
-            services.AddSingleton<ILunchItemBootstrapSource>
-            (
-                serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
-            );
         }
         else
         {
