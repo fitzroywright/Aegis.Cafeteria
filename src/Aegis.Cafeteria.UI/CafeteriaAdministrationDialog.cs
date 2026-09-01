@@ -1,6 +1,7 @@
 namespace Aegis.Cafeteria.UI;
 
 using Aegis.Cafeteria.Application.Abstractions;
+using Aegis.Cafeteria.Application.Integration;
 
 public sealed class CafeteriaAdministrationDialog : Form
 {
@@ -20,6 +21,11 @@ public sealed class CafeteriaAdministrationDialog : Form
           Text = "Import Lunch Items from FFP"
         , AutoSize = true
     };
+    private readonly Button importCurrentMonth = new()
+    {
+          Text = "Import Current Month Transactions from FFP"
+        , AutoSize = true
+    };
 
     public CafeteriaAdministrationDialog
     (
@@ -29,8 +35,8 @@ public sealed class CafeteriaAdministrationDialog : Form
         this.products = products;
 
         Text = "POS Product & Price Maintenance";
-        Width = 820;
-        Height = 640;
+        Width = 900;
+        Height = 680;
         StartPosition = FormStartPosition.CenterParent;
         Font = new Font("Segoe UI", 10);
 
@@ -105,18 +111,19 @@ public sealed class CafeteriaAdministrationDialog : Form
         delete.Click += async (_, _) => await DeleteSelectedProductAsync();
 
         this.importFromFfp.Click += async (_, _) => await ImportFromFfpAsync();
+        this.importCurrentMonth.Click += async (_, _) => await ImportCurrentMonthAsync();
 
         Label explanation = new()
         {
               AutoSize = true
-            , MaximumSize = new Size(760, 0)
-            , Text = "Products and current prices belong to this POS database. Import from FFP is a bootstrap tool only: it adds missing LunchItems, never overwrites or deletes POS products, and ignores every FFP-prefixed code. Completed sales preserve their own product description and unit price."
+            , MaximumSize = new Size(840, 0)
+            , Text = "Products and current prices belong to this POS database. LunchItems import is bootstrap-only and ignores every FFP-prefixed code. Current-month transaction import copies legacy FFP history through Cafeteria Services and is safe to rerun; imported rows are read-only history and do not overwrite native Aegis transactions."
         };
 
         FlowLayoutPanel buttons = new()
         {
               Dock = DockStyle.Bottom
-            , Height = 110
+            , Height = 138
             , Padding = new Padding(8)
         };
 
@@ -124,6 +131,7 @@ public sealed class CafeteriaAdministrationDialog : Form
         buttons.Controls.Add(save);
         buttons.Controls.Add(delete);
         buttons.Controls.Add(this.importFromFfp);
+        buttons.Controls.Add(this.importCurrentMonth);
         buttons.Controls.Add(explanation);
 
         page.Controls.Add(this.productGrid);
@@ -258,6 +266,55 @@ public sealed class CafeteriaAdministrationDialog : Form
         finally
         {
             this.importFromFfp.Enabled = true;
+        }
+    }
+
+    private async Task ImportCurrentMonthAsync()
+    {
+        DateTimeOffset now = DateTimeOffset.Now;
+        DialogResult answer = MessageBox.Show
+        (
+              this
+            , $"Import all recognized FFP cafeteria transactions for {now:MMMM yyyy} through the current time?\n\nThis may be run repeatedly. Transactions already imported by their FFP EmployeeIDScans ID will be skipped. Imported rows are read-only legacy history and are not native Aegis orders."
+            , "Import Current Month Transactions"
+            , MessageBoxButtons.YesNo
+            , MessageBoxIcon.Warning
+            , MessageBoxDefaultButton.Button2
+        );
+
+        if (answer != DialogResult.Yes)
+        {
+            return;
+        }
+
+        this.importCurrentMonth.Enabled = false;
+
+        try
+        {
+            FfpMonthImportResult result = await this.products.ImportCurrentMonthFromFfpAsync();
+            MessageBox.Show
+            (
+                  this
+                , $"Current-month import complete.\n\nPeriod: {result.Year:D4}-{result.Month:D2}\nThrough: {result.ThroughAt:g}\nNew transactions imported: {result.ImportedTransactions}\nEmployee account snapshots read: {result.ImportedAccounts}\nNet imported ScanValue: {result.NetImportedScanValue:N2}\n\nRerunning the import will skip transactions already imported."
+                , "FFP Transactions Imported"
+                , MessageBoxButtons.OK
+                , MessageBoxIcon.Information
+            );
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show
+            (
+                  this
+                , exception.Message
+                , "Current Month Import Failed"
+                , MessageBoxButtons.OK
+                , MessageBoxIcon.Error
+            );
+        }
+        finally
+        {
+            this.importCurrentMonth.Enabled = true;
         }
     }
 
