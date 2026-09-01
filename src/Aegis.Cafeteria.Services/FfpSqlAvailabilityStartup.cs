@@ -12,8 +12,7 @@ using System.ComponentModel;
 namespace Aegis.Cafeteria.Services;
 
 /// <summary>
-/// Adds an outer HTTP pipeline guard so temporary FFP SQL connectivity failures are reported as
-/// Service Unavailable instead of escaping through the ASP.NET Core developer exception page.
+/// Adds outer HTTP pipeline guards for service availability and authenticated management sessions.
 /// </summary>
 public sealed class FfpSqlAvailabilityHostingStartup : IHostingStartup
 {
@@ -21,7 +20,13 @@ public sealed class FfpSqlAvailabilityHostingStartup : IHostingStartup
     {
         builder.ConfigureServices
         (
-            services => services.AddTransient<IStartupFilter, FfpSqlAvailabilityStartupFilter>()
+            services =>
+            {
+                services.AddSingleton<ManagementCommonSecurityAuthenticator>();
+                services.AddSingleton<ManagementServiceTokenStore>();
+                services.AddTransient<IStartupFilter, ManagementCommonSecurityStartupFilter>();
+                services.AddTransient<IStartupFilter, FfpSqlAvailabilityStartupFilter>();
+            }
         );
     }
 }
