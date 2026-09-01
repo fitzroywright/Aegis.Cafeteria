@@ -16,16 +16,26 @@ public sealed class PosCheckoutService
         this.externalProjection = externalProjection;
     }
 
-    [Obsolete("Production callers must supply the authenticated cashier user ID and terminal ID.")]
+    [Obsolete("Production callers should use PosCheckoutRequest.")]
     public Task<Order> CompleteAsync(
         CustomerAccountView account,
         IReadOnlyCollection<PosOrderLine> lines,
         decimal cafeteriaAccountAmount,
         decimal cashAmount,
         CancellationToken cancellationToken = default)
-        => CompleteAsync(account, lines, cafeteriaAccountAmount, cashAmount, "legacy", Environment.MachineName, cancellationToken);
+        => CompleteAsync(
+            new PosCheckoutRequest(
+                account,
+                lines,
+                cafeteriaAccountAmount,
+                cashAmount,
+                0m,
+                "legacy",
+                Environment.MachineName),
+            cancellationToken);
 
-    public async Task<Order> CompleteAsync(
+    [Obsolete("Production callers should use PosCheckoutRequest.")]
+    public Task<Order> CompleteAsync(
         CustomerAccountView account,
         IReadOnlyCollection<PosOrderLine> lines,
         decimal cafeteriaAccountAmount,
@@ -33,52 +43,94 @@ public sealed class PosCheckoutService
         string cashierUserId,
         string terminalId,
         CancellationToken cancellationToken = default)
+        => CompleteAsync(
+            new PosCheckoutRequest(
+                account,
+                lines,
+                cafeteriaAccountAmount,
+                cashAmount,
+                0m,
+                cashierUserId,
+                terminalId),
+            cancellationToken);
+
+    public async Task<Order> CompleteAsync(PosCheckoutRequest request, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(account);
-        ArgumentNullException.ThrowIfNull(lines);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Account);
+        ArgumentNullException.ThrowIfNull(request.Lines);
+
+        CustomerAccountView account = request.Account;
+        IReadOnlyCollection<PosOrderLine> lines = request.Lines;
 
         if (account.Period.IsClosed)
-        {
             throw new InvalidOperationException("Sales cannot be completed for a closed cafeteria period.");
-        }
 
-        if (lines.Count == 0) throw new InvalidOperationException("At least one order item is required.");
-        if ((account.Customer.IsCashCustomer || !account.Customer.IsEligibleForCredit) && cafeteriaAccountAmount > 0m)
+        if (lines.Count == 0)
+            throw new InvalidOperationException("At least one order item is required.");
+
+        if (request.CafeteriaAccountAmount < 0m)
+            throw new ArgumentOutOfRangeException(nameof(request.CafeteriaAccountAmount));
+        if (request.CashAmount < 0m)
+            throw new ArgumentOutOfRangeException(nameof(request.CashAmount));
+        if (request.CreditAmount < 0m)
+            throw new ArgumentOutOfRangeException(nameof(request.CreditAmount));
+
+        bool canUseEmployeeAccount = !account.Customer.IsCashCustomer && account.Customer.IsEligibleForCredit;
+        if (!canUseEmployeeAccount && (request.CafeteriaAccountAmount > 0m || request.CreditAmount > 0m))
+        {
             throw new InvalidOperationException(account.Customer.IsCashCustomer
                 ? "Cash customer sales must be paid entirely in cash."
-                : "This customer is not eligible for cafeteria credit.");
-        if (cafeteriaAccountAmount < 0m) throw new ArgumentOutOfRangeException(nameof(cafeteriaAccountAmount));
-        if (cashAmount < 0m) throw new ArgumentOutOfRangeException(nameof(cashAmount));
-        if (string.IsNullOrWhiteSpace(cashierUserId)) throw new ArgumentException("Authenticated cashier user ID is required.", nameof(cashierUserId));
-        if (string.IsNullOrWhiteSpace(terminalId)) throw new ArgumentException("Terminal ID is required.", nameof(terminalId));
-        if (cafeteriaAccountAmount > account.FinancialStatus.TotalAvailableToSpend)
-            throw new InvalidOperationException("The cafeteria-account portion exceeds the customer's available credit.");
+                : "This customer is not eligible for Employee Card or credit sales.");
+        }
 
-        var now = DateTimeOffset.Now;
-        var order = new Order(Guid.NewGuid(), account.Customer.Id, now);
-        foreach (var line in lines)
+        if (string.IsNullOrWhiteSpace(request.CashierUserId))
+            throw new ArgumentException("Authenticated cashier user ID is required.", nameof(request.CashierUserId));
+        if (string.IsNullOrWhiteSpace(request.TerminalId))
+            throw new ArgumentException("Terminal ID is required.", nameof(request.TerminalId));
+        if (request.CafeteriaAccountAmount > account.FinancialStatus.TotalAvailableToSpend)
+            throw new InvalidOperationException("The Employee Card portion exceeds the customer's Available to Spend.");
+
+        DateTimeOffset now = DateTimeOffset.Now;
+        Order order = new(Guid.NewGuid(), account.Customer.Id, now);
+        foreach (PosOrderLine line in lines)
         {
-            if (line.Quantity <= 0) throw new InvalidOperationException("Order quantities must be greater than zero.");
+            if (line.Quantity <= 0)
+                throw new InvalidOperationException("Order quantities must be greater than zero.");
+
             order.AddItem(new OrderItem(line.ProductId, line.ProductName, line.UnitPrice, line.Quantity));
         }
 
         order.Submit(now);
-        var payments = new List<OrderPayment>();
-        if (cafeteriaAccountAmount > 0m)
-            payments.Add(new OrderPayment(Guid.NewGuid(), PaymentMethod.CafeteriaAccount, cafeteriaAccountAmount, now));
-        if (cashAmount > 0m)
-            payments.Add(new OrderPayment(Guid.NewGuid(), PaymentMethod.Cash, cashAmount, now));
+        List<OrderPayment> payments = [];
+        if (request.CafeteriaAccountAmount > 0m)
+            payments.Add(new OrderPayment(Guid.NewGuid(), PaymentMethod.CafeteriaAccount, request.CafeteriaAccountAmount, now));
+        if (request.CashAmount > 0m)
+            payments.Add(new OrderPayment(Guid.NewGuid(), PaymentMethod.Cash, request.CashAmount, now));
+        if (request.CreditAmount > 0m)
+            payments.Add(new OrderPayment(Guid.NewGuid(), PaymentMethod.Credit, request.CreditAmount, now));
 
         if (payments.Sum(x => x.Amount) != order.Total)
-            throw new InvalidOperationException("Cafeteria-account and cash tender must equal the order total.");
+            throw new InvalidOperationException("Employee Card, cash, and credit tender must equal the order total.");
 
-        order.Complete(payments, now, cashierUserId, terminalId);
-        await persistenceStore.SaveOrderAsync(order, cancellationToken);
-        if (externalProjection is not null && !account.Customer.IsCashCustomer)
-            await externalProjection.PublishCompletedOrderAsync(account, order, cancellationToken);
+        order.Complete(payments, now, request.CashierUserId, request.TerminalId);
+        await this.persistenceStore.SaveOrderAsync(order, cancellationToken);
+
+        if (this.externalProjection is not null && !account.Customer.IsCashCustomer)
+            await this.externalProjection.PublishCompletedOrderAsync(account, order, cancellationToken);
+
         return order;
     }
 }
+
+public sealed record PosCheckoutRequest(
+    CustomerAccountView Account,
+    IReadOnlyCollection<PosOrderLine> Lines,
+    decimal CafeteriaAccountAmount,
+    decimal CashAmount,
+    decimal CreditAmount,
+    string CashierUserId,
+    string TerminalId);
 
 public sealed record PosOrderLine(int ProductId, string ProductName, decimal UnitPrice, int Quantity)
 {
