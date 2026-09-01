@@ -117,6 +117,8 @@ public static class CafeteriaRuntimeOptionsResolver
             Enabled = servicesEnabled,
             BaseUrl = svc["BaseUrl"]?.Trim() ?? "http://localhost:5088",
             PollSeconds = Math.Max(5, svc.GetValue("PollSeconds", 15)),
+            RequestTimeoutSeconds = Math.Max(5, svc.GetValue("RequestTimeoutSeconds", 10)),
+            StartupRefreshTimeoutSeconds = Math.Max(5, svc.GetValue("StartupRefreshTimeoutSeconds", 12)),
             ApiKey = string.IsNullOrWhiteSpace(serviceApiKey) ? null : serviceApiKey.Trim(),
             UseServiceMonthlyAllocations = svc.GetValue("UseServiceMonthlyAllocations", false),
             RealtimeEnabled = svc.GetValue("RealtimeEnabled", true),
