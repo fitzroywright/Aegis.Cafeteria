@@ -14,7 +14,7 @@ public sealed class CustomerPaymentDialog : Form
     public CustomerPaymentDialog(string customerName, decimal amountDue)
     {
         this.amountDue = amountDue;
-        Text = "Customer Payment";
+        Text = "Employee Payment";
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -30,28 +30,28 @@ public sealed class CustomerPaymentDialog : Form
         this.method.SelectedIndex = 0;
         this.amount.ValueChanged += (_, _) => UpdateRemaining();
 
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 9 };
+        TableLayoutPanel root = new() { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 9 };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 44));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 56));
-        for (var i = 0; i < 8; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        for (int i = 0; i < 8; i++) root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        var title = new Label { Text = "CUSTOMER PAYMENT", AutoSize = true, Font = new Font("Segoe UI", 16, FontStyle.Bold), ForeColor = Navy, Margin = new Padding(0, 0, 0, 2) };
-        var subtitle = new Label { Text = "Record money received from the employee. This reduces the Employee Amount Due for the current period.", AutoSize = true, MaximumSize = new Size(520, 0), ForeColor = Muted, Margin = new Padding(0, 0, 0, 14) };
+        Label title = new() { Text = "EMPLOYEE PAYMENT", AutoSize = true, Font = new Font("Segoe UI", 16, FontStyle.Bold), ForeColor = Navy, Margin = new Padding(0, 0, 0, 2) };
+        Label subtitle = new() { Text = "Record money received from the employee. This reduces the Employee Amount Due for the current period.", AutoSize = true, MaximumSize = new Size(520, 0), ForeColor = Muted, Margin = new Padding(0, 0, 0, 14) };
         root.Controls.Add(title, 0, 0); root.SetColumnSpan(title, 2);
         root.Controls.Add(subtitle, 0, 1); root.SetColumnSpan(subtitle, 2);
 
-        AddRow(root, 2, "Customer", new Label { Text = customerName, AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold) });
+        AddRow(root, 2, "Employee", new Label { Text = customerName, AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold) });
         AddRow(root, 3, "Employee Amount Due before payment", new Label { Text = amountDue.ToString("C2"), AutoSize = true, Font = new Font("Segoe UI", 14, FontStyle.Bold), ForeColor = Navy });
         AddRow(root, 4, "Payment amount", this.amount);
         AddRow(root, 5, "Payment method", this.method);
         AddRow(root, 6, "Reference", this.reference);
         AddRow(root, 7, "Employee Amount Due after payment", this.remaining);
 
-        var buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(0, 16, 0, 0) };
-        var apply = new Button { Text = "Apply Payment", AutoSize = true, Height = 40, DialogResult = DialogResult.OK, BackColor = Green, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 10, FontStyle.Bold) };
+        FlowLayoutPanel buttons = new() { FlowDirection = FlowDirection.RightToLeft, Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(0, 16, 0, 0) };
+        Button apply = new() { Text = "Apply Payment", AutoSize = true, Height = 40, DialogResult = DialogResult.OK, BackColor = Green, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 10, FontStyle.Bold) };
         apply.FlatAppearance.BorderSize = 0;
-        var cancel = new Button { Text = "Cancel", AutoSize = true, Height = 40, DialogResult = DialogResult.Cancel };
+        Button cancel = new() { Text = "Cancel", AutoSize = true, Height = 40, DialogResult = DialogResult.Cancel };
         buttons.Controls.Add(apply);
         buttons.Controls.Add(cancel);
         root.Controls.Add(buttons, 0, 8); root.SetColumnSpan(buttons, 2);
