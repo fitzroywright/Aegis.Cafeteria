@@ -31,17 +31,20 @@ internal static class Program
         var builder = Host.CreateApplicationBuilder();
         builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
             .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: false)
+            .AddJsonFile("appsettings.ServicesOnly.json", optional: false, reloadOnChange: false)
             .AddEnvironmentVariables();
 
-        splash.Update("Loading secure configuration...", "Resolving FFP and service settings.");
+        splash.Update("Loading secure configuration...", "Resolving Cafeteria Services settings.");
         var secretProvider = ApplicationSecretProviderFactory.Create(builder.Configuration, builder.Environment);
         var secretSource = ApplicationSecretProviderFactory.Describe(builder.Environment);
         CafeteriaRuntimeOptions runtime;
         try
         {
             runtime = await CafeteriaRuntimeOptionsResolver.ResolveAsync(builder.Configuration, secretProvider);
-            if (!builder.Environment.IsDevelopment() && runtime.Services.Enabled && string.IsNullOrWhiteSpace(runtime.Services.ApiKey))
-                throw new InvalidOperationException("Cafeteria Services is enabled but CafeteriaServicesApiKey is not configured.");
+            if (!runtime.Services.Enabled)
+                throw new InvalidOperationException("Aegis.Cafeteria POS requires Aegis.Cafeteria.Services.");
+            if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(runtime.Services.ApiKey))
+                throw new InvalidOperationException("CafeteriaServicesApiKey is not configured.");
         }
         catch (Exception ex)
         {
@@ -91,23 +94,21 @@ internal static class Program
             splash.Update("Opening local database...", "Checking the local cache and offline transaction store.");
             await host.Services.GetRequiredService<PersistenceInitializer>().InitializeLocalAsync();
 
-            var startupWarning = false;
             if (runtime.FfpIntegration.Enabled)
             {
                 try
                 {
                     var refresh = host.Services.GetRequiredService<ReferenceDataRefreshService>();
 
-                    splash.Update("Refreshing employees...", "Loading the latest employee reference data from FFP.");
+                    splash.Update("Refreshing employees...", "Loading the latest employee reference data through Aegis.Cafeteria.Services.");
                     var count = await refresh.RefreshCustomersAsync();
 
-                    splash.Update("Refreshing holidays...", "Loading the cafeteria working-day calendar.");
+                    splash.Update("Refreshing holidays...", "Loading the cafeteria working-day calendar through Aegis.Cafeteria.Services.");
                     var today = DateOnly.FromDateTime(DateTime.Today);
                     await refresh.RefreshHolidaysAsync(today);
 
                     if (count == 0)
                     {
-                        startupWarning = true;
                         splash.Update(
                             "Employee refresh returned no rows.",
                             "The POS will continue, but employee selection depends on the existing local cache.");
@@ -115,25 +116,19 @@ internal static class Program
                 }
                 catch (Exception ex)
                 {
-                    startupWarning = true;
                     splash.Update(
-                        "FFP refresh unavailable - using local cache.",
+                        "Cafeteria Services refresh unavailable - using local cache.",
                         "The terminal will continue with reference data already stored locally.");
 
                     MessageBox.Show(
-                        "Cafeteria could not fully refresh its workforce/product reference data from the configured adapter.\n\n" +
-                        (runtime.Services.Enabled ? $"Source adapter: Aegis.Cafeteria.Services ({runtime.Services.BaseUrl})\n\n" : "Source adapter: FFP SQL\n\n") + ex.Message +
+                        "Cafeteria could not fully refresh its workforce reference data through Aegis.Cafeteria.Services.\n\n" +
+                        $"Services endpoint: {runtime.Services.BaseUrl}\n\n" + ex.Message +
                         "\n\nThe POS will continue with data already cached locally.",
                         "Reference refresh warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
             }
-            else
-            {
-                startupWarning = true;
-                splash.Update("FFP integration disabled.", "The terminal will use locally cached reference data.");
-            }
 
-            splash.Update("Starting terminal services...", "Starting FFP publication, health monitoring, and background services.");
+            splash.Update("Starting terminal services...", "Starting Services publication, health monitoring, and background services.");
             await host.StartAsync();
 
             splash.Update("Operator sign-in required...", "Authenticating against FFTPJ Active Directory over LDAPS.");
