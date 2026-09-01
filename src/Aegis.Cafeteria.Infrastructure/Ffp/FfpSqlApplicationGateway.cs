@@ -54,16 +54,16 @@ WHERE YEAR(CalendarDate) = @year;";
                 sourceRows.Add
                 (
                     new EmployeeSourceRow
-                    (
-                          Convert.ToInt32(reader.GetValue(0))
-                        , NormalizeIdentifier(reader, 1)
-                        , NormalizeIdentifier(reader, 2)
-                        , NormalizeIdentifier(reader, 3)
-                        , Convert.ToString(reader.GetValue(4))?.Trim() ?? string.Empty
-                        , reader.IsDBNull(5) ? null : (byte[])reader.GetValue(5)
-                        , !reader.IsDBNull(6) && Convert.ToBoolean(reader.GetValue(6))
-                        , reader.IsDBNull(7) ? string.Empty : Convert.ToString(reader.GetValue(7))?.Trim() ?? string.Empty
-                    )
+                    {
+                          EmployeeId = Convert.ToInt32(reader.GetValue(0))
+                        , Code = NormalizeIdentifier(reader, 1)
+                        , Trn = NormalizeIdentifier(reader, 2)
+                        , Nfc = NormalizeIdentifier(reader, 3)
+                        , Name = Convert.ToString(reader.GetValue(4))?.Trim() ?? string.Empty
+                        , Photo = reader.IsDBNull(5) ? null : (byte[])reader.GetValue(5)
+                        , IsEligible = !reader.IsDBNull(6) && Convert.ToBoolean(reader.GetValue(6))
+                        , LoginName = reader.IsDBNull(7) ? string.Empty : Convert.ToString(reader.GetValue(7))?.Trim() ?? string.Empty
+                    }
                 );
             }
         }
@@ -92,21 +92,21 @@ WHERE YEAR(CalendarDate) = @year;";
             result.Add
             (
                 new ExternalCustomerSnapshot
-                (
-                      employee.EmployeeId
-                    , employee.Name
-                    , employee.IsEligible
-                    , employee.Nfc
-                    , employee.Code
-                    , employee.Trn
-                    , employee.Photo
-                    , directoryEmployee?.Department ?? string.Empty
-                    , 0m
-                    , directoryEmployee?.Manager ?? string.Empty
-                    , directoryEmployee?.EmailAddress ?? string.Empty
-                    , directoryEmployee?.Extension ?? string.Empty
-                    , employee.LoginName
-                )
+                {
+                      CustomerId = employee.EmployeeId
+                    , Name = employee.Name
+                    , IsEligibleForCafeteriaCredit = employee.IsEligible
+                    , Nfc = employee.Nfc
+                    , Code = employee.Code
+                    , Trn = employee.Trn
+                    , Photo = employee.Photo
+                    , Department = directoryEmployee?.Department ?? string.Empty
+                    , AdditionalCreditLimit = 0m
+                    , Manager = directoryEmployee?.Manager ?? string.Empty
+                    , EmailAddress = directoryEmployee?.EmailAddress ?? string.Empty
+                    , Extension = directoryEmployee?.Extension ?? string.Empty
+                    , LoginName = employee.LoginName
+                }
             );
         }
 
@@ -437,14 +437,14 @@ END", connection, transaction);
     }
 
     private sealed record EmployeeSourceRow
-    (
-          int EmployeeId
-        , string? Code
-        , string? Trn
-        , string? Nfc
-        , string Name
-        , byte[]? Photo
-        , bool IsEligible
-        , string LoginName
-    );
+    {
+        public int EmployeeId { get; init; }
+        public string? Code { get; init; }
+        public string? Trn { get; init; }
+        public string? Nfc { get; init; }
+        public string Name { get; init; } = string.Empty;
+        public byte[]? Photo { get; init; }
+        public bool IsEligible { get; init; }
+        public string LoginName { get; init; } = string.Empty;
+    }
 }
