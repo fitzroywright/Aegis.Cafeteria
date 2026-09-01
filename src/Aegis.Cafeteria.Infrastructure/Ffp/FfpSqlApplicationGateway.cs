@@ -1,13 +1,15 @@
 namespace Aegis.Cafeteria.Infrastructure.Ffp;
 
 using Aegis.Cafeteria.Application.Integration;
+using Aegis.Cafeteria.Infrastructure.ActiveDirectory;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
-/// Adapter for the existing FFP schema used by FFP.LunchSystem. the external system idempotency key
-/// is the idempotency key. The scan insert and Employees summary update occur in one SQL transaction.
+/// Service-side adapter for the existing FFP schema. POS terminals never connect directly to FFP SQL.
+/// The external system idempotency key is the idempotency key. The scan insert and Employees summary
+/// update occur in one SQL transaction.
 /// </summary>
 public sealed class FfpSqlApplicationGateway(FfpIntegrationOptions options, ILogger<FfpSqlApplicationGateway> logger) :
       IExternalAccountingGateway
@@ -16,7 +18,8 @@ public sealed class FfpSqlApplicationGateway(FfpIntegrationOptions options, ILog
     , IMonthRecalculationGuard
     , IDevelopmentDataResetGateway
 {
-    // Only employees eligible for the Cafeteria program are loaded into the POS workforce cache.
+    private readonly ActiveDirectoryEmployeeDirectory directory = new();
+
     private const string EmployeeSql = @"
 SELECT
       e.ID
@@ -26,9 +29,8 @@ SELECT
     , ISNULL(e.FirstName, '') + ' ' + ISNULL(e.LastName, '') AS Name
     , e.Photo
     , CAST(CASE WHEN e.EligibleForLunchTicket = 1 THEN 1 ELSE 0 END AS bit) AS IsEligible
-    , ISNULL(d.Name, '') AS DepartmentName
+    , ISNULL(CONVERT(nvarchar(256), e.LoginName), '') AS LoginName
 FROM dbo.Employees AS e
-LEFT OUTER JOIN dbo.Departments AS d ON d.ID = e.DepartmentID
 WHERE e.EligibleForLunchTicket = 1;";
 
     private const string HolidaySql = @"
@@ -39,49 +41,106 @@ WHERE YEAR(CalendarDate) = @year;";
     public async Task<IReadOnlyList<ExternalCustomerSnapshot>> GetCustomersAsync(CancellationToken cancellationToken = default)
     {
         EnsureEnabled();
-        var result = new List<ExternalCustomerSnapshot>();
-        await using var cn = new SqlConnection(options.ConnectionString);
-        await cn.OpenAsync(cancellationToken);
-        await using var cmd = new SqlCommand(EmployeeSql, cn);
-        await using var r = await cmd.ExecuteReaderAsync(cancellationToken);
-        while (await r.ReadAsync(cancellationToken))
-        {
-            int employeeId = Convert.ToInt32(r.GetValue(0));
-            string? code = NormalizeIdentifier(r, 1);
-            string? trn = NormalizeIdentifier(r, 2);
-            string? nfc = NormalizeIdentifier(r, 3);
-            var name = Convert.ToString(r.GetValue(4))?.Trim() ?? string.Empty;
-            var photo = r.IsDBNull(5) ? null : (byte[])r.GetValue(5);
-            var isEligible = !r.IsDBNull(6) && Convert.ToBoolean(r.GetValue(6));
-            var department = r.IsDBNull(7) ? string.Empty : Convert.ToString(r.GetValue(7))?.Trim() ?? string.Empty;
 
-            result.Add(new ExternalCustomerSnapshot(employeeId, name, isEligible, nfc, code, trn, photo, department));
+        List<EmployeeSourceRow> sourceRows = [];
+        await using (SqlConnection connection = new(options.ConnectionString))
+        {
+            await connection.OpenAsync(cancellationToken);
+            await using SqlCommand command = new(EmployeeSql, connection);
+            await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
+
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                sourceRows.Add
+                (
+                    new EmployeeSourceRow
+                    (
+                          Convert.ToInt32(reader.GetValue(0))
+                        , NormalizeIdentifier(reader, 1)
+                        , NormalizeIdentifier(reader, 2)
+                        , NormalizeIdentifier(reader, 3)
+                        , Convert.ToString(reader.GetValue(4))?.Trim() ?? string.Empty
+                        , reader.IsDBNull(5) ? null : (byte[])reader.GetValue(5)
+                        , !reader.IsDBNull(6) && Convert.ToBoolean(reader.GetValue(6))
+                        , reader.IsDBNull(7) ? string.Empty : Convert.ToString(reader.GetValue(7))?.Trim() ?? string.Empty
+                    )
+                );
+            }
         }
+
+        IReadOnlyDictionary<string, ActiveDirectoryEmployeeRecord> directoryRecords;
+        try
+        {
+            directoryRecords = this.directory.GetByLoginNames(sourceRows.Select(employee => employee.LoginName));
+        }
+        catch (InvalidOperationException exception)
+        {
+            logger.LogWarning
+            (
+                  exception
+                , "Active Directory employee metadata lookup failed in Aegis.Cafeteria.Services; employee records will be returned without AD metadata"
+            );
+            directoryRecords = new Dictionary<string, ActiveDirectoryEmployeeRecord>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        List<ExternalCustomerSnapshot> result = [];
+        foreach (EmployeeSourceRow employee in sourceRows)
+        {
+            string normalizedLoginName = NormalizeLoginName(employee.LoginName);
+            directoryRecords.TryGetValue(normalizedLoginName, out ActiveDirectoryEmployeeRecord? directoryEmployee);
+
+            result.Add
+            (
+                new ExternalCustomerSnapshot
+                (
+                      employee.EmployeeId
+                    , employee.Name
+                    , employee.IsEligible
+                    , employee.Nfc
+                    , employee.Code
+                    , employee.Trn
+                    , employee.Photo
+                    , directoryEmployee?.Department ?? string.Empty
+                    , 0m
+                    , directoryEmployee?.Manager ?? string.Empty
+                    , directoryEmployee?.EmailAddress ?? string.Empty
+                    , directoryEmployee?.Extension ?? string.Empty
+                    , employee.LoginName
+                )
+            );
+        }
+
         return result;
     }
 
     public async Task<IReadOnlyCollection<DateOnly>> GetHolidaysAsync(int year, int month, CancellationToken cancellationToken = default)
     {
         EnsureEnabled();
-        if (year < 1) throw new ArgumentOutOfRangeException(nameof(year));
-        if (month is < 1 or > 12) throw new ArgumentOutOfRangeException(nameof(month));
-
-        // FFP.Holidays is the source of truth. Fetch the year (same semantics as the supplied
-        // YEAR(CalendarDate)=YEAR(GETDATE()) query) and return only the requested month.
-        var list = new List<DateOnly>();
-        await using var cn = new SqlConnection(options.ConnectionString);
-        await cn.OpenAsync(cancellationToken);
-        await using var cmd = new SqlCommand(HolidaySql, cn);
-        cmd.Parameters.AddWithValue("@year", year);
-        await using var r = await cmd.ExecuteReaderAsync(cancellationToken);
-        while (await r.ReadAsync(cancellationToken))
+        if (year < 1)
         {
-            var date = DateOnly.FromDateTime(r.GetDateTime(1));
-            if (date.Month == month) list.Add(date);
+            throw new ArgumentOutOfRangeException(nameof(year));
         }
-        return list.Distinct().ToArray();
-    }
+        if (month is < 1 or > 12)
+        {
+            throw new ArgumentOutOfRangeException(nameof(month));
+        }
 
+        List<DateOnly> dates = [];
+        await using SqlConnection connection = new(options.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using SqlCommand command = new(HolidaySql, connection);
+        command.Parameters.AddWithValue("@year", year);
+        await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            DateOnly date = DateOnly.FromDateTime(reader.GetDateTime(1));
+            if (date.Month == month)
+            {
+                dates.Add(date);
+            }
+        }
+        return dates.Distinct().ToArray();
+    }
 
     public async Task MirrorFundingPolicyAsync
     (
@@ -109,7 +168,6 @@ IF @@ROWCOUNT <> 1
         command.Parameters.AddWithValue("@Cost", dailyCompanySubsidyRate);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
-
 
     public async Task<MonthRecalculationGuardResult> CheckAsync
     (
@@ -165,7 +223,6 @@ WHERE ScanDate >= @Start
                 , $"Month {year:D4}-{month:D2} contains {activityCount} cafeteria financial transaction(s). Recalculation is blocked once financial activity exists."
             );
     }
-
 
     public async Task<DevelopmentDataResetResult> ResetAsync
     (
@@ -247,13 +304,23 @@ SELECT @DeletedLedgerEntries, @@ROWCOUNT;";
     {
         EnsureEnabled();
         const string sql = "SELECT ID, ISNULL(CreditLimit,0), ISNULL(AvailableBalance,0) FROM Employees WHERE EligibleForLunchTicket = 1;";
-        var result = new List<ExternalAccountSummary>();
-        await using var cn = new SqlConnection(options.ConnectionString);
-        await cn.OpenAsync(cancellationToken);
-        await using var cmd = new SqlCommand(sql, cn);
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+        List<ExternalAccountSummary> result = [];
+        await using SqlConnection connection = new(options.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using SqlCommand command = new(sql, connection);
+        await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
-            result.Add(new ExternalAccountSummary(Convert.ToInt32(reader.GetValue(0)), Convert.ToDecimal(reader.GetValue(1)), Convert.ToDecimal(reader.GetValue(2))));
+        {
+            result.Add
+            (
+                new ExternalAccountSummary
+                (
+                      Convert.ToInt32(reader.GetValue(0))
+                    , Convert.ToDecimal(reader.GetValue(1))
+                    , Convert.ToDecimal(reader.GetValue(2))
+                )
+            );
+        }
         return result;
     }
 
@@ -261,12 +328,12 @@ SELECT @DeletedLedgerEntries, @@ROWCOUNT;";
     {
         EnsureEnabled();
         EnsureWritesEnabled();
-        await using var cn = new SqlConnection(options.ConnectionString);
-        await cn.OpenAsync(cancellationToken);
-        await using var tx = (SqlTransaction)await cn.BeginTransactionAsync(cancellationToken);
+        await using SqlConnection connection = new(options.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using SqlTransaction transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
         try
         {
-            await using var cmd = new SqlCommand(@"
+            await using SqlCommand command = new(@"
 IF NOT EXISTS (SELECT 1 FROM EmployeeIDScans WITH (UPDLOCK, HOLDLOCK) WHERE TransmissionID = @TransmissionID)
 BEGIN
     INSERT INTO EmployeeIDScans
@@ -281,26 +348,33 @@ BEGIN
        SET CreditLimit = @CreditLimit,
            AvailableBalance = @AvailableBalance
      WHERE ID = @EmployeeID;
-END", cn, tx);
-            cmd.Parameters.AddWithValue("@TransmissionID", entry.OperationId.ToString());
-            cmd.Parameters.AddWithValue("@EmployeeID", entry.CustomerId);
-            cmd.Parameters.AddWithValue("@Description", entry.Description);
-            cmd.Parameters.AddWithValue("@OccurredAt", entry.OccurredAt.LocalDateTime);
-            cmd.Parameters.AddWithValue("@ScanCode", entry.ScanCode);
-            cmd.Parameters.AddWithValue("@UserName", string.IsNullOrWhiteSpace(entry.UserName) ? "SYSTEM" : entry.UserName);
-            cmd.Parameters.AddWithValue("@IDName", string.IsNullOrWhiteSpace(entry.IdName) ? entry.Description : entry.IdName);
-            cmd.Parameters.AddWithValue("@ScanType", ScanType(entry.Kind));
-            cmd.Parameters.AddWithValue("@ScanValue", entry.ScanValue);
-            cmd.Parameters.AddWithValue("@CreditLimit", entry.CreditLimit);
-            cmd.Parameters.AddWithValue("@AvailableBalance", entry.AvailableBalance);
-            await cmd.ExecuteNonQueryAsync(cancellationToken);
-            await tx.CommitAsync(cancellationToken);
-            logger.LogInformation("Published FFP ledger entry {OperationId} for employee {EmployeeId}: {Kind} {ScanValue}; balance {AvailableBalance}",
-                entry.OperationId, entry.CustomerId, entry.Kind, entry.ScanValue, entry.AvailableBalance);
+END", connection, transaction);
+            command.Parameters.AddWithValue("@TransmissionID", entry.OperationId.ToString());
+            command.Parameters.AddWithValue("@EmployeeID", entry.CustomerId);
+            command.Parameters.AddWithValue("@Description", entry.Description);
+            command.Parameters.AddWithValue("@OccurredAt", entry.OccurredAt.LocalDateTime);
+            command.Parameters.AddWithValue("@ScanCode", entry.ScanCode);
+            command.Parameters.AddWithValue("@UserName", string.IsNullOrWhiteSpace(entry.UserName) ? "SYSTEM" : entry.UserName);
+            command.Parameters.AddWithValue("@IDName", string.IsNullOrWhiteSpace(entry.IdName) ? entry.Description : entry.IdName);
+            command.Parameters.AddWithValue("@ScanType", ScanType(entry.Kind));
+            command.Parameters.AddWithValue("@ScanValue", entry.ScanValue);
+            command.Parameters.AddWithValue("@CreditLimit", entry.CreditLimit);
+            command.Parameters.AddWithValue("@AvailableBalance", entry.AvailableBalance);
+            await command.ExecuteNonQueryAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            logger.LogInformation
+            (
+                  "Published FFP ledger entry {OperationId} for employee {EmployeeId}: {Kind} {ScanValue}; balance {AvailableBalance}"
+                , entry.OperationId
+                , entry.CustomerId
+                , entry.Kind
+                , entry.ScanValue
+                , entry.AvailableBalance
+            );
         }
         catch
         {
-            await tx.RollbackAsync(cancellationToken);
+            await transaction.RollbackAsync(cancellationToken);
             throw;
         }
     }
@@ -315,9 +389,31 @@ END", cn, tx);
 
     private static string? NormalizeIdentifier(SqlDataReader reader, int ordinal)
     {
-        if (reader.IsDBNull(ordinal)) return null;
-        var value = Convert.ToString(reader.GetValue(ordinal))?.Trim();
+        if (reader.IsDBNull(ordinal))
+        {
+            return null;
+        }
+
+        string? value = Convert.ToString(reader.GetValue(ordinal))?.Trim();
         return string.IsNullOrEmpty(value) ? null : value.ToLowerInvariant();
+    }
+
+    private static string NormalizeLoginName(string value)
+    {
+        string loginName = value.Trim();
+        int slash = loginName.LastIndexOf('\\');
+        if (slash >= 0 && slash < loginName.Length - 1)
+        {
+            loginName = loginName[(slash + 1)..];
+        }
+
+        int at = loginName.IndexOf('@');
+        if (at > 0)
+        {
+            loginName = loginName[..at];
+        }
+
+        return loginName.Trim().ToLowerInvariant();
     }
 
     private void EnsureWritesEnabled()
@@ -330,7 +426,25 @@ END", cn, tx);
 
     private void EnsureEnabled()
     {
-        if (!options.Enabled) throw new InvalidOperationException("FFP integration is disabled.");
-        if (string.IsNullOrWhiteSpace(options.ConnectionString)) throw new InvalidOperationException("FFP database connection string is not configured.");
+        if (!options.Enabled)
+        {
+            throw new InvalidOperationException("FFP integration is disabled.");
+        }
+        if (string.IsNullOrWhiteSpace(options.ConnectionString))
+        {
+            throw new InvalidOperationException("FFP database connection string is not configured.");
+        }
     }
+
+    private sealed record EmployeeSourceRow
+    (
+          int EmployeeId
+        , string? Code
+        , string? Trn
+        , string? Nfc
+        , string Name
+        , byte[]? Photo
+        , bool IsEligible
+        , string LoginName
+    );
 }
