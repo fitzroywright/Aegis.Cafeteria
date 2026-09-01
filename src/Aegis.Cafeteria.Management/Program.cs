@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Text.Json;
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -15,7 +17,7 @@ int configuredSessionMinutes = builder.Configuration.GetValue<int?>("Authenticat
 int sessionMinutes = Math.Clamp(configuredSessionMinutes, 5, 480);
 TimeSpan sessionLifetime = TimeSpan.FromMinutes(sessionMinutes);
 
-builder.Services.AddSingleton(new ManagementCredentialSessionStore(sessionLifetime));
+builder.Services.AddSingleton(new ManagementSessionStore(sessionLifetime));
 builder.Services
     .AddAuthentication(ManagementAuthenticationScheme)
     .AddCookie
@@ -84,7 +86,7 @@ app.MapPost
     (
           HttpContext http
         , IConfiguration configuration
-        , ManagementCredentialSessionStore sessions
+        , ManagementSessionStore sessions
         , CancellationToken cancellationToken
     ) =>
     {
@@ -112,58 +114,42 @@ app.MapPost
             );
         }
 
-        string defaultDomain = configuration["Authentication:DefaultDomain"]?.Trim() ?? "FFPJM";
-        ManagementCredential credential = ManagementCredential.Create(loginName, password, defaultDomain);
-        HttpStatusCode statusCode;
-
+        ManagementAuthenticationResponse authentication;
         try
         {
-            statusCode = await ValidateManagementAccessAsync(credential, configuration, cancellationToken);
+            authentication = await AuthenticateWithCommonSecurityAsync
+            (
+                  loginName
+                , password
+                , configuration
+                , cancellationToken
+            );
+        }
+        catch (ManagementAuthenticationException exception)
+        {
+            return Results.Content
+            (
+                  ManagementLoginPage.Build(exception.Message)
+                , "text/html"
+                , statusCode: exception.StatusCode
+            );
         }
         catch (HttpRequestException)
         {
             return Results.Content
             (
-                  ManagementLoginPage.Build("Cafeteria Services could not be reached. Verify that the Services application is running.")
+                  ManagementLoginPage.Build("Cafeteria Services could not be reached. Verify that Aegis.Cafeteria.Services is running.")
                 , "text/html"
                 , statusCode: StatusCodes.Status503ServiceUnavailable
             );
         }
 
-        if (statusCode == HttpStatusCode.Unauthorized)
-        {
-            return Results.Content
-            (
-                  ManagementLoginPage.Build("The username or password was not accepted.")
-                , "text/html"
-                , statusCode: StatusCodes.Status401Unauthorized
-            );
-        }
-
-        if (statusCode == HttpStatusCode.Forbidden)
-        {
-            return Results.Content
-            (
-                  ManagementLoginPage.Build("Your account is valid but is not authorized for Cafeteria Management.")
-                , "text/html"
-                , statusCode: StatusCodes.Status403Forbidden
-            );
-        }
-
-        if ((int)statusCode < 200 || (int)statusCode >= 300)
-        {
-            return Results.Content
-            (
-                  ManagementLoginPage.Build($"Cafeteria Services returned {(int)statusCode}. Sign in could not be completed.")
-                , "text/html"
-                , statusCode: StatusCodes.Status502BadGateway
-            );
-        }
-
-        string sessionId = sessions.Create(credential);
+        string sessionId = sessions.Create(authentication);
         Claim[] claims =
         [
-              new Claim(ClaimTypes.Name, credential.DisplayName)
+              new Claim(ClaimTypes.Name, authentication.UserName)
+            , new Claim("aegis_display_name", authentication.DisplayName)
+            , new Claim("aegis_authentication_source", authentication.AuthenticationSource)
             , new Claim(ManagementSessionClaim, sessionId)
         ];
         ClaimsIdentity identity = new(claims, ManagementAuthenticationScheme);
@@ -189,7 +175,7 @@ app.MapPost
 app.MapPost
 (
       "/logout"
-    , async (HttpContext http, ManagementCredentialSessionStore sessions) =>
+    , async (HttpContext http, ManagementSessionStore sessions) =>
     {
         string? sessionId = http.User.FindFirst(ManagementSessionClaim)?.Value;
         if (!string.IsNullOrWhiteSpace(sessionId))
@@ -205,10 +191,9 @@ app.MapPost
 app.MapGet
 (
       "/api/session"
-    , (HttpContext http, ManagementCredentialSessionStore sessions) =>
+    , (HttpContext http, ManagementSessionStore sessions) =>
     {
-        string? sessionId = http.User.FindFirst(ManagementSessionClaim)?.Value;
-        if (string.IsNullOrWhiteSpace(sessionId) || !sessions.TryGet(sessionId, out ManagementCredentialSession? session))
+        if (!TryGetSession(http, sessions, out ManagementSession? session))
         {
             return Results.Unauthorized();
         }
@@ -218,7 +203,9 @@ app.MapGet
             new
             {
                   authenticated = true
-                , userName = http.User.Identity?.Name
+                , userName = session.UserName
+                , displayName = session.DisplayName
+                , authenticationSource = "Common.Security"
                 , expiresAt = session.ExpiresAt
             }
         );
@@ -228,13 +215,7 @@ app.MapGet
 app.MapGet
 (
       "/api/config"
-    , () => Results.Ok
-    (
-        new
-        {
-            servicesBaseUrl = "/api/services"
-        }
-    )
+    , () => Results.Ok(new { servicesBaseUrl = "/api/services" })
 ).RequireAuthorization();
 
 string[] proxyMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"];
@@ -248,7 +229,7 @@ app.MapMethods
           string? path
         , HttpContext http
         , IConfiguration configuration
-        , ManagementCredentialSessionStore sessions
+        , ManagementSessionStore sessions
         , CancellationToken cancellationToken
     ) =>
     {
@@ -272,7 +253,7 @@ app.MapMethods
           string? path
         , HttpContext http
         , IConfiguration configuration
-        , ManagementCredentialSessionStore sessions
+        , ManagementSessionStore sessions
         , CancellationToken cancellationToken
     ) =>
     {
@@ -290,7 +271,7 @@ app.MapMethods
           string? path
         , HttpContext http
         , IConfiguration configuration
-        , ManagementCredentialSessionStore sessions
+        , ManagementSessionStore sessions
         , CancellationToken cancellationToken
     ) =>
     {
@@ -321,25 +302,53 @@ app.MapFallbackToFile("index.html").RequireAuthorization();
 
 await app.RunAsync();
 
-static async Task<HttpStatusCode> ValidateManagementAccessAsync
+static async Task<ManagementAuthenticationResponse> AuthenticateWithCommonSecurityAsync
 (
-      ManagementCredential credential
+      string loginName
+    , string password
     , IConfiguration configuration
     , CancellationToken cancellationToken
 )
 {
     string baseUrl = GetServicesBaseUrl(configuration);
-    using HttpClientHandler handler = CreateCredentialHandler(credential);
-    using HttpClient client = new(handler);
-    using HttpRequestMessage request = new(HttpMethod.Get, $"{baseUrl}/api/management/funding-policy");
-    using HttpResponseMessage response = await client.SendAsync
+    using HttpClient client = new();
+    using HttpResponseMessage response = await client.PostAsJsonAsync
     (
-          request
-        , HttpCompletionOption.ResponseHeadersRead
+          $"{baseUrl}/api/management/authenticate"
+        , new { userName = loginName, password }
         , cancellationToken
     );
 
-    return response.StatusCode;
+    string body = await response.Content.ReadAsStringAsync(cancellationToken);
+    if (!response.IsSuccessStatusCode)
+    {
+        string message = TryReadError(body)
+            ?? response.StatusCode switch
+            {
+                HttpStatusCode.Unauthorized => "The username or password was not accepted by Common.Security.",
+                HttpStatusCode.Forbidden => "Your account is valid but is not authorized for Cafeteria Management.",
+                _ => $"Cafeteria Services returned {(int)response.StatusCode} during authentication."
+            };
+
+        throw new ManagementAuthenticationException((int)response.StatusCode, message);
+    }
+
+    ManagementAuthenticationResponse? authentication = JsonSerializer.Deserialize<ManagementAuthenticationResponse>
+    (
+          body
+        , new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+    );
+
+    if (authentication is null || string.IsNullOrWhiteSpace(authentication.Token))
+    {
+        throw new ManagementAuthenticationException
+        (
+              StatusCodes.Status502BadGateway
+            , "Common.Security authentication completed but Cafeteria Services did not return a management session token."
+        );
+    }
+
+    return authentication;
 }
 
 static async Task ProxyToServicesAsync
@@ -347,12 +356,11 @@ static async Task ProxyToServicesAsync
       string path
     , HttpContext http
     , IConfiguration configuration
-    , ManagementCredentialSessionStore sessions
+    , ManagementSessionStore sessions
     , CancellationToken cancellationToken
 )
 {
-    string? sessionId = http.User.FindFirst(ManagementSessionClaim)?.Value;
-    if (string.IsNullOrWhiteSpace(sessionId) || !sessions.TryGet(sessionId, out ManagementCredentialSession? session))
+    if (!TryGetSession(http, sessions, out ManagementSession? session))
     {
         http.Response.StatusCode = StatusCodes.Status401Unauthorized;
         await http.Response.WriteAsync("Management session has expired. Sign in again.", cancellationToken);
@@ -363,9 +371,9 @@ static async Task ProxyToServicesAsync
     string relativePath = path.TrimStart('/');
     string targetUrl = $"{baseUrl}/{relativePath}{http.Request.QueryString}";
 
-    using HttpClientHandler handler = CreateCredentialHandler(session.Credential);
-    using HttpClient client = new(handler);
+    using HttpClient client = new();
     using HttpRequestMessage request = new(new HttpMethod(http.Request.Method), targetUrl);
+    request.Headers.TryAddWithoutValidation("X-Aegis-Management-Token", session.ServiceToken);
 
     if (http.Request.ContentLength.GetValueOrDefault() > 0)
     {
@@ -392,22 +400,24 @@ static async Task ProxyToServicesAsync
         http.Response.ContentType = contentType;
     }
 
-    if (response.Headers.Location is not null)
-    {
-        http.Response.Headers.Location = response.Headers.Location.ToString();
-    }
-
     await http.Response.Body.WriteAsync(body, cancellationToken);
 }
 
-static HttpClientHandler CreateCredentialHandler(ManagementCredential credential)
+static bool TryGetSession
+(
+      HttpContext http
+    , ManagementSessionStore sessions
+    , out ManagementSession? session
+)
 {
-    return new HttpClientHandler
+    string? sessionId = http.User.FindFirst(ManagementSessionClaim)?.Value;
+    if (string.IsNullOrWhiteSpace(sessionId))
     {
-          Credentials = credential.ToNetworkCredential()
-        , PreAuthenticate = true
-        , UseDefaultCredentials = false
-    };
+        session = null;
+        return false;
+    }
+
+    return sessions.TryGet(sessionId, out session);
 }
 
 static string GetServicesBaseUrl(IConfiguration configuration)
@@ -415,23 +425,53 @@ static string GetServicesBaseUrl(IConfiguration configuration)
     return (configuration["CafeteriaServices:BaseUrl"] ?? "http://localhost:5088").TrimEnd('/');
 }
 
-internal sealed class ManagementCredentialSessionStore(TimeSpan sessionLifetime)
+static string? TryReadError(string body)
 {
-    private readonly ConcurrentDictionary<string, ManagementCredentialSession> sessions = new(StringComparer.Ordinal);
+    if (string.IsNullOrWhiteSpace(body))
+    {
+        return null;
+    }
 
-    public string Create(ManagementCredential credential)
+    try
+    {
+        using JsonDocument document = JsonDocument.Parse(body);
+        if (document.RootElement.TryGetProperty("error", out JsonElement error))
+        {
+            return error.GetString();
+        }
+    }
+    catch (JsonException)
+    {
+    }
+
+    return null;
+}
+
+internal sealed class ManagementSessionStore(TimeSpan sessionLifetime)
+{
+    private readonly ConcurrentDictionary<string, ManagementSession> sessions = new(StringComparer.Ordinal);
+
+    public string Create(ManagementAuthenticationResponse authentication)
     {
         string sessionId = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-        ManagementCredentialSession session = new
+        DateTimeOffset expiresAt = DateTimeOffset.UtcNow.Add(sessionLifetime);
+        if (authentication.ExpiresAt > DateTimeOffset.UtcNow && authentication.ExpiresAt < expiresAt)
+        {
+            expiresAt = authentication.ExpiresAt;
+        }
+
+        ManagementSession session = new
         (
-              credential
-            , DateTimeOffset.UtcNow.Add(sessionLifetime)
+              authentication.Token
+            , authentication.UserName
+            , authentication.DisplayName
+            , expiresAt
         );
         sessions[sessionId] = session;
         return sessionId;
     }
 
-    public bool TryGet(string sessionId, out ManagementCredentialSession? session)
+    public bool TryGet(string sessionId, out ManagementSession? session)
     {
         if (!sessions.TryGetValue(sessionId, out session))
         {
@@ -445,7 +485,6 @@ internal sealed class ManagementCredentialSessionStore(TimeSpan sessionLifetime)
             return false;
         }
 
-        session.ExpiresAt = DateTimeOffset.UtcNow.Add(sessionLifetime);
         return true;
     }
 
@@ -455,46 +494,26 @@ internal sealed class ManagementCredentialSessionStore(TimeSpan sessionLifetime)
     }
 }
 
-internal sealed class ManagementCredentialSession
+internal sealed record ManagementSession
+(
+      string ServiceToken
+    , string UserName
+    , string DisplayName
+    , DateTimeOffset ExpiresAt
+);
+
+internal sealed record ManagementAuthenticationResponse
+(
+      string Token
+    , string UserName
+    , string DisplayName
+    , DateTimeOffset ExpiresAt
+    , string AuthenticationSource
+);
+
+internal sealed class ManagementAuthenticationException(int statusCode, string message) : Exception(message)
 {
-    public ManagementCredentialSession(ManagementCredential credential, DateTimeOffset expiresAt)
-    {
-        Credential = credential;
-        ExpiresAt = expiresAt;
-    }
-
-    public ManagementCredential Credential { get; }
-    public DateTimeOffset ExpiresAt { get; set; }
-}
-
-internal sealed record ManagementCredential(string UserName, string Password, string? Domain, string DisplayName)
-{
-    public NetworkCredential ToNetworkCredential()
-    {
-        return string.IsNullOrWhiteSpace(Domain)
-            ? new NetworkCredential(UserName, Password)
-            : new NetworkCredential(UserName, Password, Domain);
-    }
-
-    public static ManagementCredential Create(string loginName, string password, string defaultDomain)
-    {
-        string value = loginName.Trim();
-        int slash = value.IndexOf('\\');
-        if (slash > 0 && slash < value.Length - 1)
-        {
-            string domain = value[..slash].Trim();
-            string userName = value[(slash + 1)..].Trim();
-            return new ManagementCredential(userName, password, domain, $"{domain}\\{userName}");
-        }
-
-        if (value.Contains('@', StringComparison.Ordinal))
-        {
-            return new ManagementCredential(value, password, null, value);
-        }
-
-        string normalizedDomain = string.IsNullOrWhiteSpace(defaultDomain) ? "FFPJM" : defaultDomain.Trim();
-        return new ManagementCredential(value, password, normalizedDomain, $"{normalizedDomain}\\{value}");
-    }
+    public int StatusCode { get; } = statusCode;
 }
 
 internal static class ManagementLoginPage
@@ -521,14 +540,14 @@ internal static class ManagementLoginPage
   <div class="head"><h1>Cafeteria Management</h1><p>Food For The Poor Jamaica</p></div>
   <div class="body">
     <h2>Management Sign In</h2>
-    <p>Enter your FFP network username and password. Access is limited to authorized cafeteria management users.</p>
+    <p>Enter your FFP network credentials. Authentication is performed by Common.Security over the configured Active Directory LDAPS servers.</p>
     {{errorHtml}}
     <form method="post" action="/login">
-      <label>Username<input name="username" autocomplete="username" autofocus required placeholder="FFPJM\\username or username" /></label>
+      <label>Username<input name="username" autocomplete="username" autofocus required placeholder="username, FFPJM\\username or username@fftpj.local" /></label>
       <label>Password<input name="password" type="password" autocomplete="current-password" required /></label>
       <button class="signin" type="submit">Sign In</button>
     </form>
-    <div class="note">Credentials are used only to authenticate to Cafeteria Services and are kept in the Management server's short-lived in-memory session. They are not stored in the browser.</div>
+    <div class="note">Your password is used only for the Common.Security authentication exchange. After sign-in, the console stores only a short-lived opaque management token.</div>
   </div>
 </div>
 </body>
