@@ -1,12 +1,21 @@
 namespace Aegis.Cafeteria.Application.Integration;
 
 /// <summary>
-/// Source-neutral boundary for the FFP-owned cafeteria catalog and funding policy.
-/// The configured credit-limit and subsidy LunchItem rows are policy rows, not saleable products.
+/// Legacy catalog/policy refresh boundary. Saleable products are owned by the POS database.
+/// FFP LunchItems may be used as an explicit bootstrap source, not as the ongoing POS catalog owner.
 /// </summary>
 public interface IProductCatalogSource
 {
     Task<CafeteriaCatalogSnapshot> GetCatalogAsync(CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Raw FFP LunchItems source used only for explicit POS product bootstrap/import.
+/// Callers must exclude all codes beginning with FFP from saleable products.
+/// </summary>
+public interface ILunchItemBootstrapSource
+{
+    Task<IReadOnlyList<ExternalProductSnapshot>> GetLunchItemsAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed record ExternalProductSnapshot(int ProductId, string Code, string Name, decimal Price, decimal Cost);
