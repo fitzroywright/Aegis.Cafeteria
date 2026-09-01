@@ -67,7 +67,14 @@ public static class CafeteriaInfrastructure
         services.AddSingleton<ICustomerAccountQuery, EfCustomerAccountQuery>();
         services.AddSingleton<ICustomerIdentificationService, EfCustomerIdentificationService>();
         services.AddSingleton<IProductCatalogQuery, EfProductCatalogQuery>();
-        services.AddSingleton<IProductCatalogMaintenance, EfProductCatalogMaintenance>();
+        services.AddSingleton<IProductCatalogMaintenance>
+        (
+            serviceProvider => new EfProductCatalogMaintenance
+            (
+                  serviceProvider.GetRequiredService<IDbContextFactory<LocalCafeteriaDbContext>>()
+                , serviceProvider.GetService<ILunchItemBootstrapSource>()
+            )
+        );
         services.AddSingleton<IOrderQuery, EfOrderQuery>();
         services.AddSingleton<IRecentTransactionQuery, EfRecentTransactionQuery>();
         services.AddSingleton<ICustomerReferenceCacheStatus, EfCustomerReferenceCacheStatus>();
@@ -150,10 +157,15 @@ public static class CafeteriaInfrastructure
             (
                 serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
             );
+            services.AddSingleton<ILunchItemBootstrapSource>
+            (
+                serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>()
+            );
         }
         else
         {
             services.AddSingleton<FfpSqlApplicationGateway>();
+            services.AddSingleton<FfpLunchItemBootstrapSource>();
             services.AddSingleton<IExternalAccountingGateway>
             (
                 serviceProvider => serviceProvider.GetRequiredService<FfpSqlApplicationGateway>()
@@ -161,6 +173,10 @@ public static class CafeteriaInfrastructure
             services.AddSingleton<IWorkforceReferenceSource>
             (
                 serviceProvider => serviceProvider.GetRequiredService<FfpSqlApplicationGateway>()
+            );
+            services.AddSingleton<ILunchItemBootstrapSource>
+            (
+                serviceProvider => serviceProvider.GetRequiredService<FfpLunchItemBootstrapSource>()
             );
         }
 
