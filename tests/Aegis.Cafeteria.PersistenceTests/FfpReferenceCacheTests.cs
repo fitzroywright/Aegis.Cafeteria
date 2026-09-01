@@ -12,22 +12,45 @@ public sealed class FfpReferenceCacheTests
     [Fact]
     public async Task EmployeeRefresh_ReplacesIdentifiersAndEligibility_WithoutLegacyFundingState()
     {
-        var file = SqliteTestDatabase.CreatePath("ffp-cache");
+        string file = SqliteTestDatabase.CreatePath("ffp-cache");
         try
         {
-            var options = new CafeteriaPersistenceOptions { LocalSqliteConnectionString = $"Data Source={file}" };
-            var factory = new LocalDbContextFactory(DbContextOptionsFactory.CreateLocal(options));
-            await using (var create = factory.CreateDbContext()) await create.Database.EnsureCreatedAsync();
+            CafeteriaPersistenceOptions options = new() { LocalSqliteConnectionString = $"Data Source={file}" };
+            LocalDbContextFactory factory = new(DbContextOptionsFactory.CreateLocal(options));
+            await using (LocalCafeteriaDbContext create = factory.CreateDbContext()) await create.Database.EnsureCreatedAsync();
 
-            var cache = new EfFfpReferenceCache(factory);
-            await cache.ReplaceCustomersAsync([
-                new ExternalCustomerSnapshot(101, "Jane Doe", true, "NFC-A", "BC-A", "123456789", null)
-            ]);
-            await cache.ReplaceCustomersAsync([
-                new ExternalCustomerSnapshot(101, "Jane Doe", false, "NFC-B", "BC-B", "123456789", null, "", 5000m)
-            ]);
+            EfFfpReferenceCache cache = new(factory);
+            await cache.ReplaceCustomersAsync
+            (
+                [
+                    new ExternalCustomerSnapshot
+                    {
+                          CustomerId = 101
+                        , Name = "Jane Doe"
+                        , IsEligibleForCafeteriaCredit = true
+                        , Nfc = "NFC-A"
+                        , Code = "BC-A"
+                        , Trn = "123456789"
+                    }
+                ]
+            );
+            await cache.ReplaceCustomersAsync
+            (
+                [
+                    new ExternalCustomerSnapshot
+                    {
+                          CustomerId = 101
+                        , Name = "Jane Doe"
+                        , IsEligibleForCafeteriaCredit = false
+                        , Nfc = "NFC-B"
+                        , Code = "BC-B"
+                        , Trn = "123456789"
+                        , AdditionalCreditLimit = 5000m
+                    }
+                ]
+            );
 
-            await using var db = await factory.CreateDbContextAsync();
+            await using LocalCafeteriaDbContext db = await factory.CreateDbContextAsync();
             var employee = await db.Customers.SingleAsync(x => x.Id == 101);
             Assert.False(employee.IsEligibleForCredit);
             Assert.Equal(5000m, employee.AdditionalCreditLimit);
@@ -49,8 +72,10 @@ public sealed class FfpReferenceCacheTests
     [Fact]
     public void ExternalCustomerSnapshot_DoesNotExposeTicketOrFfpBalanceConcepts()
     {
-        var names = typeof(ExternalCustomerSnapshot).GetProperties().Select(x => x.Name).ToHashSet(StringComparer.Ordinal);
-        foreach (var forbidden in new[] { "TicketsAssigned", "TicketsRemaining", "CreditLimit", "AvailableBalance", "MonthlyCreditLimit", "SourceAvailableBalance" })
+        HashSet<string> names = typeof(ExternalCustomerSnapshot).GetProperties().Select(x => x.Name).ToHashSet(StringComparer.Ordinal);
+        foreach (string forbidden in new[] { "TicketsAssigned", "TicketsRemaining", "CreditLimit", "AvailableBalance", "MonthlyCreditLimit", "SourceAvailableBalance" })
+        {
             Assert.DoesNotContain(forbidden, names);
+        }
     }
 }
