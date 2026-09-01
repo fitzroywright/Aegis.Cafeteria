@@ -1,6 +1,7 @@
 let servicesBaseUrl = '/api/services';
 let selectedCustomerId = null;
 let selectedCustomerName = null;
+let busyRequests = 0;
 
 const result = document.getElementById('result');
 const serviceStatus = document.getElementById('serviceStatus');
@@ -11,33 +12,57 @@ function showResult(title, value) {
     result.textContent = `${title}\n\n${body}`;
 }
 
+function setBusy(isBusy) {
+    document.body.classList.toggle('busy', isBusy);
+    document.body.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+}
+
+function beginBusy() {
+    busyRequests += 1;
+    if (busyRequests === 1) {
+        setBusy(true);
+    }
+}
+
+function endBusy() {
+    busyRequests = Math.max(0, busyRequests - 1);
+    if (busyRequests === 0) {
+        setBusy(false);
+    }
+}
+
 async function api(path, options = {}) {
-    const response = await fetch(`${servicesBaseUrl}${path}`, {
-        credentials: 'include',
-        ...options,
-        headers: {
-            'Content-Type': 'application/json',
-            ...(options.headers || {})
+    beginBusy();
+    try {
+        const response = await fetch(`${servicesBaseUrl}${path}`, {
+            credentials: 'include',
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...(options.headers || {})
+            }
+        });
+
+        const text = await response.text();
+        let value = text;
+        if (text) {
+            try { value = JSON.parse(text); } catch { }
         }
-    });
 
-    const text = await response.text();
-    let value = text;
-    if (text) {
-        try { value = JSON.parse(text); } catch { }
+        if (response.status === 401) {
+            window.location.assign('/login');
+            throw new Error('Your management session has expired. Sign in again.');
+        }
+
+        if (!response.ok) {
+            const message = typeof value === 'string' ? value : (value.error || value.detail || JSON.stringify(value));
+            throw new Error(`${response.status} ${response.statusText}: ${message}`);
+        }
+
+        return value;
+    } finally {
+        endBusy();
     }
-
-    if (response.status === 401) {
-        window.location.assign('/login');
-        throw new Error('Your management session has expired. Sign in again.');
-    }
-
-    if (!response.ok) {
-        const message = typeof value === 'string' ? value : (value.error || value.detail || JSON.stringify(value));
-        throw new Error(`${response.status} ${response.statusText}: ${message}`);
-    }
-
-    return value;
 }
 
 function requireEmployee() {
@@ -48,11 +73,15 @@ function requireEmployee() {
 }
 
 function wire(id, handler) {
-    document.getElementById(id).addEventListener('click', async () => {
+    const button = document.getElementById(id);
+    button.addEventListener('click', async () => {
+        button.disabled = true;
         try {
             await handler();
         } catch (error) {
             showResult('Error', error.message || String(error));
+        } finally {
+            button.disabled = false;
         }
     });
 }
