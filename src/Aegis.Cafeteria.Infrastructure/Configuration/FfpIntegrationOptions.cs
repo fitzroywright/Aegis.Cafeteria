@@ -10,7 +10,8 @@ public sealed class FfpIntegrationOptions
     public string SubsidyLunchItemCode { get; init; } = "FFP00";
 
     public int MonthlyAllocationScanType { get; init; } = 3;
-    public int PurchaseScanType { get; init; } = 9;
+    public int PurchaseScanType { get; init; } = 8;
+    public int StipendScanType { get; init; } = 4;
     public int RefundScanType { get; init; } = 9;
     public int AdjustmentScanType { get; init; } = 9;
 }
