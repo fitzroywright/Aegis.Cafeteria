@@ -6,6 +6,8 @@ using Microsoft.Data.SqlClient;
 
 /// <summary>
 /// Service-side read-only source used during mid-month cutover. POS terminals never access FFP SQL.
+/// Legacy lunch-system rows may use IDName for the actual item name, so import selection is based on
+/// configured cafeteria ScanType values rather than modern Aegis IDName labels.
 /// </summary>
 public sealed class FfpMonthImportSource(FfpIntegrationOptions options) : IFfpMonthImportSource
 {
@@ -52,16 +54,12 @@ WHERE s.ScanDate >= @Start
   AND s.ScanDate < @End
   AND s.ScanDate <= @ThroughAt
   AND e.EligibleForLunchTicket = 1
-  AND s.IDName IN
+  AND s.ScanType IN
   (
-        'Tickets Assigned'
-      , 'Monthly Allocation Recalculation'
-      , 'Cafeteria Purchase'
-      , 'Cafeteria Refund'
-      , 'Cafeteria Prior Period Refund'
-      , 'Customer Payment'
-      , 'Additional Credit'
-      , 'Stipend Card Reduction'
+        @MonthlyAllocationScanType
+      , @PurchaseScanType
+      , @RefundScanType
+      , @AdjustmentScanType
   )
 ORDER BY s.ScanDate, s.ID;";
 
@@ -85,6 +83,10 @@ ORDER BY e.ID;";
             command.Parameters.AddWithValue("@Start", start);
             command.Parameters.AddWithValue("@End", end);
             command.Parameters.AddWithValue("@ThroughAt", throughAt.LocalDateTime);
+            command.Parameters.AddWithValue("@MonthlyAllocationScanType", options.MonthlyAllocationScanType);
+            command.Parameters.AddWithValue("@PurchaseScanType", options.PurchaseScanType);
+            command.Parameters.AddWithValue("@RefundScanType", options.RefundScanType);
+            command.Parameters.AddWithValue("@AdjustmentScanType", options.AdjustmentScanType);
 
             await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
