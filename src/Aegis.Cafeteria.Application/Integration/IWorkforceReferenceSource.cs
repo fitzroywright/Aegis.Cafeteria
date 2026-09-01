@@ -19,7 +19,8 @@ public sealed record ExternalCustomerSnapshot(
     decimal AdditionalCreditLimit = 0m,
     string Manager = "",
     string EmailAddress = "",
-    string Extension = "");
+    string Extension = "",
+    string LoginName = "");
 
 public interface IWorkforceReferenceCache
 {
