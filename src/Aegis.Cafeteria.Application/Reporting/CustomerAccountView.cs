@@ -39,6 +39,7 @@ public sealed record CustomerFinancialStatusView(
     decimal NonSubsidyAmountRemaining,
     decimal TotalAvailableToSpend,
     decimal CarriedForwardDebt,
+    decimal CurrentCreditSaleDebt,
     decimal GrossCustomerLiability,
     decimal TotalOrderSales,
     decimal CafeteriaAccountSpending,
