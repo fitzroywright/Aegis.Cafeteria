@@ -14,8 +14,8 @@ public sealed class EfRecentTransactionQuery(IDbContextFactory<LocalCafeteriaDbC
     {
         if (take is < 1 or > 100) throw new ArgumentOutOfRangeException(nameof(take));
 
-        var date = localDate ?? DateOnly.FromDateTime(DateTime.Today);
-        await using var db = await factory.CreateDbContextAsync(cancellationToken);
+        DateOnly date = localDate ?? DateOnly.FromDateTime(DateTime.Today);
+        await using LocalCafeteriaDbContext db = await factory.CreateDbContextAsync(cancellationToken);
 
         // SQLite does not reliably translate DateTimeOffset range comparison/order operations.
         // Keep the SQL part to a status/header projection, then apply the local calendar date and
@@ -33,19 +33,19 @@ public sealed class EfRecentTransactionQuery(IDbContextFactory<LocalCafeteriaDbC
 
         if (selected.Length == 0) return [];
 
-        var orderIds = selected.Select(x => x.Id).ToArray();
-        var details = await db.Orders.AsNoTracking()
+        Guid[] orderIds = selected.Select(x => x.Id).ToArray();
+        Dictionary<Guid, OrderEntity> details = await db.Orders.AsNoTracking()
             .Include(x => x.Items)
             .Include(x => x.Payments)
             .Where(x => orderIds.Contains(x.Id))
             .ToDictionaryAsync(x => x.Id, cancellationToken);
 
-        var customerIds = selected
+        int[] customerIds = selected
             .Where(x => x.CustomerId != CashCustomerAccountViewFactory.CashCustomerId)
             .Select(x => x.CustomerId)
             .Distinct()
             .ToArray();
-        var names = customerIds.Length == 0
+        Dictionary<int, string> names = customerIds.Length == 0
             ? new Dictionary<int, string>()
             : await db.Customers.AsNoTracking()
                 .Where(x => customerIds.Contains(x.Id))
@@ -53,13 +53,18 @@ public sealed class EfRecentTransactionQuery(IDbContextFactory<LocalCafeteriaDbC
 
         return selected.Select(x =>
         {
-            var order = details[x.Id];
-            var cafeteria = order.Payments.Where(p => p.Method == (int)PaymentMethod.CafeteriaAccount).Sum(p => p.Amount);
-            var cash = order.Payments.Where(p => p.Method == (int)PaymentMethod.Cash).Sum(p => p.Amount);
-            var tender = cafeteria > 0m && cash > 0m ? "Account + Cash"
-                : cafeteria > 0m ? "Account"
-                : "Cash";
-            var customerName = x.CustomerId == CashCustomerAccountViewFactory.CashCustomerId
+            OrderEntity order = details[x.Id];
+            decimal card = order.Payments.Where(p => p.Method == (int)PaymentMethod.CafeteriaAccount).Sum(p => p.Amount);
+            decimal cash = order.Payments.Where(p => p.Method == (int)PaymentMethod.Cash).Sum(p => p.Amount);
+            decimal credit = order.Payments.Where(p => p.Method == (int)PaymentMethod.Credit).Sum(p => p.Amount);
+
+            List<string> tenderParts = [];
+            if (card > 0m) tenderParts.Add("Card");
+            if (cash > 0m) tenderParts.Add("Cash");
+            if (credit > 0m) tenderParts.Add("Credit");
+            string tender = tenderParts.Count == 0 ? "Unknown" : string.Join(" + ", tenderParts);
+
+            string customerName = x.CustomerId == CashCustomerAccountViewFactory.CashCustomerId
                 ? "Cash Customer"
                 : names.GetValueOrDefault(x.CustomerId, $"Customer {x.CustomerId}");
             return new RecentTransactionView(
@@ -67,7 +72,7 @@ public sealed class EfRecentTransactionQuery(IDbContextFactory<LocalCafeteriaDbC
                 x.CompletedAt!.Value,
                 customerName,
                 order.Items.Sum(i => i.UnitPrice * i.Quantity),
-                cafeteria,
+                card,
                 cash,
                 tender,
                 x.CashierUserId ?? "legacy",
