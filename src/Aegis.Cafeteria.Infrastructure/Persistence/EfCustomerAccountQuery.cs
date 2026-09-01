@@ -5,11 +5,11 @@ using Aegis.Cafeteria.Application.Accounts;
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Application.Reporting;
 using Aegis.Cafeteria.Domain.Accounts;
+using Aegis.Cafeteria.Domain.Customers;
 using Aegis.Cafeteria.Domain.Identification;
 using Aegis.Cafeteria.Domain.Orders;
 using Aegis.Cafeteria.Infrastructure.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
-
 using System.Text.Json;
 
 public sealed class EfCustomerAccountQuery(
@@ -197,7 +197,7 @@ public sealed class EfCustomerAccountQuery(
         {
             string description = order.Items.Count == 0 ? "Cafeteria purchase" : string.Join(", ", order.Items.Select(x => x.Quantity == 1 ? x.ProductName : $"{x.Quantity} x {x.ProductName}"));
             items.Add(new(order.CompletedAt!.Value, "Purchase", description, order.Items.Sum(x => x.UnitPrice * x.Quantity), order.Payments.Where(x => x.Method == (int)PaymentMethod.CafeteriaAccount).Sum(x => x.Amount), order.Payments.Where(x => x.Method == (int)PaymentMethod.Cash).Sum(x => x.Amount), order.Id));
-            foreach (RefundRow refund in order.Refunds.Where(x => x.RefundedAt.Year == year && x.RefundedAt.Month == month))
+            foreach (OrderRefundRow refund in order.Refunds.Where(x => x.RefundedAt.Year == year && x.RefundedAt.Month == month))
             {
                 items.Add(new(refund.RefundedAt, "Refund", refund.Reason, -refund.Items.Sum(x => x.UnitPrice * x.Quantity), -refund.Allocations.Where(x => x.Method == (int)PaymentMethod.CafeteriaAccount).Sum(x => x.Amount), -refund.Allocations.Where(x => x.Method == (int)PaymentMethod.Cash).Sum(x => x.Amount), refund.Id));
             }
