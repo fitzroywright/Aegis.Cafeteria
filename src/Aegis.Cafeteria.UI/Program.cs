@@ -19,6 +19,8 @@ namespace Aegis.Cafeteria.UI;
 
 internal static class Program
 {
+    private static readonly TimeSpan StartupReferenceRefreshTimeout = TimeSpan.FromSeconds(5);
+
     [STAThread]
     private static async Task Main()
     {
@@ -47,7 +49,7 @@ internal static class Program
 
         IApplicationSecretProvider secretProvider = builder.Environment.IsDevelopment()
             ? configuredSecretProvider
-            : new BestEffortApplicationSecretProvider(configuredSecretProvider);
+            : new BestEffortApplicationSecretProvider(configuredSecretProvider, TimeSpan.FromSeconds(3));
 
         CafeteriaRuntimeOptions runtime;
         try
@@ -114,44 +116,7 @@ internal static class Program
 
             if (runtime.FfpIntegration.Enabled && runtime.Services.Enabled)
             {
-                try
-                {
-                    ReferenceDataRefreshService refresh = host.Services.GetRequiredService<ReferenceDataRefreshService>();
-
-                    splash.Update("Refreshing employees...", "Loading the latest employee reference data through Aegis.Cafeteria.Services.");
-                    int count = await refresh.RefreshCustomersAsync();
-
-                    splash.Update("Refreshing holidays...", "Loading the cafeteria working-day calendar through Aegis.Cafeteria.Services.");
-                    DateOnly today = DateOnly.FromDateTime(DateTime.Today);
-                    await refresh.RefreshHolidaysAsync(today);
-
-                    if (count == 0)
-                    {
-                        splash.Update
-                        (
-                            "Employee refresh returned no rows.",
-                            "The POS will continue, but employee selection depends on the existing local cache."
-                        );
-                    }
-                }
-                catch (Exception ex)
-                {
-                    splash.Update
-                    (
-                        "Cafeteria Services unavailable - using local cache.",
-                        "The terminal will continue with reference data already stored locally."
-                    );
-
-                    MessageBox.Show
-                    (
-                        "Aegis.Cafeteria.Services is currently unavailable or could not authorize this terminal.\n\n" +
-                        $"Services endpoint: {runtime.Services.BaseUrl}\n\n" + ex.Message +
-                        "\n\nThe POS will continue in offline mode using locally cached data. New local transactions remain available and FFP publication stays queued for later delivery.",
-                        "Offline mode",
-                        MessageBoxButtons.OK,
-                        MessageBoxIcon.Warning
-                    );
-                }
+                await TryRefreshStartupReferenceDataAsync(host, runtime, splash);
             }
             else if (runtime.FfpIntegration.Enabled)
             {
@@ -200,6 +165,63 @@ internal static class Program
                 "Cafeteria startup failure",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Error
+            );
+        }
+    }
+
+    private static async Task TryRefreshStartupReferenceDataAsync
+    (
+          IHost host
+        , CafeteriaRuntimeOptions runtime
+        , StartupSplashController splash
+    )
+    {
+        using CancellationTokenSource startupRefresh = new(StartupReferenceRefreshTimeout);
+
+        try
+        {
+            ReferenceDataRefreshService refresh = host.Services.GetRequiredService<ReferenceDataRefreshService>();
+
+            splash.Update("Refreshing employees...", "Checking for current employee data. Startup will continue offline if Services is slow.");
+            int count = await refresh.RefreshCustomersAsync(startupRefresh.Token);
+
+            splash.Update("Refreshing holidays...", "Checking the working-day calendar. Startup will continue offline if Services is slow.");
+            DateOnly today = DateOnly.FromDateTime(DateTime.Today);
+            await refresh.RefreshHolidaysAsync(today, startupRefresh.Token);
+
+            if (count == 0)
+            {
+                splash.Update
+                (
+                    "Employee refresh returned no rows.",
+                    "The POS will continue using the existing local employee cache."
+                );
+            }
+        }
+        catch (OperationCanceledException) when (startupRefresh.IsCancellationRequested)
+        {
+            splash.Update
+            (
+                "Online refresh timed out - starting from local cache.",
+                "Cafeteria Services will synchronize again after the terminal has started."
+            );
+        }
+        catch (Exception ex)
+        {
+            splash.Update
+            (
+                "Cafeteria Services unavailable - using local cache.",
+                "The terminal is continuing in offline mode."
+            );
+
+            MessageBox.Show
+            (
+                "Aegis.Cafeteria.Services is currently unavailable or could not authorize this terminal.\n\n" +
+                $"Services endpoint: {runtime.Services.BaseUrl}\n\n" + ex.Message +
+                "\n\nThe POS will continue in offline mode using locally cached data. New local transactions remain available and FFP publication stays queued for later delivery.",
+                "Offline mode",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning
             );
         }
     }
