@@ -22,6 +22,7 @@ internal sealed class RefundDialog : Form
         ThousandsSeparator = true,
         Width = 150
     };
+    private readonly Label credit = ValueLabel();
     private readonly Label cash = ValueLabel();
     private readonly Label total = ValueLabel();
     private readonly Label remainingTender = new() { AutoSize = true, ForeColor = Color.DimGray };
@@ -33,7 +34,16 @@ internal sealed class RefundDialog : Form
         this.rows.Where(x => x.RefundQuantity > 0).Select(x => (x.OrderItemId, x.RefundQuantity)).ToArray();
 
     public decimal CafeteriaAccountAmount => this.account.Value;
-    public decimal CashAmount => Math.Max(0m, RefundTotal - CafeteriaAccountAmount);
+    public decimal CreditAmount
+    {
+        get
+        {
+            decimal remainingAfterAccount = Math.Max(0m, RefundTotal - CafeteriaAccountAmount);
+            decimal remainingCredit = Math.Max(0m, this.order.CreditPaid - this.order.CreditRefunded);
+            return Math.Min(remainingAfterAccount, remainingCredit);
+        }
+    }
+    public decimal CashAmount => Math.Max(0m, RefundTotal - CafeteriaAccountAmount - CreditAmount);
     public decimal RefundTotal => this.rows.Sum(x => x.UnitPrice * x.RefundQuantity);
 
     public RefundDialog(Order order)
@@ -44,14 +54,13 @@ internal sealed class RefundDialog : Form
         FormBorderStyle = FormBorderStyle.Sizable;
         MinimizeBox = false;
         MaximizeBox = false;
-        ClientSize = new Size(760, 560);
-        MinimumSize = new Size(700, 540);
+        ClientSize = new Size(800, 590);
+        MinimumSize = new Size(740, 560);
         Font = new Font("Segoe UI", 10);
 
         BuildRows();
         BuildGrid();
 
-        // Always reserve enough vertical space for five complete refund-item rows.
         this.items.RowTemplate.Height = 28;
         this.items.MinimumSize = new Size(0, this.items.ColumnHeadersHeight + (5 * this.items.RowTemplate.Height) + 4);
 
@@ -80,10 +89,10 @@ internal sealed class RefundDialog : Form
 
     private void BuildRows()
     {
-        foreach (var item in this.order.Items)
+        foreach (OrderItem item in this.order.Items)
         {
-            var refunded = this.order.GetRefundedQuantity(item.Id);
-            var remaining = item.Quantity - refunded;
+            int refunded = this.order.GetRefundedQuantity(item.Id);
+            int remaining = item.Quantity - refunded;
             if (remaining > 0)
                 this.rows.Add(new RowModel(item.Id, item.ProductName, item.UnitPrice, item.Quantity, refunded, remaining));
         }
@@ -99,10 +108,9 @@ internal sealed class RefundDialog : Form
         this.items.DataSource = this.rows;
     }
 
-
     private static DataGridViewTextBoxColumn NumericColumn(string header, string property, int width, string? format, bool readOnly)
     {
-        var style = new DataGridViewCellStyle { Alignment = DataGridViewContentAlignment.MiddleRight };
+        DataGridViewCellStyle style = new() { Alignment = DataGridViewContentAlignment.MiddleRight };
         if (!string.IsNullOrWhiteSpace(format)) style.Format = format;
         return new DataGridViewTextBoxColumn
         {
@@ -117,38 +125,40 @@ internal sealed class RefundDialog : Form
 
     private Control BuildLayout()
     {
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(18), RowCount = 5, ColumnCount = 1 };
+        TableLayoutPanel root = new() { Dock = DockStyle.Fill, Padding = new Padding(18), RowCount = 5, ColumnCount = 1 };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        root.Controls.Add(new Label { Text = "Enter the quantity to refund for each item. Use Refund All Remaining for a full refund.", AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold), Margin = new Padding(0, 0, 0, 10) }, 0, 0);
+        root.Controls.Add(new Label { Text = "Enter the quantity to refund for each item. Employee Credit is reduced before any cash is paid out.", AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold), Margin = new Padding(0, 0, 0, 10) }, 0, 0);
         root.Controls.Add(this.items, 0, 1);
 
-        var all = new Button { Text = "Refund All Remaining", Width = 170, Height = 32, Margin = new Padding(0, 10, 0, 8) };
+        Button all = new() { Text = "Refund All Remaining", Width = 170, Height = 32, Margin = new Padding(0, 10, 0, 8) };
         all.Click += (_, _) =>
         {
-            foreach (var row in this.rows) row.RefundQuantity = row.RemainingQuantity;
+            foreach (RowModel row in this.rows) row.RefundQuantity = row.RemainingQuantity;
             this.items.Refresh();
             UpdateSummary(true);
         };
         root.Controls.Add(all, 0, 2);
 
-        var tender = new TableLayoutPanel { AutoSize = true, ColumnCount = 4, RowCount = 2, Dock = DockStyle.Fill, Margin = new Padding(0, 4, 0, 8) };
+        TableLayoutPanel tender = new() { AutoSize = true, ColumnCount = 4, RowCount = 3, Dock = DockStyle.Fill, Margin = new Padding(0, 4, 0, 8) };
         tender.Controls.Add(Caption("Refund Total"), 0, 0);
         tender.Controls.Add(this.total, 1, 0);
-        tender.Controls.Add(Caption("Cafeteria Account"), 2, 0);
+        tender.Controls.Add(Caption("Employee Card"), 2, 0);
         tender.Controls.Add(this.account, 3, 0);
-        tender.Controls.Add(new Label { Text = "Cash Refund", AutoSize = true, Anchor = AnchorStyles.Left }, 2, 1);
-        tender.Controls.Add(this.cash, 3, 1);
+        tender.Controls.Add(Caption("Employee Credit Reduction"), 2, 1);
+        tender.Controls.Add(this.credit, 3, 1);
+        tender.Controls.Add(Caption("Cash Refund"), 2, 2);
+        tender.Controls.Add(this.cash, 3, 2);
         tender.Controls.Add(this.remainingTender, 0, 1);
         tender.SetColumnSpan(this.remainingTender, 2);
         root.Controls.Add(tender, 0, 3);
 
-        var buttons = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Dock = DockStyle.Fill };
-        var cancel = new Button { Text = "Cancel", Width = 90, Height = 34, DialogResult = DialogResult.Cancel };
+        FlowLayoutPanel buttons = new() { AutoSize = true, FlowDirection = FlowDirection.RightToLeft, Dock = DockStyle.Fill };
+        Button cancel = new() { Text = "Cancel", Width = 90, Height = 34, DialogResult = DialogResult.Cancel };
         buttons.Controls.Add(this.refund);
         buttons.Controls.Add(cancel);
         root.Controls.Add(buttons, 0, 4);
@@ -166,8 +176,8 @@ internal sealed class RefundDialog : Form
     private void ValidateQuantity(object? sender, DataGridViewCellValidatingEventArgs e)
     {
         if (e.RowIndex < 0 || e.ColumnIndex != 4) return;
-        var row = this.rows[e.RowIndex];
-        if (!int.TryParse(Convert.ToString(e.FormattedValue), out var qty) || qty < 0 || qty > row.RemainingQuantity)
+        RowModel row = this.rows[e.RowIndex];
+        if (!int.TryParse(Convert.ToString(e.FormattedValue), out int quantity) || quantity < 0 || quantity > row.RemainingQuantity)
         {
             e.Cancel = true;
             MessageBox.Show(this, $"Refund quantity must be between 0 and {row.RemainingQuantity}.", "Refund", MessageBoxButtons.OK, MessageBoxIcon.Warning);
@@ -179,25 +189,28 @@ internal sealed class RefundDialog : Form
         this.updating = true;
         try
         {
-            var total = RefundTotal;
-            var remainingAccount = Math.Max(0m, this.order.CafeteriaAccountPaid - this.order.CafeteriaAccountRefunded);
-            var remainingCash = Math.Max(0m, this.order.CashPaid - this.order.CashRefunded);
-            var accountMin = Math.Max(0m, total - remainingCash);
-            var accountMax = Math.Min(total, remainingAccount);
+            decimal refundTotal = RefundTotal;
+            decimal remainingAccount = Math.Max(0m, this.order.CafeteriaAccountPaid - this.order.CafeteriaAccountRefunded);
+            decimal remainingCash = Math.Max(0m, this.order.CashPaid - this.order.CashRefunded);
+            decimal remainingCredit = Math.Max(0m, this.order.CreditPaid - this.order.CreditRefunded);
+            decimal accountMin = Math.Max(0m, refundTotal - remainingCredit - remainingCash);
+            decimal accountMax = Math.Min(refundTotal, remainingAccount);
 
             this.account.Minimum = accountMin;
             this.account.Maximum = Math.Max(accountMin, accountMax);
             if (resetAccountDefault)
-                this.account.Value = Math.Min(this.account.Maximum, Math.Max(this.account.Minimum, Math.Min(total, remainingAccount)));
+                this.account.Value = Math.Min(this.account.Maximum, Math.Max(this.account.Minimum, Math.Min(refundTotal, remainingAccount)));
             else if (this.account.Value < this.account.Minimum)
                 this.account.Value = this.account.Minimum;
             else if (this.account.Value > this.account.Maximum)
                 this.account.Value = this.account.Maximum;
 
-            this.total.Text = total.ToString("C2");
+            this.total.Text = refundTotal.ToString("C2");
+            this.credit.Text = CreditAmount.ToString("C2");
+            this.credit.ForeColor = CreditAmount > 0m ? Color.DarkOrange : SystemColors.ControlText;
             this.cash.Text = CashAmount.ToString("C2");
-            this.remainingTender.Text = $"Remaining original tender: account {remainingAccount:C2}, cash {remainingCash:C2}";
-            this.refund.Enabled = total > 0m && total <= remainingAccount + remainingCash;
+            this.remainingTender.Text = $"Remaining original tender: Employee Card {remainingAccount:C2}, Credit {remainingCredit:C2}, Cash {remainingCash:C2}";
+            this.refund.Enabled = refundTotal > 0m && refundTotal <= remainingAccount + remainingCredit + remainingCash;
         }
         finally
         {
@@ -207,17 +220,19 @@ internal sealed class RefundDialog : Form
 
     private bool ValidateSelection()
     {
-        var selected = SelectedItems;
+        IReadOnlyList<(Guid OrderItemId, int Quantity)> selected = SelectedItems;
         if (selected.Count == 0)
         {
             MessageBox.Show(this, "Select at least one item quantity to refund.", "Refund", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return false;
         }
-        var remainingAccount = this.order.CafeteriaAccountPaid - this.order.CafeteriaAccountRefunded;
-        var remainingCash = this.order.CashPaid - this.order.CashRefunded;
-        if (CafeteriaAccountAmount > remainingAccount || CashAmount > remainingCash || CafeteriaAccountAmount + CashAmount != RefundTotal)
+
+        decimal remainingAccount = this.order.CafeteriaAccountPaid - this.order.CafeteriaAccountRefunded;
+        decimal remainingCredit = this.order.CreditPaid - this.order.CreditRefunded;
+        decimal remainingCash = this.order.CashPaid - this.order.CashRefunded;
+        if (CafeteriaAccountAmount > remainingAccount || CreditAmount > remainingCredit || CashAmount > remainingCash || CafeteriaAccountAmount + CreditAmount + CashAmount != RefundTotal)
         {
-            MessageBox.Show(this, "Refund tender must match the selected refund total and cannot exceed the original remaining tender.", "Refund", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(this, "Refund allocation must match the selected total and cannot exceed the original remaining Employee Card, Credit, or Cash tender.", "Refund", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return false;
         }
         return true;
