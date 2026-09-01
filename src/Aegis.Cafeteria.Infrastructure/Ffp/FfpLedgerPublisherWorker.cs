@@ -23,14 +23,39 @@ public sealed class FfpLedgerPublisherWorker(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await RecoverInterruptedAsync(stoppingToken);
-        await RecoverMissingProjectionRowsAsync(stoppingToken);
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            try { await PublishBatchAsync(stoppingToken); }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
-            catch (Exception ex) { logger.LogError(ex, "FFP ledger outbox publication cycle failed"); }
-            await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
+            await RecoverInterruptedAsync(stoppingToken);
+            await RecoverMissingProjectionRowsAsync(stoppingToken);
+
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await PublishBatchAsync(stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "FFP ledger outbox publication cycle failed");
+                }
+
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            logger.LogDebug("FFP ledger publisher stopped during host shutdown.");
         }
     }
 
