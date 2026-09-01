@@ -21,13 +21,16 @@ public sealed record CustomerAccountSnapshot(
     decimal TotalOrderSales = 0m,
     decimal CafeteriaAccountTendered = 0m,
     decimal CashTendered = 0m,
+    decimal CreditTendered = 0m,
     decimal TotalRefunds = 0m,
     decimal CafeteriaAccountRefunded = 0m,
     decimal CashRefunded = 0m,
+    decimal CreditRefunded = 0m,
     decimal PriorPeriodRefundCredits = 0m,
     decimal MonthlyEmployeeFundedAllocation = 0m,
     decimal MonthlySubsidyAllocation = 0m,
     decimal CarriedForwardDebt = 0m,
+    decimal CurrentCreditSaleDebt = 0m,
     decimal GrossCustomerLiability = 0m)
 {
     public decimal CreditLimit => BaseMonthlyCredit;
