@@ -78,6 +78,11 @@ public sealed class PersistenceInitializer(
     {
         HashSet<string> customerColumns = await ReadColumnsAsync(db, "Customers", ct);
 
+        if (!customerColumns.Contains("LoginName"))
+        {
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Customers\" ADD COLUMN \"LoginName\" TEXT NOT NULL DEFAULT '';", ct);
+        }
+
         if (!customerColumns.Contains("Manager"))
         {
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Customers\" ADD COLUMN \"Manager\" TEXT NOT NULL DEFAULT '';", ct);
