@@ -1,5 +1,7 @@
 namespace Aegis.Cafeteria.Application.Abstractions;
 
+using Aegis.Cafeteria.Application.Integration;
+
 public sealed record ProductCatalogImportResult
 (
       int AddedProducts
@@ -38,5 +40,13 @@ public interface IProductCatalogMaintenance
     )
     {
         throw new NotSupportedException("FFP LunchItems bootstrap import is not available for this product catalog implementation.");
+    }
+
+    Task<FfpMonthImportResult> ImportCurrentMonthFromFfpAsync
+    (
+        CancellationToken cancellationToken = default
+    )
+    {
+        throw new NotSupportedException("FFP current-month transaction import is not available for this administration implementation.");
     }
 }
