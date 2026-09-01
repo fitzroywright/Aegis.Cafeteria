@@ -67,7 +67,7 @@ public sealed class MainForm : Form
     private readonly Label todayTransactions = DashboardValueLabel();
     private readonly Label todayRefunds = DashboardValueLabel();
     private readonly Label todayDashboardStatus = new() { AutoSize = true, ForeColor = Muted, Font = new Font("Segoe UI", 9) };
-    private readonly PieChartControl todayItemsByQuantity = new();
+    private readonly WeekdayBarChartControl weeklySalesByDay = new();
     private readonly PieChartControl todayItemsByValue = new();
     private readonly Panel customerPanel = new() { Dock = DockStyle.Fill, BackColor = Surface, Visible = false };
     private readonly PictureBox photo = new() { SizeMode = PictureBoxSizeMode.Zoom, Width = 132, Height = 154, BackColor = Color.FromArgb(235, 239, 243) };
@@ -80,6 +80,7 @@ public sealed class MainForm : Form
     private readonly Label nonSubsidyRemaining = MoneyLabel();
     private readonly Label available = MoneyLabel(true);
     private readonly Label carriedDebt = MoneyLabel();
+    private readonly Label currentCreditDebt = MoneyLabel();
     private readonly Label customerLiability = MoneyLabel();
     private readonly Label customerPaymentsValue = MoneyLabel();
     private readonly Label employeeAmountDue = MoneyLabel();
@@ -295,11 +296,6 @@ public sealed class MainForm : Form
         if (width <= this.mainSplit.SplitterWidth + 2)
             return;
 
-        // WinForms creates a SplitContainer at a very small temporary width before
-        // the maximized form is laid out. Applying the production minimum sizes or
-        // SplitterDistance at that point throws InvalidOperationException.
-        // Use the full production minimums only when they fit; otherwise degrade
-        // gracefully until normal layout gives us the real screen width.
         const int desiredTransactionPanel1Min = 420;
         const int desiredTransactionPanel2Min = 420;
 
@@ -307,10 +303,6 @@ public sealed class MainForm : Form
         if (available < 100)
             return;
 
-        // Keep the cashier workspace balanced. The customer/financial panel contains
-        // enough information that the old narrow transaction layout clipped or
-        // crowded controls on common POS resolutions. Use an even 50/50 split in
-        // both idle and transaction modes.
         int desiredLeft = available / 2;
         int desiredPanel1Min = desiredTransactionPanel1Min;
         int desiredPanel2Min = desiredTransactionPanel2Min;
@@ -327,8 +319,6 @@ public sealed class MainForm : Form
         int maximumDistance = Math.Max(minimumDistance, available - panel2Min);
         int distance = Math.Clamp(desiredLeft, minimumDistance, maximumDistance);
 
-        // Reset the minimums before changing SplitterDistance so the current
-        // dimensions can never conflict with stale constraints during a resize.
         this.mainSplit.Panel1MinSize = 0;
         this.mainSplit.Panel2MinSize = 0;
         this.mainSplit.SplitterDistance = Math.Clamp(distance, 0, Math.Max(0, available));
@@ -397,7 +387,6 @@ public sealed class MainForm : Form
         diagnostics.Click += (_, _) => OpenEngineeringDiagnostics();
         administration.DropDownItems.Add(diagnostics);
         menu.Items.Add(administration);
-
         return menu;
     }
 
@@ -488,7 +477,7 @@ public sealed class MainForm : Form
 
         root.Controls.Add(new Label
         {
-            Text = "TODAY'S SALES DASHBOARD",
+            Text = "CAFETERIA SALES DASHBOARD",
             AutoSize = true,
             ForeColor = Navy,
             Font = new Font("Segoe UI", 12, FontStyle.Bold),
@@ -496,7 +485,7 @@ public sealed class MainForm : Form
         }, 0, 0);
         root.Controls.Add(new Label
         {
-            Text = "Live summary for today from the local Cafeteria database.",
+            Text = "Today's KPIs with this week's Monday–Friday sales trend.",
             AutoSize = true,
             ForeColor = Muted,
             Font = new Font("Segoe UI", 10),
@@ -519,11 +508,11 @@ public sealed class MainForm : Form
         var charts = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, MinimumSize = new Size(0, 225) };
         charts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
         charts.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        this.todayItemsByQuantity.Dock = DockStyle.Fill;
-        this.todayItemsByQuantity.Margin = new Padding(0, 0, 6, 0);
+        this.weeklySalesByDay.Dock = DockStyle.Fill;
+        this.weeklySalesByDay.Margin = new Padding(0, 0, 6, 0);
         this.todayItemsByValue.Dock = DockStyle.Fill;
         this.todayItemsByValue.Margin = new Padding(6, 0, 0, 0);
-        charts.Controls.Add(this.todayItemsByQuantity, 0, 0);
+        charts.Controls.Add(this.weeklySalesByDay, 0, 0);
         charts.Controls.Add(this.todayItemsByValue, 1, 0);
         dashboardBody.Controls.Add(charts, 0, 0);
 
@@ -598,6 +587,7 @@ public sealed class MainForm : Form
         AddFinancialRow(finances, "Company subsidy remaining", this.subsidyRemaining);
         AddFinancialRow(finances, "Employee-funded remaining", this.nonSubsidyRemaining);
         AddFinancialRow(finances, "Debt brought forward", this.carriedDebt);
+        AddFinancialRow(finances, "Credit sales this month", this.currentCreditDebt);
         AddFinancialRow(finances, "Customer Responsibility (before payments)", this.customerLiability);
         AddFinancialRow(finances, "Customer Payments", this.customerPaymentsValue);
         AddFinancialRow(finances, "Employee Amount Due", this.employeeAmountDue);
@@ -612,8 +602,6 @@ public sealed class MainForm : Form
         paymentAction.SetRowSpan(this.customerPaymentButton, 2);
         root.Controls.Add(paymentAction, 0, 3);
 
-        // Keep the transaction/refund history large enough to show five complete rows.
-        // This grid is also the quickest path for selecting a completed sale to refund.
         this.transactions.RowTemplate.Height = 28;
         this.transactions.MinimumSize = new Size(0, this.transactions.ColumnHeadersHeight + (5 * this.transactions.RowTemplate.Height) + 4);
 
@@ -637,9 +625,6 @@ public sealed class MainForm : Form
     {
         var card = new Panel { Dock = DockStyle.Fill, BackColor = Surface, Padding = new Padding(22) };
 
-        // Preserve the original transaction workspace exactly. Recent terminal activity
-        // is a separate idle-only view layered over this workspace rather than another
-        // row that changes product/cart proportions during an active sale.
         var workspace = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 5, ColumnCount = 1 };
         this.transactionWorkspace = workspace;
         workspace.RowStyles.Add(new RowStyle(SizeType.Percent, 42));
@@ -664,7 +649,7 @@ public sealed class MainForm : Form
         total.Controls.Add(this.cartTotal);
         workspace.Controls.Add(total, 0, 2);
 
-        var hint = new Label { Text = "Account credit and cash can be split automatically at checkout.", AutoSize = true, ForeColor = Muted, Margin = new Padding(0, 0, 0, 10) };
+        var hint = new Label { Text = "Employee Card, cash, and approved Employee Credit can be combined at checkout.", AutoSize = true, ForeColor = Muted, Margin = new Padding(0, 0, 0, 10) };
         workspace.Controls.Add(hint, 0, 3);
 
         var actions = new FlowLayoutPanel
@@ -718,7 +703,6 @@ public sealed class MainForm : Form
         bar.Controls.Add(new Label { Text = "Secure identification • Name search", AutoSize = true, ForeColor = Muted, Anchor = AnchorStyles.Right }, 1, 0);
         return bar;
     }
-
 
     private async Task UpdateCacheStatusAsync()
     {
@@ -796,9 +780,6 @@ public sealed class MainForm : Form
         this.recentTransactionGrid.DataSource = this.recentTransactionSource;
         this.transactions.AutoGenerateColumns = true;
 
-        // Product/source identifiers are internal integration details and are not
-        // useful or appropriate on the cashier-facing catalog. Show only the
-        // product name and current selling price.
         this.productGrid.AutoGenerateColumns = false;
         this.productGrid.Columns.Clear();
         this.productGrid.Columns.Add(new DataGridViewTextBoxColumn
@@ -966,6 +947,7 @@ public sealed class MainForm : Form
             this.nonSubsidyRemaining.Text = Money(account.FinancialStatus.NonSubsidyAmountRemaining);
             this.available.Text = Money(account.FinancialStatus.TotalAvailableToSpend);
             this.carriedDebt.Text = Money(account.FinancialStatus.CarriedForwardDebt);
+            this.currentCreditDebt.Text = Money(account.FinancialStatus.CurrentCreditSaleDebt);
             this.customerLiability.Text = Money(account.FinancialStatus.GrossCustomerLiability);
             this.customerPaymentsValue.Text = Money(account.FinancialStatus.CustomerPayments);
             this.employeeAmountDue.Text = Money(account.FinancialStatus.EmployeeAmountDue);
@@ -982,6 +964,13 @@ public sealed class MainForm : Form
         }).ToList();
         if (this.transactions.Columns[nameof(CustomerMonthlyTransactionView.ReferenceId)] is DataGridViewColumn referenceColumn)
             referenceColumn.Visible = false;
+        if (this.transactions.Columns["Kind"] is DataGridViewColumn transactionTypeColumn)
+            transactionTypeColumn.HeaderText = "Transaction Type";
+        if (this.transactions.Columns["Amount"] is DataGridViewColumn saleTotalColumn)
+            saleTotalColumn.HeaderText = "Sale Total";
+        if (this.transactions.Columns["Account"] is DataGridViewColumn employeeCardColumn)
+            employeeCardColumn.HeaderText = "Employee Card";
+        SyncGridHeaderAlignment(this.transactions);
         SetPhoto(account.Customer.Photo);
 
         if (account.Customer.IsCashCustomer)
@@ -1035,8 +1024,6 @@ public sealed class MainForm : Form
                     account.Period.Year,
                     account.Period.Month);
 
-            // Identification can change while the history query is running. Never show stale
-            // customer data on the public-facing display.
             if (this.currentCustomer?.Customer.Id != account.Customer.Id) return;
 
             void ShowOnDisplay()
@@ -1059,7 +1046,7 @@ public sealed class MainForm : Form
 
     private void SetFinancialValuesUnavailable()
     {
-        foreach (var label in new[] { this.creditLimit, this.subsidyRemaining, this.nonSubsidyRemaining, this.available, this.carriedDebt, this.customerLiability, this.customerPaymentsValue, this.employeeAmountDue })
+        foreach (var label in new[] { this.creditLimit, this.subsidyRemaining, this.nonSubsidyRemaining, this.available, this.carriedDebt, this.currentCreditDebt, this.customerLiability, this.customerPaymentsValue, this.employeeAmountDue })
             label.Text = "—";
     }
 
@@ -1107,9 +1094,9 @@ public sealed class MainForm : Form
     {
         try
         {
-            var reportService = this.services.GetRequiredService<ICafeteriaReportService>();
-            var today = DateOnly.FromDateTime(DateTime.Today);
-            var report = await reportService.GenerateAsync(
+            ICafeteriaReportService reportService = this.services.GetRequiredService<ICafeteriaReportService>();
+            DateOnly today = DateOnly.FromDateTime(DateTime.Today);
+            CafeteriaReport report = await reportService.GenerateAsync(
                 CafeteriaReportKind.DailySales,
                 new ReportFilter(today, today));
 
@@ -1120,35 +1107,59 @@ public sealed class MainForm : Form
             this.todayTransactions.Text = Metric("Transactions").ToString("N0");
             this.todayRefunds.Text = Money(Metric("Refunds"));
 
-            var productReport = await reportService.GenerateAsync(
+            int daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
+            DateOnly monday = today.AddDays(-daysSinceMonday);
+            DateOnly friday = monday.AddDays(4);
+            CafeteriaReport weeklyReport = await reportService.GenerateAsync(
+                CafeteriaReportKind.DailySales,
+                new ReportFilter(monday, friday));
+            IReadOnlyList<IReadOnlyDictionary<string, object?>> weeklyRows = weeklyReport.Tables
+                .FirstOrDefault(x => string.Equals(x.Title, "Daily detail", StringComparison.OrdinalIgnoreCase))?
+                .Rows ?? [];
+
+            List<(string Label, decimal Value)> weekdayValues = [];
+            for (int dayOffset = 0; dayOffset < 5; dayOffset++)
+            {
+                DateOnly day = monday.AddDays(dayOffset);
+                IReadOnlyDictionary<string, object?>? row = weeklyRows.FirstOrDefault(x =>
+                {
+                    object? dateValue = x.GetValueOrDefault("date");
+                    return dateValue is DateOnly reportDate && reportDate == day;
+                });
+                decimal value = row is null ? 0m : Convert.ToDecimal(row.GetValueOrDefault("net") ?? 0m);
+                weekdayValues.Add((day.ToString("dddd"), value));
+            }
+            this.weeklySalesByDay.SetData("SALES VALUE BY DAY — THIS WEEK", weekdayValues, "C0");
+
+            CafeteriaReport productReport = await reportService.GenerateAsync(
                 CafeteriaReportKind.ProductSales,
                 new ReportFilter(today, today));
-            var productRows = productReport.Tables
+            IReadOnlyList<IReadOnlyDictionary<string, object?>> productRows = productReport.Tables
                 .FirstOrDefault(x => string.Equals(x.Title, "Product detail", StringComparison.OrdinalIgnoreCase))?
                 .Rows ?? [];
             var productSales = productRows.Select(row => new
             {
                 Name = Convert.ToString(row.GetValueOrDefault("product")) ?? "Unknown",
-                Quantity = Convert.ToDecimal(row.GetValueOrDefault("quantity") ?? 0m),
                 Value = Convert.ToDecimal(row.GetValueOrDefault("sales") ?? 0m)
             }).ToArray();
 
-            this.todayItemsByQuantity.SetData("ITEMS SOLD — QUANTITY", DashboardPieBuckets(productSales.Select(x => (x.Name, x.Quantity))), "N0");
             this.todayItemsByValue.SetData("ITEMS SOLD — VALUE", DashboardPieBuckets(productSales.Select(x => (x.Name, x.Value))), "C0");
             this.todayDashboardStatus.Text = $"Updated {DateTime.Now:HH:mm}";
         }
         catch (Exception ex)
         {
-            this.logger.LogWarning(ex, "Could not load today's idle sales dashboard");
+            this.logger.LogWarning(ex, "Could not load the idle sales dashboard");
             this.todayNetSales.Text = "—";
             this.todayTransactions.Text = "—";
             this.todayRefunds.Text = "—";
-            this.todayItemsByQuantity.SetData("ITEMS SOLD — QUANTITY", [], "N0");
+            this.weeklySalesByDay.SetData(
+                "SALES VALUE BY DAY — THIS WEEK",
+                new[] { ("Monday", 0m), ("Tuesday", 0m), ("Wednesday", 0m), ("Thursday", 0m), ("Friday", 0m) },
+                "C0");
             this.todayItemsByValue.SetData("ITEMS SOLD — VALUE", [], "C0");
             this.todayDashboardStatus.Text = "Dashboard temporarily unavailable";
         }
     }
-
 
     private static IReadOnlyList<(string Label, decimal Value)> DashboardPieBuckets(IEnumerable<(string Label, decimal Value)> source)
     {
@@ -1187,27 +1198,30 @@ public sealed class MainForm : Form
     private async Task CheckoutAsync()
     {
         if (this.currentCustomer is null || this.cart.Count == 0) return;
-        var total = this.cart.Sum(x => x.Total);
-        var accountAvailable = this.currentCustomer.Customer.IsEligibleForCredit
+        decimal total = this.cart.Sum(x => x.Total);
+        decimal accountAvailable = this.currentCustomer.Customer.IsEligibleForCredit
             ? this.currentCustomer.FinancialStatus.TotalAvailableToSpend
             : 0m;
 
-        var subsidyRemaining = this.currentCustomer.Customer.IsEligibleForCredit
+        decimal subsidyRemaining = this.currentCustomer.Customer.IsEligibleForCredit
             ? this.currentCustomer.FinancialStatus.SubsidyAmountRemaining
             : 0m;
-        using var dialog = new TenderDialog(total, accountAvailable, subsidyRemaining);
+        bool creditSalesAllowed = !this.currentCustomer.Customer.IsCashCustomer && this.currentCustomer.Customer.IsEligibleForCredit;
+        using TenderDialog dialog = new(new TenderDialogOptions(total, accountAvailable, subsidyRemaining, creditSalesAllowed));
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
         try
         {
             this.checkoutButton.Enabled = false;
-            var operatorIdentity = RequireOperator();
-            await this.checkout.CompleteAsync(
+            OperatorIdentity operatorIdentity = RequireOperator();
+            PosCheckoutRequest request = new(
                 this.currentCustomer,
                 this.cart.Select(x => new PosOrderLine(x.ProductId, x.ProductName, x.UnitPrice, x.Quantity)).ToArray(),
                 dialog.CafeteriaAccountAmount,
                 dialog.CashAmount,
+                dialog.CreditAmount,
                 operatorIdentity.UserId,
                 this.persistenceOptions.TerminalId);
+            await this.checkout.CompleteAsync(request);
             this.cart.Clear();
             RefreshCart();
             if (!this.currentCustomer.Customer.IsCashCustomer)
@@ -1449,8 +1463,6 @@ public sealed class MainForm : Form
             }
         }
 
-        // Search enough recent completed orders to find up to five that still have refundable value.
-        // Keeping the chooser to five rows makes the refund workflow easier to scan at the POS.
         var recent = await this.orderQuery.GetRecentCompletedAsync(this.currentCustomer.Customer.Id, 50);
         var refundable = recent
             .Where(x => x.RefundedAmount < x.Total)
@@ -1509,8 +1521,6 @@ public sealed class MainForm : Form
     {
         if (this.currentCustomer is null) return;
 
-        // An uncompleted POS transaction exists only in the current UI/cart state.
-        // Escape abandons it without creating an Order, void, refund, or FFP ledger event.
         ClearCustomer();
         this.posStatus.Text = "● Sale cancelled";
         this.posStatus.ForeColor = Color.DarkOrange;
@@ -1535,13 +1545,10 @@ public sealed class MainForm : Form
         FocusCustomerLookup();
     }
 
-
     private void UpdateRecentTransactionsVisibility()
     {
         if (this.recentTransactionsPanel is null || this.transactionWorkspace is null) return;
 
-        // Idle: show today's recent terminal activity. Active customer/sale: restore
-        // the original transaction workspace wholesale, with its original proportions.
         var showRecent = this.uiOptions.RecentTransactionCount > 0 && this.currentCustomer is null;
         this.recentTransactionsPanel.Visible = showRecent;
         this.transactionWorkspace.Visible = !showRecent;
