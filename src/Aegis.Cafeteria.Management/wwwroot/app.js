@@ -206,7 +206,19 @@ wire('recalculateMonth', async () => {
     const year = Number(document.getElementById('monthYear').value);
     const month = Number(document.getElementById('monthNumber').value);
     const response = await api(`/api/month-opening/recalculate?year=${year}&month=${month}`, { method: 'POST', body: '{}' });
-    showResult('Month recalculation completed', response);
+    const eligibleWorkingDays = Number(response.eligibleWorkingDays ?? 0);
+    const dailyCreditLimitRate = Number(response.dailyCreditLimitRate ?? 0);
+    const dailyCompanySubsidyRate = Number(response.dailyCompanySubsidyRate ?? 0);
+    const monthlyCreditLimit = eligibleWorkingDays * dailyCreditLimitRate;
+    const monthlyCompanySubsidy = Math.min(monthlyCreditLimit, eligibleWorkingDays * dailyCompanySubsidyRate);
+    const employeeFundedAllocation = Math.max(0, monthlyCreditLimit - monthlyCompanySubsidy);
+
+    showResult('Month recalculation completed', {
+        ...response,
+        monthlyCreditLimit,
+        monthlyCompanySubsidy,
+        employeeFundedAllocation
+    });
 });
 wire('loadPayrollReport', async () => {
     const year = Number(document.getElementById('reportYear').value);
