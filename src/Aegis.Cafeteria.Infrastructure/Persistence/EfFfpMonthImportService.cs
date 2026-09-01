@@ -13,6 +13,8 @@ public sealed class EfFfpMonthImportService
     , IDbContextFactory<LocalCafeteriaDbContext> factory
 ) : IFfpMonthImportService
 {
+    private const string ImportedFfpTransactionEventType = "ImportedFfpTransaction";
+
     public async Task<FfpMonthImportResult> ImportAsync
     (
           int year
@@ -36,49 +38,44 @@ public sealed class EfFfpMonthImportService
 
         foreach (ExternalFfpTransactionSnapshot transaction in snapshot.Transactions)
         {
-            if (!existingIds.Add(transaction.SourceId))
+            bool newTransaction = existingIds.Add(transaction.SourceId);
+            if (newTransaction)
             {
-                continue;
+                db.FfpImportedTransactions.Add
+                (
+                    new FfpImportedTransactionRow
+                    {
+                          SourceId = transaction.SourceId
+                        , CustomerId = transaction.CustomerId
+                        , Year = snapshot.Year
+                        , Month = snapshot.Month
+                        , OccurredAt = transaction.OccurredAt
+                        , IdName = transaction.IdName
+                        , Description = transaction.Description
+                        , ScanValue = transaction.ScanValue
+                        , UserName = transaction.UserName
+                        , ScanCode = transaction.ScanCode
+                        , ScanType = transaction.ScanType
+                        , ImportedAt = importedAt
+                    }
+                );
+
+                importedTransactions++;
+                netImportedScanValue += transaction.ScanValue;
             }
 
-            db.FfpImportedTransactions.Add
-            (
-                new FfpImportedTransactionRow
-                {
-                      SourceId = transaction.SourceId
-                    , CustomerId = transaction.CustomerId
-                    , Year = snapshot.Year
-                    , Month = snapshot.Month
-                    , OccurredAt = transaction.OccurredAt
-                    , IdName = transaction.IdName
-                    , Description = transaction.Description
-                    , ScanValue = transaction.ScanValue
-                    , UserName = transaction.UserName
-                    , ScanCode = transaction.ScanCode
-                    , ScanType = transaction.ScanType
-                    , ImportedAt = importedAt
-                }
-            );
-
             Guid eventId = ImportedEventId(transaction.SourceId);
-            bool eventExists = await db.AccountEvents.AnyAsync(row => row.Id == eventId, cancellationToken);
-            if (!eventExists)
-            {
-                string detail = string.IsNullOrWhiteSpace(transaction.Description)
-                    ? transaction.IdName
-                    : $"{transaction.IdName} - {transaction.Description}";
-                string eventType = $"Imported FFP - {detail}";
-                if (eventType.Length > 100)
-                {
-                    eventType = eventType[..100];
-                }
+            AccountEventRow? existingEvent = await db.AccountEvents
+                .SingleOrDefaultAsync(row => row.Id == eventId, cancellationToken);
 
+            if (existingEvent is null)
+            {
                 db.AccountEvents.Add
                 (
                     new AccountEventRow
                     {
                           Id = eventId
-                        , EventType = eventType
+                        , EventType = ImportedFfpTransactionEventType
                         , CustomerId = transaction.CustomerId
                         , AccountYear = snapshot.Year
                         , AccountMonth = snapshot.Month
@@ -90,15 +87,22 @@ public sealed class EfFfpMonthImportService
                     }
                 );
             }
-
-            importedTransactions++;
-            netImportedScanValue += transaction.ScanValue;
+            else if (existingEvent.EventType.StartsWith("Imported FFP", StringComparison.Ordinal)
+                || existingEvent.EventType == ImportedFfpTransactionEventType)
+            {
+                existingEvent.EventType = ImportedFfpTransactionEventType;
+                existingEvent.CustomerId = transaction.CustomerId;
+                existingEvent.AccountYear = snapshot.Year;
+                existingEvent.AccountMonth = snapshot.Month;
+                existingEvent.Amount = transaction.ScanValue;
+                existingEvent.PayloadJson = JsonSerializer.Serialize(transaction);
+                existingEvent.OccurredAt = transaction.OccurredAt;
+                existingEvent.Revision = importedAt.UtcDateTime.Ticks;
+                existingEvent.UpdatedAt = importedAt;
+            }
         }
 
-        if (importedTransactions > 0)
-        {
-            await db.SaveChangesAsync(cancellationToken);
-        }
+        await db.SaveChangesAsync(cancellationToken);
 
         return new FfpMonthImportResult
         (
