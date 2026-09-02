@@ -1,116 +1,16 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Cafeteria Management</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Cafeteria Management</title><link rel="stylesheet" href="styles.css" /></head>
 <body>
-  <header class="topbar">
-    <div>
-      <div class="eyebrow">FOOD FOR THE POOR JAMAICA</div>
-      <h1>Cafeteria Management</h1>
-      <div class="subtitle">Management console backed by Cafeteria Services</div>
-    </div>
-    <div class="top-actions">
-      <span id="serviceStatus" class="status">Checking Services...</span>
-      <button id="diagnosticsButton" class="secondary">Diagnostics</button>
-    </div>
-  </header>
-
-  <main class="page">
-    <section class="card employee-card">
-      <div class="section-title">
-        <div><h2>Employee</h2></div>
-        <span id="selectedEmployee" class="selected">No employee selected</span>
-      </div>
-      <div class="row">
-        <label class="grow">Find employee
-          <input id="employeeSearch" autocomplete="off" placeholder="Name, code or TRN" />
-        </label>
-        <button id="employeeSearchButton">Find</button>
-      </div>
-      <div id="employeeResults" class="results"></div>
-    </section>
-
-    <nav class="tabs" aria-label="Cafeteria management functions">
-      <button class="tab active" data-tab="additional-credit">Additional Credit</button>
-      <button class="tab" data-tab="stipend">Process Stipend</button>
-      <button class="tab" data-tab="rates">Rates</button>
-      <button class="tab" data-tab="month-opening">Month Opening</button>
-      <button class="tab" data-tab="amount-due">Employee Amount Due</button>
-    </nav>
-
-    <section class="tab-panel active" data-panel="additional-credit">
-      <div class="card">
-        <div class="section-title"><div><h2>Additional Credit</h2></div></div>
-        <div class="form-grid">
-          <label>Monthly employee limit<input id="creditLimit" type="number" min="0" step="0.01" /></label>
-          <div class="button-field"><button id="loadCreditPolicy" class="secondary">Load Limit</button><button id="saveCreditPolicy">Save Limit</button></div>
-          <label>Approval amount<input id="additionalCreditAmount" type="number" min="0.01" step="0.01" /></label>
-          <label>Reason<input id="additionalCreditReason" placeholder="Reason for approval" /></label>
-        </div>
-        <button id="approveAdditionalCredit" class="wide">Approve Additional Credit</button>
-      </div>
-    </section>
-
-    <section class="tab-panel" data-panel="stipend">
-      <div class="card">
-        <div class="section-title"><div><h2>Process Stipend</h2></div></div>
-        <div class="form-grid">
-          <label>Cash amount<input id="stipendCash" type="number" min="0.01" step="0.01" /></label>
-          <label>Card reduction<input id="stipendReduction" type="number" min="0" step="0.01" /></label>
-          <label>Payment mode<select id="stipendMode"><option value="1">Advance</option><option value="2">Reimbursement</option></select></label>
-          <label>Expense report reference<input id="stipendReference" /></label>
-          <label class="span-two">Notes<input id="stipendNotes" /></label>
-        </div>
-        <button id="processStipend" class="wide">Process Stipend</button>
-      </div>
-    </section>
-
-    <section class="tab-panel" data-panel="rates">
-      <div class="card">
-        <div class="section-title"><div><h2>Rates</h2></div></div>
-        <p class="hint">These are the authoritative cafeteria funding rates used by month opening.</p>
-        <div class="form-grid">
-          <label>Daily credit limit rate<input id="dailyCreditRate" type="number" min="0.01" step="0.01" /></label>
-          <label>Daily company subsidy rate<input id="dailySubsidyRate" type="number" min="0.01" step="0.01" /></label>
-        </div>
-        <div class="actions"><button id="loadFunding" class="secondary">Load Rates</button><button id="saveFunding">Save Rates</button></div>
-      </div>
-    </section>
-
-    <section class="tab-panel" data-panel="month-opening">
-      <div class="card">
-        <div class="section-title"><div><h2>Month Opening</h2></div></div>
-        <div class="form-grid">
-          <label>Year<input id="monthYear" type="number" /></label>
-          <label>Month<input id="monthNumber" type="number" min="1" max="12" /></label>
-        </div>
-        <div class="actions"><button id="runMonthOpening">Run Month Opening</button><button id="recalculateMonth" class="secondary">Recalculate</button></div>
-        <p class="hint">Month closing is not exposed here because Cafeteria Services does not currently provide a management close-period operation.</p>
-      </div>
-    </section>
-
-    <section class="tab-panel" data-panel="amount-due">
-      <div class="card">
-        <div class="section-title"><div><h2>Employee Amount Due</h2></div></div>
-        <div class="form-grid">
-          <label>Year<input id="reportYear" type="number" /></label>
-          <label>Month<input id="reportMonth" type="number" min="1" max="12" /></label>
-        </div>
-        <button id="loadPayrollReport">Load Report</button>
-        <pre id="payrollReport" class="output">No report loaded.</pre>
-      </div>
-    </section>
-
-    <section class="card activity-card">
-      <div class="section-title"><div><h2>Result</h2></div><button id="clearResult" class="secondary small">Clear</button></div>
-      <pre id="result" class="output">Ready.</pre>
-    </section>
-  </main>
-
-  <script src="app.js"></script>
-</body>
-</html>
+<header class="topbar"><div><div class="eyebrow">FOOD FOR THE POOR JAMAICA</div><h1>Cafeteria Management</h1><div class="subtitle">Management console backed by Cafeteria Services</div></div><div class="top-actions"><span id="serviceStatus" class="status">Checking Services...</span><button id="diagnosticsButton" class="secondary">Diagnostics</button></div></header>
+<main class="page">
+<section class="card employee-card"><div class="section-title"><div><h2>Employee</h2></div><span id="selectedEmployee" class="selected">No employee selected</span></div><div class="row"><label class="grow">Find employee<input id="employeeSearch" autocomplete="off" placeholder="Name, code or TRN" /></label><button id="employeeSearchButton">Find</button></div><div id="employeeResults" class="results"></div></section>
+<nav class="tabs" aria-label="Cafeteria management functions"><button class="tab active" data-tab="additional-credit">Additional Credit</button><button class="tab" data-tab="stipend">Process Stipend</button><button class="tab" data-tab="rates">Rates</button><button class="tab" data-tab="month-opening">Month Opening</button><button class="tab" data-tab="amount-due">Employee Amount Due</button><button class="tab" data-tab="email">Email Reports</button></nav>
+<section class="tab-panel active" data-panel="additional-credit"><div class="card"><div class="section-title"><div><h2>Additional Credit</h2></div></div><div class="form-grid"><label>Monthly employee limit<input id="creditLimit" type="number" min="0" step="0.01" /></label><div class="button-field"><button id="loadCreditPolicy" class="secondary">Load Limit</button><button id="saveCreditPolicy">Save Limit</button></div><label>Approval amount<input id="additionalCreditAmount" type="number" min="0.01" step="0.01" /></label><label>Reason<input id="additionalCreditReason" placeholder="Reason for approval" /></label></div><button id="approveAdditionalCredit" class="wide">Approve Additional Credit</button></div></section>
+<section class="tab-panel" data-panel="stipend"><div class="card"><div class="section-title"><div><h2>Process Stipend</h2></div></div><div class="form-grid"><label>Cash amount<input id="stipendCash" type="number" min="0.01" step="0.01" /></label><label>Card reduction<input id="stipendReduction" type="number" min="0" step="0.01" /></label><label>Payment mode<select id="stipendMode"><option value="1">Advance</option><option value="2">Reimbursement</option></select></label><label>Expense report reference<input id="stipendReference" /></label><label class="span-two">Notes<input id="stipendNotes" /></label></div><button id="processStipend" class="wide">Process Stipend</button></div></section>
+<section class="tab-panel" data-panel="rates"><div class="card"><div class="section-title"><div><h2>Rates</h2></div></div><p class="hint">These are the authoritative cafeteria funding rates used by month opening.</p><div class="form-grid"><label>Daily credit limit rate<input id="dailyCreditRate" type="number" min="0.01" step="0.01" /></label><label>Daily company subsidy rate<input id="dailySubsidyRate" type="number" min="0.01" step="0.01" /></label></div><div class="actions"><button id="loadFunding" class="secondary">Load Rates</button><button id="saveFunding">Save Rates</button></div></div></section>
+<section class="tab-panel" data-panel="month-opening"><div class="card"><div class="section-title"><div><h2>Month Opening</h2></div></div><div class="form-grid"><label>Year<input id="monthYear" type="number" /></label><label>Month<input id="monthNumber" type="number" min="1" max="12" /></label></div><div class="actions"><button id="runMonthOpening">Run Month Opening</button><button id="recalculateMonth" class="secondary">Recalculate</button></div><p class="hint">Month closing is not exposed here because Cafeteria Services does not currently provide a management close-period operation.</p></div></section>
+<section class="tab-panel" data-panel="amount-due"><div class="card"><div class="section-title"><div><h2>Employee Amount Due</h2></div></div><div class="form-grid"><label>Year<input id="reportYear" type="number" /></label><label>Month<input id="reportMonth" type="number" min="1" max="12" /></label></div><button id="loadPayrollReport">Load Report</button><pre id="payrollReport" class="output">No report loaded.</pre></div></section>
+<section class="tab-panel" data-panel="email"><div class="card"><div class="section-title"><div><h2>Email Reports</h2></div></div><p class="hint">Configure the manager weekly summary independently of employee opt-in summaries.</p><div class="form-grid"><label>Manager email<input id="managerEmail" type="email" autocomplete="email" /></label><label>Weekly summary<select id="managerEmailEnabled"><option value="true">Enabled</option><option value="false">Disabled</option></select></label><label>Day<select id="managerEmailDay"><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option></select></label><label>Hour (0-23)<input id="managerEmailHour" type="number" min="0" max="23" value="8" /></label></div><div class="actions"><button id="loadEmailSettings" class="secondary">Load Settings</button><button id="saveEmailSettings">Save Settings</button><button id="testEmail" class="secondary">Send Test Email</button></div></div></section>
+<section class="card activity-card"><div class="section-title"><div><h2>Result</h2></div><button id="clearResult" class="secondary small">Clear</button></div><pre id="result" class="output">Ready.</pre></section>
+</main><script src="app.js"></script></body></html>
