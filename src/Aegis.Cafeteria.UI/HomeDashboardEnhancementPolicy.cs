@@ -6,6 +6,7 @@ using Aegis.Cafeteria.Reporting.Models;
 internal static class HomeDashboardEnhancementPolicy
 {
     private const string EmployeeChartTitle = "EMPLOYEES SERVED BY DAY — THIS WEEK";
+    private const string CashCustomerName = "Cash Customer";
 
     public static void Apply(Form mainForm, ICafeteriaReportService reportService)
     {
@@ -32,7 +33,7 @@ internal static class HomeDashboardEnhancementPolicy
         employeeChart.SetData(EmployeeChartTitle, EmptyWeek());
 
         ConfigureMetrics(mainForm);
-        ConfigureCharts(charts, salesChart, itemsChart, employeeChart);
+        ConfigureCharts(new DashboardCharts(charts, salesChart, itemsChart, employeeChart));
         UpdateSubtitle(mainForm);
 
         System.Windows.Forms.Timer refreshTimer = new()
@@ -100,12 +101,19 @@ internal static class HomeDashboardEnhancementPolicy
         {
             DateOnly day = monday.AddDays(dayOffset);
             string periodLabel = day.ToString("dd MMM yyyy");
-            int employeeCount = rows.Count(row => string.Equals
-            (
-                Convert.ToString(row.GetValueOrDefault("period")),
-                periodLabel,
-                StringComparison.OrdinalIgnoreCase
-            ));
+            int employeeCount = rows.Count(row =>
+                !string.Equals
+                (
+                    Convert.ToString(row.GetValueOrDefault("customer")),
+                    CashCustomerName,
+                    StringComparison.OrdinalIgnoreCase
+                )
+                && string.Equals
+                (
+                    Convert.ToString(row.GetValueOrDefault("period")),
+                    periodLabel,
+                    StringComparison.OrdinalIgnoreCase
+                ));
             values.Add((day.ToString("dddd"), employeeCount));
         }
 
@@ -151,14 +159,9 @@ internal static class HomeDashboardEnhancementPolicy
         metrics.ResumeLayout(true);
     }
 
-    private static void ConfigureCharts
-    (
-        TableLayoutPanel charts,
-        WeekdayBarChartControl salesChart,
-        PieChartControl itemsChart,
-        EmployeeWeekBarChartControl employeeChart
-    )
+    private static void ConfigureCharts(DashboardCharts dashboard)
     {
+        TableLayoutPanel charts = dashboard.Host;
         charts.SuspendLayout();
         charts.Controls.Clear();
         charts.ColumnStyles.Clear();
@@ -171,18 +174,18 @@ internal static class HomeDashboardEnhancementPolicy
         charts.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
         charts.MinimumSize = new Size(0, 350);
 
-        salesChart.Dock = DockStyle.Fill;
-        salesChart.MinimumSize = new Size(0, 160);
-        salesChart.Margin = new Padding(0, 0, 8, 5);
-        itemsChart.Dock = DockStyle.Fill;
-        itemsChart.MinimumSize = new Size(0, 160);
-        itemsChart.Margin = new Padding(0, 5, 8, 0);
-        employeeChart.MinimumSize = new Size(210, 330);
+        dashboard.Sales.Dock = DockStyle.Fill;
+        dashboard.Sales.MinimumSize = new Size(0, 160);
+        dashboard.Sales.Margin = new Padding(0, 0, 8, 5);
+        dashboard.Items.Dock = DockStyle.Fill;
+        dashboard.Items.MinimumSize = new Size(0, 160);
+        dashboard.Items.Margin = new Padding(0, 5, 8, 0);
+        dashboard.Employees.MinimumSize = new Size(210, 330);
 
-        charts.Controls.Add(salesChart, 0, 0);
-        charts.Controls.Add(itemsChart, 0, 1);
-        charts.Controls.Add(employeeChart, 1, 0);
-        charts.SetRowSpan(employeeChart, 2);
+        charts.Controls.Add(dashboard.Sales, 0, 0);
+        charts.Controls.Add(dashboard.Items, 0, 1);
+        charts.Controls.Add(dashboard.Employees, 1, 0);
+        charts.SetRowSpan(dashboard.Employees, 2);
         charts.ResumeLayout(true);
     }
 
@@ -244,4 +247,12 @@ internal static class HomeDashboardEnhancementPolicy
             }
         }
     }
+
+    private sealed record DashboardCharts
+    (
+        TableLayoutPanel Host,
+        WeekdayBarChartControl Sales,
+        PieChartControl Items,
+        EmployeeWeekBarChartControl Employees
+    );
 }
