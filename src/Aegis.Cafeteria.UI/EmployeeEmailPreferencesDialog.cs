@@ -54,7 +54,7 @@ public sealed class EmployeeEmailPreferencesDialog : Form
     private readonly Label status = new()
     {
         AutoSize = true,
-        MaximumSize = new Size(450, 0),
+        MaximumSize = new Size(620, 0),
         ForeColor = Muted,
         Font = new Font("Segoe UI", 9.5f),
         Margin = new Padding(0, 10, 0, 0)
@@ -70,9 +70,8 @@ public sealed class EmployeeEmailPreferencesDialog : Form
         this.servicesClient = servicesClient;
 
         Text = "Employee Email Preferences";
-        Width = 560;
-        AutoSize = true;
-        AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        ClientSize = new Size(720, 565);
+        MinimumSize = new Size(736, 604);
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -144,25 +143,24 @@ public sealed class EmployeeEmailPreferencesDialog : Form
     {
         Panel card = new()
         {
-            Dock = DockStyle.Top,
-            AutoSize = true,
+            Dock = DockStyle.Fill,
             BackColor = Color.White,
-            Padding = new Padding(24)
+            Padding = new Padding(28, 24, 28, 20)
         };
 
         TableLayoutPanel layout = new()
         {
-            Dock = DockStyle.Top,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 7
+            RowCount = 6
         };
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 492F));
-        for (int row = 0; row < layout.RowCount; row++)
-        {
-            layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        }
+        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 148F));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+        layout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         Label findEmployee = new()
         {
@@ -196,7 +194,7 @@ public sealed class EmployeeEmailPreferencesDialog : Form
             Dock = DockStyle.Fill,
             AutoSize = true,
             BackColor = Yellow,
-            Padding = new Padding(14),
+            Padding = new Padding(16),
             Margin = new Padding(0, 0, 0, 10)
         };
         preferenceCard.Paint += (_, eventArgs) =>
@@ -216,6 +214,7 @@ public sealed class EmployeeEmailPreferencesDialog : Form
             RowCount = 3,
             BackColor = Yellow
         };
+        preferenceLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         preferenceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         preferenceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         preferenceLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -233,7 +232,14 @@ public sealed class EmployeeEmailPreferencesDialog : Form
         preferenceCard.Controls.Add(preferenceLayout);
         layout.Controls.Add(preferenceCard, 0, 3);
 
-        layout.Controls.Add(this.status, 0, 4);
+        Panel statusHost = new()
+        {
+            Dock = DockStyle.Fill,
+            Padding = Padding.Empty,
+            Margin = Padding.Empty
+        };
+        statusHost.Controls.Add(this.status);
+        layout.Controls.Add(statusHost, 0, 4);
 
         FlowLayoutPanel buttons = new()
         {
@@ -241,7 +247,7 @@ public sealed class EmployeeEmailPreferencesDialog : Form
             AutoSize = true,
             FlowDirection = FlowDirection.RightToLeft,
             WrapContents = false,
-            Margin = new Padding(0, 16, 0, 0),
+            Margin = new Padding(0, 12, 0, 0),
             Padding = Padding.Empty
         };
         close.Margin = new Padding(8, 0, 0, 0);
