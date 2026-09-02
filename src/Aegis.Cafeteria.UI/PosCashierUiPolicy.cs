@@ -10,7 +10,8 @@ internal static class PosCashierUiPolicy
         {
             if (control is Button button)
             {
-                if (string.Equals(button.Text, "Void Current Sale", StringComparison.Ordinal))
+                if (string.Equals(button.Text, "Void Current Sale", StringComparison.Ordinal)
+                    || string.Equals(button.Text, "New Customer", StringComparison.Ordinal))
                 {
                     button.Visible = false;
                     button.Enabled = false;
