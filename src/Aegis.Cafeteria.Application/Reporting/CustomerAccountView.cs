@@ -21,7 +21,8 @@ public sealed record CustomerIdentityView(
     string Name,
     byte[]? Photo,
     bool IsEligibleForCredit,
-    bool IsCashCustomer = false);
+    bool IsCashCustomer = false,
+    string EmailAddress = "");
 
 public sealed record AccountPeriodView(
     int Year,
