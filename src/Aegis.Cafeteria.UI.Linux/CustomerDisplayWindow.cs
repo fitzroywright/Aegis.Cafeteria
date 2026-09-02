@@ -14,6 +14,7 @@ public sealed class CustomerDisplayWindow : Window
     private readonly TextBlock customerName = new() { FontSize = 30, FontWeight = FontWeight.Bold };
     private readonly TextBlock eligibility = new() { FontSize = 15, FontWeight = FontWeight.Bold };
     private readonly TextBlock period = new() { FontSize = 14 };
+    private readonly TextBlock creditLimit = ValueText();
     private readonly TextBlock available = ValueText();
     private readonly TextBlock subsidy = ValueText();
     private readonly TextBlock employeeFunded = ValueText();
@@ -45,6 +46,7 @@ public sealed class CustomerDisplayWindow : Window
         period.Text = account.Customer.IsCashCustomer ? "Cash customer" : $"Current cafeteria period: {new DateTime(account.Period.Year, account.Period.Month, 1):MMMM yyyy}";
         if (account.Customer.IsEligibleForCredit && !account.Customer.IsCashCustomer)
         {
+            creditLimit.Text = Money(account.FinancialStatus.MonthlyCreditLimit);
             available.Text = Money(account.FinancialStatus.TotalAvailableToSpend);
             subsidy.Text = Money(account.FinancialStatus.SubsidyAmountRemaining);
             employeeFunded.Text = Money(account.FinancialStatus.NonSubsidyAmountRemaining);
@@ -53,7 +55,7 @@ public sealed class CustomerDisplayWindow : Window
         }
         else
         {
-            available.Text = subsidy.Text = employeeFunded.Text = debt.Text = employeeAmountDue.Text = "—";
+            creditLimit.Text = available.Text = subsidy.Text = employeeFunded.Text = debt.Text = employeeAmountDue.Text = "—";
         }
         SetPhoto(account.Customer.Photo);
         historyTitle.Text = $"Transactions — {new DateTime(account.Period.Year, account.Period.Month, 1):MMMM yyyy}";
@@ -83,13 +85,14 @@ public sealed class CustomerDisplayWindow : Window
         identity.Children.Add(photo);
         var details = new StackPanel { Spacing = 8 };
         details.Children.Add(customerName); details.Children.Add(eligibility); details.Children.Add(period);
-        var finance = new Grid { ColumnSpacing = 28, RowSpacing = 6, Margin = new Thickness(0, 20, 0, 0) };
-        for (var i = 0; i < 5; i++) finance.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
-        AddMetric(finance, 0, "AVAILABLE TO SPEND", available);
-        AddMetric(finance, 1, "SUBSIDY REMAINING", subsidy);
-        AddMetric(finance, 2, "EMPLOYEE-FUNDED REMAINING", employeeFunded);
-        AddMetric(finance, 3, "DEBT BROUGHT FORWARD", debt);
-        AddMetric(finance, 4, "EMPLOYEE AMOUNT DUE", employeeAmountDue);
+        var finance = new Grid { ColumnSpacing = 24, RowSpacing = 6, Margin = new Thickness(0, 20, 0, 0) };
+        for (var i = 0; i < 6; i++) finance.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        AddMetric(finance, 0, "CREDIT LIMIT", creditLimit);
+        AddMetric(finance, 1, "AVAILABLE TO SPEND", available);
+        AddMetric(finance, 2, "SUBSIDY REMAINING", subsidy);
+        AddMetric(finance, 3, "EMPLOYEE-FUNDED REMAINING", employeeFunded);
+        AddMetric(finance, 4, "DEBT BROUGHT FORWARD", debt);
+        AddMetric(finance, 5, "EMPLOYEE AMOUNT DUE", employeeAmountDue);
         details.Children.Add(finance);
         Grid.SetColumn(details, 1); identity.Children.Add(details); card.Child = identity;
         Grid.SetRow(card, 1); root.Children.Add(card);
