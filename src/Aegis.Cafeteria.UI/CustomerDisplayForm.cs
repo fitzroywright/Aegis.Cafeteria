@@ -60,10 +60,9 @@ public sealed class CustomerDisplayForm : Form
         Margin = new Padding(0, 14, 0, 0)
     };
 
-    private readonly Label creditLimit = MoneyValue(Blue);
     private readonly Label available = MoneyValue(Green);
     private readonly Label subsidyRemaining = MoneyValue(Purple);
-    private readonly Label nonSubsidyRemaining = MoneyValue(Orange);
+    private readonly Label payrollDeduction = MoneyValue(Orange);
     private readonly Label carriedDebt = MoneyValue(Red);
     private readonly Label employeeAmountDue = MoneyValue(Teal);
 
@@ -136,23 +135,26 @@ public sealed class CustomerDisplayForm : Form
 
         if (account.Customer.IsEligibleForCredit && !account.Customer.IsCashCustomer)
         {
-            this.creditLimit.Text = Money(account.FinancialStatus.CreditLimit);
             this.creditLimitSummary.Text = $"Credit Limit: {Money(account.FinancialStatus.CreditLimit)}";
             this.creditLimitSummary.Visible = true;
             this.available.Text = Money(account.FinancialStatus.TotalAvailableToSpend);
             this.subsidyRemaining.Text = Money(account.FinancialStatus.SubsidyAmountRemaining);
-            this.nonSubsidyRemaining.Text = Money(account.FinancialStatus.NonSubsidyAmountRemaining);
+            decimal amountToDeductFromPayroll = Math.Max
+            (
+                  0m
+                , account.Period.EmployeeFundedAllocation - account.FinancialStatus.NonSubsidyAmountRemaining
+            );
+            this.payrollDeduction.Text = Money(amountToDeductFromPayroll);
             this.carriedDebt.Text = Money(account.FinancialStatus.CarriedForwardDebt);
             this.employeeAmountDue.Text = Money(account.FinancialStatus.EmployeeAmountDue);
         }
         else
         {
-            this.creditLimit.Text = "—";
             this.creditLimitSummary.Text = string.Empty;
             this.creditLimitSummary.Visible = false;
             this.available.Text = "—";
             this.subsidyRemaining.Text = "—";
-            this.nonSubsidyRemaining.Text = "—";
+            this.payrollDeduction.Text = "—";
             this.carriedDebt.Text = "—";
             this.employeeAmountDue.Text = "—";
         }
@@ -254,21 +256,20 @@ public sealed class CustomerDisplayForm : Form
         TableLayoutPanel grid = new()
         {
             AutoSize = true,
-            ColumnCount = 6,
+            ColumnCount = 5,
             RowCount = 2,
             Margin = new Padding(0, 26, 0, 0)
         };
-        for (int index = 0; index < 6; index++)
+        for (int index = 0; index < 5; index++)
         {
             grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         }
 
-        AddFinancial(grid, 0, "CREDIT LIMIT", this.creditLimit);
-        AddFinancial(grid, 1, "AVAILABLE TO SPEND", this.available);
-        AddFinancial(grid, 2, "SUBSIDY REMAINING", this.subsidyRemaining);
-        AddFinancial(grid, 3, "NON-SUBSIDY REMAINING", this.nonSubsidyRemaining);
-        AddFinancial(grid, 4, "CARRIED DEBT", this.carriedDebt);
-        AddFinancial(grid, 5, "EMPLOYEE AMOUNT DUE", this.employeeAmountDue);
+        AddFinancial(grid, 0, "AVAILABLE TO SPEND", this.available);
+        AddFinancial(grid, 1, "SUBSIDY REMAINING", this.subsidyRemaining);
+        AddFinancial(grid, 2, "AMOUNT TO BE DEDUCTED FROM PAYROLL", this.payrollDeduction);
+        AddFinancial(grid, 3, "CARRIED DEBT", this.carriedDebt);
+        AddFinancial(grid, 4, "OUTSTANDING EMPLOYEE BALANCE", this.employeeAmountDue);
         return grid;
     }
 
