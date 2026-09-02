@@ -138,7 +138,7 @@ public sealed class NotificationServicesTests
             DbContextOptions<ServiceDbContext> options = new DbContextOptionsBuilder<ServiceDbContext>()
                 .UseSqlite(connection)
                 .Options;
-            PooledDbContextFactory<ServiceDbContext> factory = new(options);
+            TestDbContextFactory factory = new(options);
             await using ServiceDbContext context = await factory.CreateDbContextAsync();
             await context.Database.EnsureCreatedAsync();
             return new TestDatabase(connection, factory);
@@ -147,6 +147,20 @@ public sealed class NotificationServicesTests
         public async ValueTask DisposeAsync()
         {
             await this.connection.DisposeAsync();
+        }
+    }
+
+    private sealed class TestDbContextFactory(DbContextOptions<ServiceDbContext> options) : IDbContextFactory<ServiceDbContext>
+    {
+        public ServiceDbContext CreateDbContext()
+        {
+            return new ServiceDbContext(options);
+        }
+
+        public Task<ServiceDbContext> CreateDbContextAsync(CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(new ServiceDbContext(options));
         }
     }
 }
