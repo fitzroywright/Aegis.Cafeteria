@@ -19,6 +19,9 @@ public sealed class FfpSqlApplicationGateway(FfpIntegrationOptions options, ILog
     , IDevelopmentDataResetGateway
 {
     private readonly ActiveDirectoryEmployeeDirectory directory = new();
+    private readonly EmployeeDirectoryMetadataCache directoryCache = new();
+    private string[] directoryLoginNames = [];
+    private int directoryRefreshLoopStarted;
 
     private const string EmployeeSql = @"
 SELECT
@@ -68,26 +71,19 @@ WHERE YEAR(CalendarDate) = @year;";
             }
         }
 
-        IReadOnlyDictionary<string, ActiveDirectoryEmployeeRecord> directoryRecords;
-        try
-        {
-            directoryRecords = this.directory.GetByLoginNames(sourceRows.Select(employee => employee.LoginName));
-        }
-        catch (InvalidOperationException exception)
-        {
-            logger.LogWarning
-            (
-                  exception
-                , "Active Directory employee metadata lookup failed in Aegis.Cafeteria.Services; employee records will be returned without AD metadata"
-            );
-            directoryRecords = new Dictionary<string, ActiveDirectoryEmployeeRecord>(StringComparer.OrdinalIgnoreCase);
-        }
+        // Foreground employee refresh is intentionally FFP Employees-only. Directory enrichment
+        // is refreshed independently in the background and never delays startup, search, or sales.
+        this.directoryLoginNames = sourceRows
+            .Select(employee => employee.LoginName)
+            .Where(loginName => !string.IsNullOrWhiteSpace(loginName))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        StartDirectoryRefreshLoop();
 
         List<ExternalCustomerSnapshot> result = [];
         foreach (EmployeeSourceRow employee in sourceRows)
         {
-            string normalizedLoginName = NormalizeLoginName(employee.LoginName);
-            directoryRecords.TryGetValue(normalizedLoginName, out ActiveDirectoryEmployeeRecord? directoryEmployee);
+            ActiveDirectoryEmployeeRecord? directoryEmployee = this.directoryCache.Get(employee.LoginName);
 
             result.Add
             (
@@ -397,6 +393,48 @@ END", connection, transaction);
         }
     }
 
+    private void StartDirectoryRefreshLoop()
+    {
+        if (Interlocked.CompareExchange(ref this.directoryRefreshLoopStarted, 1, 0) != 0)
+        {
+            return;
+        }
+
+        _ = Task.Run
+        (
+            async () =>
+            {
+                while (true)
+                {
+                    try
+                    {
+                        string[] loginNames = this.directoryLoginNames;
+                        IReadOnlyDictionary<string, ActiveDirectoryEmployeeRecord> records =
+                            this.directory.GetByLoginNames(loginNames);
+                        this.directoryCache.Replace(records);
+
+                        logger.LogInformation
+                        (
+                              "Background AD metadata refresh matched {DirectoryCount} of {EmployeeCount} eligible cafeteria employees"
+                            , records.Count
+                            , loginNames.Length
+                        );
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.LogWarning
+                        (
+                              exception
+                            , "Background AD metadata refresh failed; employee refresh continues using FFP Employees data and the last directory cache"
+                        );
+                    }
+
+                    await Task.Delay(TimeSpan.FromMinutes(15));
+                }
+            }
+        );
+    }
+
     private int ScanType(ExternalLedgerEntryKind kind) => kind switch
     {
         ExternalLedgerEntryKind.MonthlyAllocation => options.MonthlyAllocationScanType,
@@ -414,24 +452,6 @@ END", connection, transaction);
 
         string? value = Convert.ToString(reader.GetValue(ordinal))?.Trim();
         return string.IsNullOrEmpty(value) ? null : value.ToLowerInvariant();
-    }
-
-    private static string NormalizeLoginName(string value)
-    {
-        string loginName = value.Trim();
-        int slash = loginName.LastIndexOf('\\');
-        if (slash >= 0 && slash < loginName.Length - 1)
-        {
-            loginName = loginName[(slash + 1)..];
-        }
-
-        int at = loginName.IndexOf('@');
-        if (at > 0)
-        {
-            loginName = loginName[..at];
-        }
-
-        return loginName.Trim().ToLowerInvariant();
     }
 
     private void EnsureWritesEnabled()
