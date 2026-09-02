@@ -5,7 +5,7 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
     private readonly SynchronizationContext? previousContext;
     private readonly SynchronizationContext innerContext;
     private int pendingOperations;
-    private bool disposed;
+    private int disposed;
 
     private WinFormsBusySynchronizationContext
     (
@@ -28,16 +28,31 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
 
     public override void Post(SendOrPostCallback callback, object? state)
     {
+        if (IsDisposed)
+        {
+            return;
+        }
+
         this.innerContext.Post(callback, state);
     }
 
     public override void Send(SendOrPostCallback callback, object? state)
     {
+        if (IsDisposed)
+        {
+            return;
+        }
+
         this.innerContext.Send(callback, state);
     }
 
     public override void OperationStarted()
     {
+        if (IsDisposed)
+        {
+            return;
+        }
+
         this.innerContext.OperationStarted();
         if (Interlocked.Increment(ref this.pendingOperations) == 1)
         {
@@ -47,6 +62,11 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
 
     public override void OperationCompleted()
     {
+        if (IsDisposed)
+        {
+            return;
+        }
+
         int remaining = Interlocked.Decrement(ref this.pendingOperations);
         if (remaining <= 0)
         {
@@ -64,16 +84,17 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
 
     public void Dispose()
     {
-        if (this.disposed)
+        if (Interlocked.Exchange(ref this.disposed, 1) != 0)
         {
             return;
         }
 
-        this.disposed = true;
         Interlocked.Exchange(ref this.pendingOperations, 0);
         SetBusyState(false);
         SynchronizationContext.SetSynchronizationContext(this.previousContext);
     }
+
+    private bool IsDisposed => Volatile.Read(ref this.disposed) != 0;
 
     private static void SetBusyState(bool isBusy)
     {
