@@ -1,6 +1,7 @@
 namespace Aegis.Cafeteria.UI;
 
 using Aegis.Cafeteria.Application.Reporting;
+using Aegis.Cafeteria.Reporting;
 using Aegis.Cafeteria.Reporting.Models;
 
 internal static class HomeDashboardEnhancementPolicy
