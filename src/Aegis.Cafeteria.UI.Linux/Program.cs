@@ -55,6 +55,11 @@ internal static class Program
         builder.Services.AddSingleton(sp => new CustomerPaymentWorkflow(
             sp.GetRequiredService<ICafeteriaPersistenceStore>(),
             sp.GetService<IExternalLedgerProjectionService>()));
+        if (runtime.Services.Enabled)
+        {
+            builder.Services.AddSingleton<WeeklySummaryPostSaleObserver>();
+            builder.Services.AddSingleton<IPostSaleObserver>(sp => sp.GetRequiredService<WeeklySummaryPostSaleObserver>());
+        }
         var uiOptions = builder.Configuration.GetSection("Ui").Get<CafeteriaUiOptions>() ?? new CafeteriaUiOptions();
         builder.Services.AddSingleton(uiOptions);
         builder.Services.AddSingleton<MainWindow>();
