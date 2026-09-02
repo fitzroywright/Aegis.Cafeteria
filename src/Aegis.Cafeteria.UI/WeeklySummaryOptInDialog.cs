@@ -1,5 +1,7 @@
 namespace Aegis.Cafeteria.UI;
 
+using System.Net.Mail;
+
 public sealed class WeeklySummaryOptInDialog : Form
 {
     private readonly TextBox emailAddress = new() { Width = 330 };
@@ -24,14 +26,21 @@ public sealed class WeeklySummaryOptInDialog : Form
         Label emailLabel = new() { AutoSize = true, Text = "Email address" };
         this.emailAddress.Text = suggestedEmailAddress ?? string.Empty;
 
-        Button yes = new() { Text = "Yes", Width = 90, DialogResult = DialogResult.Yes };
+        Button yes = new() { Text = "Yes", Width = 90 };
         Button no = new() { Text = "No", Width = 90, DialogResult = DialogResult.No };
-        yes.Click += (_, e) =>
+        yes.Click += (_, _) =>
         {
-            if (string.IsNullOrWhiteSpace(this.emailAddress.Text) || !this.emailAddress.Text.Contains('@'))
+            try
             {
-                ((Button)e!).DialogResult = DialogResult.None;
+                MailAddress address = new(this.emailAddress.Text.Trim());
+                this.emailAddress.Text = address.Address;
+                DialogResult = DialogResult.Yes;
+                Close();
+            }
+            catch (FormatException)
+            {
                 MessageBox.Show(this, "Enter a valid email address.", "Weekly Summary", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                this.emailAddress.Focus();
             }
         };
 
