@@ -41,21 +41,23 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
                 return;
             }
 
-            WeeklySummaryPreferenceResult? result = await Dispatcher.UIThread.InvokeAsync(async () =>
+            (bool enabled, string? emailAddress) result = await Dispatcher.UIThread.InvokeAsync(async () =>
             {
                 WeeklySummaryPreferenceWindow dialog = new(account.Customer.Name, preference.EmailAddress);
                 Window? owner = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
-                return owner is null ? null : await dialog.ShowDialog<WeeklySummaryPreferenceResult?>(owner);
+                if (owner is null)
+                {
+                    return (false, (string?)null);
+                }
+
+                bool enabled = await dialog.ShowDialog<bool>(owner);
+                return (enabled, enabled ? dialog.EmailAddress : null);
             });
-            if (result is null)
-            {
-                return;
-            }
 
             await this.servicesClient.SetNotificationPreferenceAsync(
                 account.Customer.Id,
-                result.Enabled,
-                result.EmailAddress,
+                result.enabled,
+                result.emailAddress,
                 cancellationToken);
         }
         catch (Exception exception)
