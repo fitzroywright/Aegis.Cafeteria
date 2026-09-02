@@ -147,6 +147,11 @@ internal static class Program
 
             MainForm mainForm = host.Services.GetRequiredService<MainForm>();
             PosCashierUiPolicy.Apply(mainForm);
+            HomeDashboardEnhancementPolicy.Apply
+            (
+                mainForm,
+                host.Services.GetRequiredService<ICafeteriaReportService>()
+            );
             try
             {
                 System.Windows.Forms.Application.Run(mainForm);
