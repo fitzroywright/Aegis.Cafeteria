@@ -16,7 +16,6 @@ public sealed class CustomerDisplayForm : Form
     private static readonly Color Muted = Color.FromArgb(104, 117, 132);
     private static readonly Color Purple = Color.FromArgb(120, 86, 180);
     private static readonly Color Orange = Color.FromArgb(202, 111, 26);
-    private static readonly Color Teal = Color.FromArgb(31, 126, 140);
 
     private readonly PictureBox photo = new()
     {
@@ -64,7 +63,7 @@ public sealed class CustomerDisplayForm : Form
     private readonly Label subsidyRemaining = MoneyValue(Purple);
     private readonly Label payrollDeduction = MoneyValue(Orange);
     private readonly Label carriedDebt = MoneyValue(Red);
-    private readonly Label employeeAmountDue = MoneyValue(Teal);
+    private readonly Label employeeAmountDue = MoneyValue(Red);
 
     private readonly Label historyTitle = new()
     {
@@ -267,9 +266,9 @@ public sealed class CustomerDisplayForm : Form
 
         AddFinancial(grid, 0, "AVAILABLE TO SPEND", this.available);
         AddFinancial(grid, 1, "SUBSIDY REMAINING", this.subsidyRemaining);
-        AddFinancial(grid, 2, "AMOUNT TO BE DEDUCTED FROM PAYROLL", this.payrollDeduction);
+        AddFinancial(grid, 2, "PAYROLL DEDUCTION", this.payrollDeduction);
         AddFinancial(grid, 3, "CARRIED DEBT", this.carriedDebt);
-        AddFinancial(grid, 4, "OUTSTANDING EMPLOYEE BALANCE", this.employeeAmountDue);
+        AddFinancial(grid, 4, "OUTSTANDING BALANCE", this.employeeAmountDue);
         return grid;
     }
 
