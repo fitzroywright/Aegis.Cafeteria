@@ -79,18 +79,27 @@ public sealed class ServiceEventStore
         , CancellationToken cancellationToken = default
     )
     {
-        await using ServiceDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
+        try
+        {
+            await using ServiceDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
 
-        List<ServiceEventRow> rows = await database.Events
-            .AsNoTracking()
-            .Where(serviceEvent => serviceEvent.Sequence > afterSequence)
-            .OrderBy(serviceEvent => serviceEvent.Sequence)
-            .Take(Math.Clamp(take, 1, 500))
-            .ToListAsync(cancellationToken);
+            List<ServiceEventRow> rows = await database.Events
+                .AsNoTracking()
+                .Where(serviceEvent => serviceEvent.Sequence > afterSequence)
+                .OrderBy(serviceEvent => serviceEvent.Sequence)
+                .Take(Math.Clamp(take, 1, 500))
+                .ToListAsync(cancellationToken);
 
-        return rows
-            .Select(ToEnvelope)
-            .ToArray();
+            return rows
+                .Select(ToEnvelope)
+                .ToArray();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Polling is opportunistic. If the client goes away or cancels the request,
+            // there is no error condition to surface from Services.
+            return [];
+        }
     }
 
 
