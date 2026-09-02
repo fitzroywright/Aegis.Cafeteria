@@ -48,6 +48,7 @@ public sealed class CustomerDisplayForm : Form
         Margin = new Padding(0, 14, 0, 0)
     };
 
+    private readonly Label creditLimit = MoneyValue();
     private readonly Label available = MoneyValue();
     private readonly Label subsidyRemaining = MoneyValue();
     private readonly Label nonSubsidyRemaining = MoneyValue();
@@ -90,8 +91,6 @@ public sealed class CustomerDisplayForm : Form
 
     public void PlaceOn(Screen screen)
     {
-        // Move the window onto the customer-facing monitor before maximizing it.
-        // Windows maximizes a form on the monitor containing its normal bounds.
         StartPosition = FormStartPosition.Manual;
         WindowState = FormWindowState.Normal;
         Bounds = screen.WorkingArea;
@@ -125,6 +124,7 @@ public sealed class CustomerDisplayForm : Form
 
         if (account.Customer.IsEligibleForCredit && !account.Customer.IsCashCustomer)
         {
+            this.creditLimit.Text = Money(account.FinancialStatus.CreditLimit);
             this.available.Text = Money(account.FinancialStatus.TotalAvailableToSpend);
             this.subsidyRemaining.Text = Money(account.FinancialStatus.SubsidyAmountRemaining);
             this.nonSubsidyRemaining.Text = Money(account.FinancialStatus.NonSubsidyAmountRemaining);
@@ -133,6 +133,7 @@ public sealed class CustomerDisplayForm : Form
         }
         else
         {
+            this.creditLimit.Text = "—";
             this.available.Text = "—";
             this.subsidyRemaining.Text = "—";
             this.nonSubsidyRemaining.Text = "—";
@@ -236,16 +237,17 @@ public sealed class CustomerDisplayForm : Form
         var grid = new TableLayoutPanel
         {
             AutoSize = true,
-            ColumnCount = 5,
+            ColumnCount = 6,
             RowCount = 2,
             Margin = new Padding(0, 26, 0, 0)
         };
-        for (var i = 0; i < 5; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        AddFinancial(grid, 0, "AVAILABLE TO SPEND", this.available);
-        AddFinancial(grid, 1, "SUBSIDY REMAINING", this.subsidyRemaining);
-        AddFinancial(grid, 2, "NON-SUBSIDY REMAINING", this.nonSubsidyRemaining);
-        AddFinancial(grid, 3, "CARRIED DEBT", this.carriedDebt);
-        AddFinancial(grid, 4, "EMPLOYEE AMOUNT DUE", this.employeeAmountDue);
+        for (var i = 0; i < 6; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        AddFinancial(grid, 0, "CREDIT LIMIT", this.creditLimit);
+        AddFinancial(grid, 1, "AVAILABLE TO SPEND", this.available);
+        AddFinancial(grid, 2, "SUBSIDY REMAINING", this.subsidyRemaining);
+        AddFinancial(grid, 3, "NON-SUBSIDY REMAINING", this.nonSubsidyRemaining);
+        AddFinancial(grid, 4, "CARRIED DEBT", this.carriedDebt);
+        AddFinancial(grid, 5, "EMPLOYEE AMOUNT DUE", this.employeeAmountDue);
         return grid;
     }
 
@@ -259,52 +261,8 @@ public sealed class CustomerDisplayForm : Form
             ForeColor = Muted,
             Margin = new Padding(0, 0, 38, 4)
         };
-        value.Margin = new Padding(0, 0, 38, 0);
         grid.Controls.Add(label, column, 0);
         grid.Controls.Add(value, column, 1);
-    }
-
-    private static Label MoneyValue() => new()
-    {
-        AutoSize = true,
-        Font = new Font("Segoe UI", 19, FontStyle.Bold),
-        ForeColor = Navy,
-        Text = "—"
-    };
-
-    private static DataGridView CreateGrid()
-    {
-        var grid = new DataGridView
-        {
-            ReadOnly = true,
-            AllowUserToAddRows = false,
-            AllowUserToDeleteRows = false,
-            AllowUserToResizeRows = false,
-            AutoGenerateColumns = true,
-            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
-            BackgroundColor = Color.White,
-            BorderStyle = BorderStyle.None,
-            RowHeadersVisible = false,
-            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-            MultiSelect = false,
-            Font = new Font("Segoe UI", 12),
-            ColumnHeadersHeight = 42,
-            RowTemplate = { Height = 38 }
-        };
-        grid.DefaultCellStyle.SelectionBackColor = Color.FromArgb(230, 238, 247);
-        grid.DefaultCellStyle.SelectionForeColor = Navy;
-        grid.ColumnHeadersDefaultCellStyle.Font = new Font("Segoe UI", 11, FontStyle.Bold);
-        grid.DataBindingComplete += (_, _) =>
-        {
-            foreach (DataGridViewColumn column in grid.Columns)
-            {
-                var alignment = column.DefaultCellStyle.Alignment;
-                if (alignment == DataGridViewContentAlignment.NotSet)
-                    alignment = DataGridViewContentAlignment.MiddleLeft;
-                column.HeaderCell.Style.Alignment = alignment;
-            }
-        };
-        return grid;
     }
 
     private void SetPhoto(byte[]? bytes)
@@ -315,13 +273,39 @@ public sealed class CustomerDisplayForm : Form
         try
         {
             using var stream = new MemoryStream(bytes);
-            using var temp = Image.FromStream(stream);
-            this.photo.Image = new Bitmap(temp);
+            this.photo.Image = Image.FromStream(stream).Clone() as Image;
         }
         catch
         {
-            // A bad directory photo must never prevent the customer display from working.
+            this.photo.Image = null;
         }
+    }
+
+    private static Label MoneyValue() => new()
+    {
+        AutoSize = true,
+        Font = new Font("Segoe UI", 22, FontStyle.Bold),
+        ForeColor = Navy,
+        Margin = new Padding(0, 0, 38, 0)
+    };
+
+    private static DataGridView CreateGrid()
+    {
+        var grid = new DataGridView
+        {
+            Dock = DockStyle.Fill,
+            ReadOnly = true,
+            AllowUserToAddRows = false,
+            AllowUserToDeleteRows = false,
+            AllowUserToResizeRows = false,
+            AutoGenerateColumns = true,
+            AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+            RowHeadersVisible = false,
+            BackgroundColor = Color.White,
+            BorderStyle = BorderStyle.None
+        };
+        return grid;
     }
 
     private static string Money(decimal value) => value.ToString("C2");

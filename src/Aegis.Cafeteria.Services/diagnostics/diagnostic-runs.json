@@ -1,0 +1,39 @@
+[
+  {
+    "runId": "d0e24b43-74d7-4724-b671-670a156a5aed",
+    "level": 5,
+    "application": "Aegis.Cafeteria",
+    "environment": "Development",
+    "requestedBy": "FFTPJ\\FWright",
+    "reason": null,
+    "startedAt": "2026-09-01T03:32:52.610947+00:00",
+    "completedAt": "2026-09-01T03:33:00.2708487+00:00",
+    "status": 1,
+    "checks": [
+      {
+        "checkId": "service-database",
+        "name": "Services database",
+        "status": 1,
+        "summary": "Services SQLite is reachable.",
+        "evidence": null
+      },
+      {
+        "checkId": "funding-policy",
+        "name": "Funding policy",
+        "status": 1,
+        "summary": "Funding policy is configured.",
+        "evidence": "Daily credit=500.00; Daily subsidy=300.00; Updated=2026-08-31T21:03:49.6126655-05:00"
+      },
+      {
+        "checkId": "eligible-employees",
+        "name": "Eligible employee source",
+        "status": 1,
+        "summary": "FFP returned 103 eligible employee(s).",
+        "evidence": "Total source rows=103"
+      }
+    ],
+    "resolvedAt": null,
+    "resolvedBy": null,
+    "resolution": null
+  }
+]
