@@ -44,7 +44,7 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
         {
             this.logger.LogWarning(
                 exception,
-                "Could not load weekly email preference for customer {CustomerId}; showing prompt without a saved/AD suggestion",
+                "Could not load weekly email preference for customer {CustomerId}; using the local employee cache",
                 account.Customer.Id);
             preference = new CustomerNotificationPreferenceSnapshot(account.Customer.Id, false, false, null);
         }
@@ -56,7 +56,11 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
             return;
         }
 
-        using WeeklySummaryOptInDialog dialog = new(account.Customer.Name, preference.EmailAddress);
+        string suggestedEmail = !string.IsNullOrWhiteSpace(preference.EmailAddress)
+            ? preference.EmailAddress
+            : account.Customer.EmailAddress;
+
+        using WeeklySummaryOptInDialog dialog = new(account.Customer.Name, suggestedEmail);
         IWin32Window? owner = System.Windows.Forms.Application.OpenForms
             .Cast<Form>()
             .FirstOrDefault(form => form is MainForm && form.Visible);
