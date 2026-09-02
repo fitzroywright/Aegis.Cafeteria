@@ -2,6 +2,7 @@ using Aegis.Cafeteria.Application.Accounts;
 using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Application.Orders;
+using Aegis.Cafeteria.Application.Reporting;
 using Aegis.Cafeteria.Application.Security;
 using Aegis.Cafeteria.Infrastructure;
 using Aegis.Cafeteria.Infrastructure.Configuration;
@@ -82,6 +83,7 @@ internal static class Program
             builder.Services.AddSingleton<IApplicationSecretProvider>(secretProvider);
             builder.Services.AddCafeteriaPos(runtime);
             builder.Services.AddCafeteriaReporting();
+            builder.Services.AddSingleton<IEmployeeParticipationQuery, EfEmployeeParticipationQuery>();
 
             OperatorSecurityOptions securityOptions = builder.Configuration.GetSection("Security").Get<OperatorSecurityOptions>()
                 ?? new OperatorSecurityOptions();
@@ -151,7 +153,7 @@ internal static class Program
             HomeDashboardEnhancementPolicy.Apply
             (
                 mainForm,
-                host.Services.GetRequiredService<ICafeteriaReportService>()
+                host.Services.GetRequiredService<IEmployeeParticipationQuery>()
             );
             try
             {
