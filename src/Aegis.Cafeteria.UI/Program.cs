@@ -88,6 +88,15 @@ internal static class Program
                 builder.Services.AddSingleton<WeeklySummaryPostSaleObserver>();
                 builder.Services.AddSingleton<IPostSaleObserver>(sp => sp.GetRequiredService<WeeklySummaryPostSaleObserver>());
             }
+
+            // Explicitly build the checkout service with the final observer collection. This avoids any
+            // ambiguity from the earlier generic registration inside AddCafeteriaPos and guarantees that
+            // the instance injected into MainForm is the one carrying the UI post-sale observer.
+            builder.Services.AddSingleton(sp => new PosCheckoutService(
+                sp.GetRequiredService<ICafeteriaPersistenceStore>(),
+                sp.GetService<IExternalLedgerProjectionService>(),
+                sp.GetServices<IPostSaleObserver>()));
+
             builder.Services.AddSingleton<MainForm>();
 
             splash.Update("Building terminal services...", "Initializing the POS service container.");
