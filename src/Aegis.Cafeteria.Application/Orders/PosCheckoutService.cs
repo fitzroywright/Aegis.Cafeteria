@@ -9,7 +9,7 @@ public sealed class PosCheckoutService
 {
     private readonly ICafeteriaPersistenceStore persistenceStore;
     private readonly IExternalLedgerProjectionService? externalProjection;
-    private readonly IEnumerable<IPostSaleObserver> postSaleObservers;
+    private readonly IPostSaleObserver[] postSaleObservers;
 
     public PosCheckoutService(
         ICafeteriaPersistenceStore persistenceStore,
@@ -18,8 +18,16 @@ public sealed class PosCheckoutService
     {
         this.persistenceStore = persistenceStore;
         this.externalProjection = externalProjection;
-        this.postSaleObservers = postSaleObservers ?? [];
+        this.postSaleObservers = postSaleObservers?.ToArray() ?? [];
     }
+
+    public int PostSaleObserverCount => this.postSaleObservers.Length;
+
+    public IReadOnlyList<string> PostSaleObserverNames => this.postSaleObservers
+        .Select(observer => observer.GetType().FullName ?? observer.GetType().Name)
+        .ToArray();
+
+    public static string DiagnosticLogPath => Path.Combine(Path.GetTempPath(), "aegis-cafeteria-postsale.log");
 
     [Obsolete("Production callers must supply the authenticated cashier user ID and terminal ID.")]
     public Task<Order> CompleteAsync(
@@ -82,19 +90,38 @@ public sealed class PosCheckoutService
         if (externalProjection is not null && !account.Customer.IsCashCustomer)
             await externalProjection.PublishCompletedOrderAsync(account, order, cancellationToken);
 
-        foreach (IPostSaleObserver observer in postSaleObservers)
+        WriteDiagnostic($"SALE COMMITTED order={order.Id} customer={account.Customer.Id} cashCustomer={account.Customer.IsCashCustomer} eligible={account.Customer.IsEligibleForCredit} observers={this.postSaleObservers.Length} observerNames=[{string.Join(", ", PostSaleObserverNames)}]");
+
+        foreach (IPostSaleObserver observer in this.postSaleObservers)
         {
+            string observerName = observer.GetType().FullName ?? observer.GetType().Name;
+            WriteDiagnostic($"OBSERVER ENTER {observerName} order={order.Id} customer={account.Customer.Id}");
             try
             {
                 await observer.OnSaleCompletedAsync(account, order, cancellationToken);
+                WriteDiagnostic($"OBSERVER SUCCESS {observerName} order={order.Id} customer={account.Customer.Id}");
             }
-            catch
+            catch (Exception exception)
             {
+                WriteDiagnostic($"OBSERVER FAILURE {observerName} order={order.Id} customer={account.Customer.Id} exception={exception.GetType().FullName} message={exception.GetBaseException().Message}");
                 // A post-sale convenience feature must never turn a committed sale into a checkout failure.
             }
         }
 
         return order;
+    }
+
+    private static void WriteDiagnostic(string message)
+    {
+        try
+        {
+            string line = $"{DateTimeOffset.Now:O} | {message}{Environment.NewLine}";
+            File.AppendAllText(DiagnosticLogPath, line);
+        }
+        catch
+        {
+            // Diagnostics must never interfere with a sale.
+        }
     }
 }
 
