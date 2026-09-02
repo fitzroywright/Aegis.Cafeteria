@@ -6,6 +6,7 @@ using Aegis.Cafeteria.Reporting.Models;
 
 internal static class HomeDashboardEnhancementPolicy
 {
+    private const string SalesChartTitle = "SALES VALUE — MORNING VS AFTERNOON — THIS WEEK";
     private const string EmployeeChartTitle = "EMPLOYEES SERVED VS ELIGIBLE — THIS WEEK";
     private const string ItemsChartTitle = "TOP 5 ITEMS SOLD — TODAY";
 
@@ -36,6 +37,7 @@ internal static class HomeDashboardEnhancementPolicy
             Margin = new Padding(8, 0, 0, 0)
         };
         employeeChart.SetData(EmployeeChartTitle, 0, EmptyWeek());
+        salesChart.SetDaypartData(SalesChartTitle, EmptySalesWeek(), "C0");
 
         ConfigureMetrics(mainForm);
         ConfigureCharts(new DashboardCharts(charts, salesChart, itemsChart, employeeChart));
@@ -57,11 +59,13 @@ internal static class HomeDashboardEnhancementPolicy
             refreshInProgress = true;
             try
             {
+                await RefreshSalesChartAsync(reportService, salesChart);
                 await RefreshEmployeeChartAsync(participationQuery, employeeChart);
                 await RefreshItemsChartAsync(reportService, itemsChart);
             }
             catch
             {
+                salesChart.SetDaypartData(SalesChartTitle, EmptySalesWeek(), "C0");
                 employeeChart.SetData(EmployeeChartTitle, 0, EmptyWeek());
             }
             finally
@@ -89,6 +93,74 @@ internal static class HomeDashboardEnhancementPolicy
             refreshTimer.Dispose();
         };
         refreshTimer.Start();
+    }
+
+    private static async Task RefreshSalesChartAsync(
+        ICafeteriaReportService reportService,
+        WeekdayBarChartControl salesChart)
+    {
+        DateOnly today = DateOnly.FromDateTime(DateTime.Today);
+        int daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
+        DateOnly monday = today.AddDays(-daysSinceMonday);
+        DateOnly friday = monday.AddDays(4);
+
+        ReportDocument report = await reportService.GenerateAsync
+        (
+            CafeteriaReportKind.PurchaseItemDetail,
+            new ReportFilter(monday, friday)
+        );
+        IReadOnlyList<IReadOnlyDictionary<string, object?>> rows = report.Tables
+            .FirstOrDefault(table => string.Equals(table.Title, "Itemized purchases", StringComparison.OrdinalIgnoreCase))?
+            .Rows ?? [];
+
+        IReadOnlyList<(string Label, decimal MorningValue, decimal AfternoonValue)> values = Enumerable
+            .Range(0, 5)
+            .Select(dayOffset =>
+            {
+                DateOnly day = monday.AddDays(dayOffset);
+                decimal morning = 0m;
+                decimal afternoon = 0m;
+
+                foreach (IReadOnlyDictionary<string, object?> row in rows)
+                {
+                    if (!TryGetLocalDateTime(row.GetValueOrDefault("date"), out DateTime localDateTime)
+                        || DateOnly.FromDateTime(localDateTime) != day)
+                    {
+                        continue;
+                    }
+
+                    decimal total = Convert.ToDecimal(row.GetValueOrDefault("total") ?? 0m);
+                    if (localDateTime.TimeOfDay < TimeSpan.FromHours(11))
+                    {
+                        morning += total;
+                    }
+                    else
+                    {
+                        afternoon += total;
+                    }
+                }
+
+                return (day.ToString("dddd"), morning, afternoon);
+            })
+            .ToArray();
+
+        salesChart.SetDaypartData(SalesChartTitle, values, "C0");
+    }
+
+    private static bool TryGetLocalDateTime(object? value, out DateTime localDateTime)
+    {
+        switch (value)
+        {
+            case DateTimeOffset offset:
+                localDateTime = offset.LocalDateTime;
+                return true;
+            case DateTime dateTime:
+                localDateTime = dateTime;
+                return true;
+            default:
+                localDateTime = default;
+                return false;
+        }
     }
 
     private static async Task RefreshEmployeeChartAsync(
@@ -239,7 +311,7 @@ internal static class HomeDashboardEnhancementPolicy
 
         if (subtitle is not null)
         {
-            subtitle.Text = "Today's KPIs with this week's sales and eligible-employee participation.";
+            subtitle.Text = "Today's KPIs with this week's morning/afternoon sales and eligible-employee participation.";
         }
     }
 
@@ -270,6 +342,16 @@ internal static class HomeDashboardEnhancementPolicy
             ("Wednesday", 0),
             ("Thursday", 0),
             ("Friday", 0)
+        ];
+
+    private static IReadOnlyList<(string Label, decimal MorningValue, decimal AfternoonValue)> EmptySalesWeek()
+        =>
+        [
+            ("Monday", 0m, 0m),
+            ("Tuesday", 0m, 0m),
+            ("Wednesday", 0m, 0m),
+            ("Thursday", 0m, 0m),
+            ("Friday", 0m, 0m)
         ];
 
     private static IEnumerable<Control> Descendants(Control parent)
