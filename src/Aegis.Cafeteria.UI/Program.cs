@@ -83,6 +83,11 @@ internal static class Program
             builder.Services.AddSingleton(sp => new CustomerPaymentWorkflow(
                 sp.GetRequiredService<ICafeteriaPersistenceStore>(),
                 sp.GetService<IExternalLedgerProjectionService>()));
+            if (runtime.Services.Enabled)
+            {
+                builder.Services.AddSingleton<WeeklySummaryPostSaleObserver>();
+                builder.Services.AddSingleton<IPostSaleObserver>(sp => sp.GetRequiredService<WeeklySummaryPostSaleObserver>());
+            }
             builder.Services.AddSingleton<MainForm>();
 
             splash.Update("Building terminal services...", "Initializing the POS service container.");
