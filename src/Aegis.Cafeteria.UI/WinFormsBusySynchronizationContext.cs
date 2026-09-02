@@ -30,20 +30,36 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
     {
         if (IsDisposed)
         {
+            ThreadPool.QueueUserWorkItem(_ => callback(state));
             return;
         }
 
-        this.innerContext.Post(callback, state);
+        try
+        {
+            this.innerContext.Post(callback, state);
+        }
+        catch (InvalidAsynchronousStateException)
+        {
+            ThreadPool.QueueUserWorkItem(_ => callback(state));
+        }
     }
 
     public override void Send(SendOrPostCallback callback, object? state)
     {
         if (IsDisposed)
         {
+            callback(state);
             return;
         }
 
-        this.innerContext.Send(callback, state);
+        try
+        {
+            this.innerContext.Send(callback, state);
+        }
+        catch (InvalidAsynchronousStateException)
+        {
+            callback(state);
+        }
     }
 
     public override void OperationStarted()
@@ -74,7 +90,13 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
             SetBusyState(false);
         }
 
-        this.innerContext.OperationCompleted();
+        try
+        {
+            this.innerContext.OperationCompleted();
+        }
+        catch (InvalidAsynchronousStateException)
+        {
+        }
     }
 
     public override SynchronizationContext CreateCopy()
