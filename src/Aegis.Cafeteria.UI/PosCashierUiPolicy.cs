@@ -20,6 +20,8 @@ internal static class PosCashierUiPolicy
                 if (string.Equals(button.Text, "Customer Payment...", StringComparison.Ordinal))
                 {
                     button.Text = "Employee Payment...";
+                    button.Width = 190;
+                    button.MinimumSize = new Size(190, button.Height);
                 }
             }
 
