@@ -1,15 +1,21 @@
 namespace Aegis.Cafeteria.UI;
 
 using Aegis.Cafeteria.Application.Reporting;
+using Aegis.Cafeteria.Reporting.Models;
 
 internal static class HomeDashboardEnhancementPolicy
 {
     private const string EmployeeChartTitle = "EMPLOYEES SERVED VS ELIGIBLE — THIS WEEK";
+    private const string ItemsChartTitle = "TOP 5 ITEMS SOLD — TODAY";
 
-    public static void Apply(Form mainForm, IEmployeeParticipationQuery participationQuery)
+    public static void Apply(
+        Form mainForm,
+        IEmployeeParticipationQuery participationQuery,
+        ICafeteriaReportService reportService)
     {
         ArgumentNullException.ThrowIfNull(mainForm);
         ArgumentNullException.ThrowIfNull(participationQuery);
+        ArgumentNullException.ThrowIfNull(reportService);
 
         WeekdayBarChartControl? salesChart = Descendants(mainForm)
             .OfType<WeekdayBarChartControl>()
@@ -40,7 +46,7 @@ internal static class HomeDashboardEnhancementPolicy
         };
         bool refreshInProgress = false;
 
-        async void RefreshEmployeeChart(object? sender, EventArgs eventArgs)
+        async void RefreshDashboard(object? sender, EventArgs eventArgs)
         {
             if (refreshInProgress || mainForm.IsDisposed)
             {
@@ -51,6 +57,7 @@ internal static class HomeDashboardEnhancementPolicy
             try
             {
                 await RefreshEmployeeChartAsync(participationQuery, employeeChart);
+                await RefreshItemsChartAsync(reportService, itemsChart);
             }
             catch
             {
@@ -62,22 +69,30 @@ internal static class HomeDashboardEnhancementPolicy
             }
         }
 
-        mainForm.Shown += RefreshEmployeeChart;
-        refreshTimer.Tick += RefreshEmployeeChart;
+        Control? dashboardHost = FindDashboardHost(itemsChart);
+        mainForm.Shown += RefreshDashboard;
+        refreshTimer.Tick += RefreshDashboard;
+        if (dashboardHost is not null)
+        {
+            dashboardHost.VisibleChanged += RefreshDashboard;
+        }
+
         mainForm.FormClosed += (_, _) =>
         {
             refreshTimer.Stop();
-            refreshTimer.Tick -= RefreshEmployeeChart;
+            refreshTimer.Tick -= RefreshDashboard;
+            if (dashboardHost is not null)
+            {
+                dashboardHost.VisibleChanged -= RefreshDashboard;
+            }
             refreshTimer.Dispose();
         };
         refreshTimer.Start();
     }
 
-    private static async Task RefreshEmployeeChartAsync
-    (
+    private static async Task RefreshEmployeeChartAsync(
         IEmployeeParticipationQuery participationQuery,
-        EmployeeWeekBarChartControl employeeChart
-    )
+        EmployeeWeekBarChartControl employeeChart)
     {
         DateOnly today = DateOnly.FromDateTime(DateTime.Today);
         int daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
@@ -89,6 +104,55 @@ internal static class HomeDashboardEnhancementPolicy
             .ToArray();
 
         employeeChart.SetData(EmployeeChartTitle, week.EligibleEmployeeCount, values);
+    }
+
+    private static async Task RefreshItemsChartAsync(
+        ICafeteriaReportService reportService,
+        PieChartControl itemsChart)
+    {
+        DateOnly today = DateOnly.FromDateTime(DateTime.Today);
+        ReportDocument report = await reportService.GenerateAsync(
+            CafeteriaReportKind.ProductSales,
+            new ReportFilter(today, today));
+        IReadOnlyList<IReadOnlyDictionary<string, object?>> rows = report.Tables
+            .FirstOrDefault(table => string.Equals(table.Title, "Product detail", StringComparison.OrdinalIgnoreCase))?
+            .Rows ?? [];
+
+        IReadOnlyList<(string Label, decimal Value)> sold = rows
+            .Select(row =>
+            (
+                Label: Convert.ToString(row.GetValueOrDefault("product")) ?? "Unknown",
+                Value: Convert.ToDecimal(row.GetValueOrDefault("quantity") ?? 0m)
+            ))
+            .Where(item => item.Value > 0m)
+            .OrderByDescending(item => item.Value)
+            .ThenBy(item => item.Label, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        (string Label, decimal Value)[] topFive = sold.Take(5).ToArray();
+        decimal other = sold.Skip(5).Sum(item => item.Value);
+        IReadOnlyList<(string Label, decimal Value)> chartValues = other > 0m
+            ? topFive.Append(("Other", other)).ToArray()
+            : topFive;
+
+        itemsChart.SetData(ItemsChartTitle, chartValues, "N0");
+    }
+
+    private static Control? FindDashboardHost(Control itemsChart)
+    {
+        Control? current = itemsChart.Parent;
+        while (current is not null)
+        {
+            if (current is Panel panel && panel.Controls.Cast<Control>().Any(control =>
+                control is TableLayoutPanel layout && ContainsLabel(layout, "CAFETERIA SALES DASHBOARD")))
+            {
+                return panel;
+            }
+
+            current = current.Parent;
+        }
+
+        return null;
     }
 
     private static void ConfigureMetrics(Form mainForm)
@@ -164,17 +228,13 @@ internal static class HomeDashboardEnhancementPolicy
     {
         Label? subtitle = Descendants(mainForm)
             .OfType<Label>()
-            .FirstOrDefault(label => string.Equals
-            (
+            .FirstOrDefault(label => string.Equals(
                 label.Text,
                 "Today's KPIs with this week's Monday–Friday sales trend.",
-                StringComparison.Ordinal
-            ) || string.Equals
-            (
+                StringComparison.Ordinal) || string.Equals(
                 label.Text,
                 "Today's KPIs with this week's Monday–Friday sales and employee activity.",
-                StringComparison.Ordinal
-            ));
+                StringComparison.Ordinal));
 
         if (subtitle is not null)
         {
@@ -224,11 +284,9 @@ internal static class HomeDashboardEnhancementPolicy
         }
     }
 
-    private sealed record DashboardCharts
-    (
+    private sealed record DashboardCharts(
         TableLayoutPanel Host,
         WeekdayBarChartControl Sales,
         PieChartControl Items,
-        EmployeeWeekBarChartControl Employees
-    );
+        EmployeeWeekBarChartControl Employees);
 }
