@@ -163,7 +163,8 @@ internal static class Program
             HomeDashboardEnhancementPolicy.Apply
             (
                 mainForm,
-                host.Services.GetRequiredService<IEmployeeParticipationQuery>()
+                host.Services.GetRequiredService<IEmployeeParticipationQuery>(),
+                host.Services.GetRequiredService<ICafeteriaReportService>()
             );
             try
             {
