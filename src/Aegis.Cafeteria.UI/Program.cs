@@ -106,6 +106,16 @@ internal static class Program
                     , serviceProvider.GetService<IExternalLedgerProjectionService>()
                 )
             );
+
+            if (runtime.Services.Enabled)
+            {
+                builder.Services.AddSingleton<WeeklySummaryPostSaleObserver>();
+                builder.Services.AddSingleton<IPostSaleObserver>
+                (
+                    serviceProvider => serviceProvider.GetRequiredService<WeeklySummaryPostSaleObserver>()
+                );
+            }
+
             builder.Services.AddSingleton<MainForm>();
 
             splash.Update("Building terminal services...", "Initializing local POS services and optional online integrations.");
