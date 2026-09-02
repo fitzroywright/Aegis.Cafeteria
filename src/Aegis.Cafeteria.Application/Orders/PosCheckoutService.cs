@@ -9,11 +9,18 @@ public sealed class PosCheckoutService
 {
     private readonly ICafeteriaPersistenceStore persistenceStore;
     private readonly IExternalLedgerProjectionService? externalProjection;
+    private readonly IPostSaleObserver[] postSaleObservers;
 
-    public PosCheckoutService(ICafeteriaPersistenceStore persistenceStore, IExternalLedgerProjectionService? externalProjection = null)
+    public PosCheckoutService
+    (
+          ICafeteriaPersistenceStore persistenceStore
+        , IExternalLedgerProjectionService? externalProjection = null
+        , IEnumerable<IPostSaleObserver>? postSaleObservers = null
+    )
     {
         this.persistenceStore = persistenceStore;
         this.externalProjection = externalProjection;
+        this.postSaleObservers = postSaleObservers?.ToArray() ?? [];
     }
 
     [Obsolete("Production callers should use PosCheckoutRequest.")]
@@ -118,6 +125,18 @@ public sealed class PosCheckoutService
 
         if (this.externalProjection is not null && !account.Customer.IsCashCustomer)
             await this.externalProjection.PublishCompletedOrderAsync(account, order, cancellationToken);
+
+        foreach (IPostSaleObserver observer in this.postSaleObservers)
+        {
+            try
+            {
+                await observer.OnSaleCompletedAsync(account, order, cancellationToken);
+            }
+            catch
+            {
+                // Post-sale convenience features must never turn a committed sale into a checkout failure.
+            }
+        }
 
         return order;
     }
