@@ -96,6 +96,7 @@ public sealed class CustomerDisplayForm : Form
         BackColor = Canvas;
         Font = new Font("Segoe UI", 11);
         BuildLayout();
+        ConfigureHistoryGrid();
         this.history.DataSource = this.historySource;
     }
 
@@ -160,14 +161,20 @@ public sealed class CustomerDisplayForm : Form
 
         SetPhoto(account.Customer.Photo);
         this.historyTitle.Text = $"Transactions — {new DateTime(currentYear, currentMonth, 1):MMMM yyyy}";
-        this.historySource.DataSource = currentMonthTransactions.Select(x => new
+        this.historySource.DataSource = currentMonthTransactions.Select(transaction =>
         {
-            Date = x.OccurredAt.LocalDateTime,
-            x.Kind,
-            x.Description,
-            Amount = x.Amount,
-            Account = x.CafeteriaAccountAmount,
-            Cash = x.CashAmount
+            decimal coveredAmount = transaction.CafeteriaAccountAmount + transaction.CashAmount;
+            decimal balance = transaction.Amount - coveredAmount;
+            return new CustomerTransactionHistoryRow
+            (
+                  transaction.OccurredAt.LocalDateTime
+                , transaction.Kind
+                , transaction.Description
+                , transaction.Amount
+                , transaction.CafeteriaAccountAmount
+                , transaction.CashAmount
+                , balance
+            );
         }).ToList();
         this.noHistory.Visible = currentMonthTransactions.Count == 0;
         this.history.Visible = currentMonthTransactions.Count > 0;
@@ -272,6 +279,50 @@ public sealed class CustomerDisplayForm : Form
         return grid;
     }
 
+    private void ConfigureHistoryGrid()
+    {
+        this.history.AutoGenerateColumns = false;
+        this.history.Columns.Clear();
+        this.history.Columns.Add(TextColumn(nameof(CustomerTransactionHistoryRow.Date), "Date", 16));
+        this.history.Columns.Add(TextColumn(nameof(CustomerTransactionHistoryRow.TransactionType), "Transaction Type", 16));
+        this.history.Columns.Add(TextColumn(nameof(CustomerTransactionHistoryRow.Description), "Description", 26));
+        this.history.Columns.Add(MoneyColumn(nameof(CustomerTransactionHistoryRow.AmountDue), "Amount Due", 12));
+        this.history.Columns.Add(MoneyColumn(nameof(CustomerTransactionHistoryRow.FromCard), "From Card", 11));
+        this.history.Columns.Add(MoneyColumn(nameof(CustomerTransactionHistoryRow.CashPayment), "Cash Payment", 11));
+        this.history.Columns.Add(MoneyColumn(nameof(CustomerTransactionHistoryRow.Balance), "Balance", 11));
+        this.history.Columns[0].DefaultCellStyle.Format = "M/d/yyyy h:mm tt";
+        this.history.CellFormatting += (_, eventArgs) =>
+        {
+            if (eventArgs.RowIndex < 0
+                || eventArgs.ColumnIndex < 0
+                || this.history.Columns[eventArgs.ColumnIndex].DataPropertyName != nameof(CustomerTransactionHistoryRow.Balance)
+                || eventArgs.Value is not decimal balance
+                || balance <= 0m)
+            {
+                return;
+            }
+
+            eventArgs.CellStyle.ForeColor = Red;
+            eventArgs.CellStyle.Font = new Font(this.history.Font, FontStyle.Bold);
+        };
+    }
+
+    private static DataGridViewTextBoxColumn TextColumn(string propertyName, string headerText, float fillWeight) => new()
+    {
+        DataPropertyName = propertyName,
+        HeaderText = headerText,
+        FillWeight = fillWeight,
+        SortMode = DataGridViewColumnSortMode.Automatic
+    };
+
+    private static DataGridViewTextBoxColumn MoneyColumn(string propertyName, string headerText, float fillWeight)
+    {
+        DataGridViewTextBoxColumn column = TextColumn(propertyName, headerText, fillWeight);
+        column.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
+        column.DefaultCellStyle.Format = "C2";
+        return column;
+    }
+
     private static void AddFinancial(TableLayoutPanel grid, int column, string caption, Label value)
     {
         Label label = new()
@@ -323,7 +374,7 @@ public sealed class CustomerDisplayForm : Form
             AllowUserToAddRows = false,
             AllowUserToDeleteRows = false,
             AllowUserToResizeRows = false,
-            AutoGenerateColumns = true,
+            AutoGenerateColumns = false,
             AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
             SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             RowHeadersVisible = false,
@@ -334,4 +385,15 @@ public sealed class CustomerDisplayForm : Form
     }
 
     private static string Money(decimal value) => value.ToString("C2");
+
+    private sealed record CustomerTransactionHistoryRow
+    (
+          DateTime Date
+        , string TransactionType
+        , string Description
+        , decimal AmountDue
+        , decimal FromCard
+        , decimal CashPayment
+        , decimal Balance
+    );
 }
