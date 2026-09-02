@@ -4,6 +4,8 @@ using Avalonia.Controls;
 using Avalonia.Layout;
 using System.Net.Mail;
 
+public sealed record WeeklySummaryPreferenceResult(bool Enabled, string? EmailAddress);
+
 public sealed class WeeklySummaryPreferenceWindow : Window
 {
     private readonly TextBox emailAddress = new() { Width = 330 };
@@ -30,15 +32,14 @@ public sealed class WeeklySummaryPreferenceWindow : Window
             try
             {
                 MailAddress address = new(this.emailAddress.Text?.Trim() ?? string.Empty);
-                this.emailAddress.Text = address.Address;
-                Close(true);
+                Close(new WeeklySummaryPreferenceResult(true, address.Address));
             }
             catch (FormatException)
             {
                 emailLabel.Text = "Enter a valid email address";
             }
         };
-        no.Click += (_, _) => Close(false);
+        no.Click += (_, _) => Close(new WeeklySummaryPreferenceResult(false, null));
 
         StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 10 };
         buttons.Children.Add(yes);
@@ -50,6 +51,4 @@ public sealed class WeeklySummaryPreferenceWindow : Window
         layout.Children.Add(buttons);
         Content = layout;
     }
-
-    public string EmailAddress => this.emailAddress.Text?.Trim() ?? string.Empty;
 }
