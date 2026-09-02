@@ -33,36 +33,60 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
             return;
         }
 
+        CustomerNotificationPreferenceSnapshot preference;
         try
         {
-            CustomerNotificationPreferenceSnapshot preference = await this.servicesClient.GetNotificationPreferenceAsync(account.Customer.Id, cancellationToken);
-            if (preference.PreferenceAsked)
+            preference = await this.servicesClient.GetNotificationPreferenceAsync(account.Customer.Id, cancellationToken);
+        }
+        catch (Exception exception)
+        {
+            this.logger.LogWarning(
+                exception,
+                "Could not load weekly email preference for customer {CustomerId}; showing prompt without a saved/AD suggestion",
+                account.Customer.Id);
+            preference = new CustomerNotificationPreferenceSnapshot(account.Customer.Id, false, false, null);
+        }
+
+        if (preference.PreferenceAsked)
+        {
+            return;
+        }
+
+        WeeklySummaryPreferenceResult? result = await Dispatcher.UIThread.InvokeAsync(async () =>
+        {
+            Window? owner = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
+            if (owner is null)
             {
-                return;
+                return null;
             }
 
-            (bool enabled, string? emailAddress) result = await Dispatcher.UIThread.InvokeAsync(async () =>
-            {
-                WeeklySummaryPreferenceWindow dialog = new(account.Customer.Name, preference.EmailAddress);
-                Window? owner = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
-                if (owner is null)
-                {
-                    return (false, (string?)null);
-                }
+            WeeklySummaryPreferenceWindow dialog = new(account.Customer.Name, preference.EmailAddress);
+            return await dialog.ShowDialog<WeeklySummaryPreferenceResult?>(owner);
+        });
 
-                bool enabled = await dialog.ShowDialog<bool>(owner);
-                return (enabled, enabled ? dialog.EmailAddress : null);
-            });
+        if (result is null)
+        {
+            this.logger.LogWarning(
+                "Weekly email preference prompt could not find the Linux main window for customer {CustomerId}",
+                account.Customer.Id);
+            return;
+        }
 
+        try
+        {
             await this.servicesClient.SetNotificationPreferenceAsync(
                 account.Customer.Id,
-                result.enabled,
-                result.emailAddress,
+                result.Enabled,
+                result.EmailAddress,
                 cancellationToken);
         }
         catch (Exception exception)
         {
-            this.logger.LogWarning(exception, "Weekly email preference prompt failed for customer {CustomerId} after sale {OrderId}", account.Customer.Id, order.Id);
+            this.logger.LogWarning(
+                exception,
+                "Could not save weekly email preference for customer {CustomerId} after sale {OrderId}; sale remains committed",
+                account.Customer.Id,
+                order.Id);
         }
     }
 }
