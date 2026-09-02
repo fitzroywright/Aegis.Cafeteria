@@ -38,6 +38,41 @@ public sealed class ScheduledDispatchRow
     public string? MessageId { get; set; }
 }
 
+public sealed class CustomerNotificationPreferenceRow
+{
+    public int CustomerId { get; set; }
+    public bool PreferenceAsked { get; set; }
+    public bool WeeklySummaryEnabled { get; set; }
+    public string? EmailAddress { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class ManagerReportSettingsRow
+{
+    public int Id { get; set; }
+    public bool WeeklySummaryEnabled { get; set; }
+    public string? EmailAddress { get; set; }
+    public DayOfWeek WeeklySummaryDay { get; set; } = DayOfWeek.Monday;
+    public int WeeklySummaryHourLocal { get; set; } = 8;
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class OutboundEmailRow
+{
+    public Guid Id { get; set; }
+    public string DispatchKey { get; set; } = string.Empty;
+    public string Recipient { get; set; } = string.Empty;
+    public string Subject { get; set; } = string.Empty;
+    public string Body { get; set; } = string.Empty;
+    public int AttemptCount { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset NextAttemptAt { get; set; }
+    public DateTimeOffset? LastAttemptAt { get; set; }
+    public DateTimeOffset? SentAt { get; set; }
+    public string? MessageId { get; set; }
+    public string? LastError { get; set; }
+}
+
 public sealed class CafeteriaFundingPolicyRow
 {
     public int Id { get; set; }
