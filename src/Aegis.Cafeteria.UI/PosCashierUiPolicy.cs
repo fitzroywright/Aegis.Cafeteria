@@ -8,6 +8,7 @@ using System.Reflection;
 internal static class PosCashierUiPolicy
 {
     private static readonly Color Orange = Color.FromArgb(235, 139, 40);
+    private static readonly Color Red = Color.FromArgb(176, 52, 52);
 
     public static void Apply(
         Form mainForm,
@@ -60,9 +61,10 @@ internal static class PosCashierUiPolicy
                     continue;
                 }
 
-                if (string.Equals(label.Text, "Employee Amount Due", StringComparison.OrdinalIgnoreCase))
+                if (string.Equals(label.Text, "Employee Amount Due", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(label.Text, "Outstanding Employee Balance", StringComparison.OrdinalIgnoreCase))
                 {
-                    label.Text = "Outstanding Employee Balance";
+                    label.Text = "Outstanding Balance";
                     continue;
                 }
 
@@ -71,16 +73,46 @@ internal static class PosCashierUiPolicy
                     label.Text,
                     "Record money received from the employee to reduce the Employee Amount Due shown above.",
                     StringComparison.Ordinal
-                ))
+                )
+                    || string.Equals
+                    (
+                        label.Text,
+                        "Record money received from the employee to reduce the Outstanding Employee Balance shown above.",
+                        StringComparison.Ordinal
+                    ))
                 {
-                    label.Text = "Record money received from the employee to reduce the Outstanding Employee Balance shown above.";
+                    label.Text = "Record money received from the employee to reduce the Outstanding Balance shown above.";
                 }
             }
         }
 
+        StyleOutstandingBalance(mainForm);
         SimplifyCustomerFunding(mainForm);
         MoveReadyCustomerInstructions(mainForm);
         ConfigureRecentTransactionNavigation(mainForm, orderQuery, identification);
+    }
+
+    private static void StyleOutstandingBalance(Form mainForm)
+    {
+        Label? caption = Descendants(mainForm)
+            .OfType<Label>()
+            .FirstOrDefault(label => string.Equals(label.Text, "Outstanding Balance", StringComparison.OrdinalIgnoreCase));
+        if (caption?.Parent is not TableLayoutPanel table)
+        {
+            return;
+        }
+
+        TableLayoutPanelCellPosition position = table.GetPositionFromControl(caption);
+        if (position.Row < 0)
+        {
+            return;
+        }
+
+        Control? value = table.GetControlFromPosition(1, position.Row);
+        if (value is not null)
+        {
+            value.ForeColor = Red;
+        }
     }
 
     private static void SimplifyCustomerFunding(Form mainForm)
