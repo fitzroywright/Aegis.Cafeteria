@@ -1,6 +1,13 @@
 namespace Aegis.Cafeteria.Services.Email;
 
+using Aegis.Cafeteria.Application.Integration;
+using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Services.Persistence;
+
+using Common.Security.Abstractions;
+using Common.Security.Models;
+using Common.Security.Options;
+using Common.Security.Services;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -27,10 +34,55 @@ public static class EmailEndpoints
         app.MapGet
         (
               "/api/pos/customers/{customerId:int}/notification-preference"
-            , async (int customerId, IDbContextFactory<ServiceDbContext> factory, CancellationToken cancellationToken) =>
+            , async (
+                  int customerId
+                , IDbContextFactory<ServiceDbContext> factory
+                , IWorkforceReferenceSource workforceSource
+                , OperatorSecurityOptions securityOptions
+                , CancellationToken cancellationToken) =>
             {
                 NotificationPreferenceStore store = new(factory);
-                return Results.Ok(await store.GetCustomerAsync(customerId, cancellationToken));
+                CustomerNotificationPreference preference = await store.GetCustomerAsync(customerId, cancellationToken);
+
+                // A previously confirmed Cafeteria address always wins. AD is only a first-time suggestion.
+                if (!string.IsNullOrWhiteSpace(preference.EmailAddress) || preference.PreferenceAsked || !securityOptions.Enabled)
+                {
+                    return Results.Ok(preference);
+                }
+
+                try
+                {
+                    IReadOnlyList<ExternalCustomerSnapshot> customers = await workforceSource.GetCustomersAsync(cancellationToken);
+                    ExternalCustomerSnapshot? customer = customers.FirstOrDefault(item => item.CustomerId == customerId);
+                    if (customer is null || string.IsNullOrWhiteSpace(customer.LoginName))
+                    {
+                        return Results.Ok(preference);
+                    }
+
+                    ActiveDirectoryAuthenticationOptions directoryOptions = new()
+                    {
+                        Domain = securityOptions.Domain,
+                        SearchBase = securityOptions.SearchBase,
+                        Port = securityOptions.Port,
+                        TimeoutSeconds = securityOptions.TimeoutSeconds,
+                        Servers = securityOptions.Servers,
+                        AdministrativeGroups = securityOptions.AdministrativeGroups
+                    };
+                    IDirectoryUserLookup directory = new ActiveDirectoryUserLookup(directoryOptions);
+                    DirectoryUserInfo? directoryUser = directory.FindByLoginName(customer.LoginName);
+                    string? suggestedEmail = EmailAddressValidator.Normalize(directoryUser?.Mail);
+                    if (suggestedEmail is null)
+                    {
+                        return Results.Ok(preference);
+                    }
+
+                    return Results.Ok(preference with { EmailAddress = suggestedEmail });
+                }
+                catch
+                {
+                    // Directory discovery is advisory. It must never prevent the cashier prompt or a sale.
+                    return Results.Ok(preference);
+                }
             }
         );
 
