@@ -255,6 +255,15 @@ internal sealed class CustomerSearchDialog : Form
     {
         this.source.DataSource = candidates.ToList();
         this.count.Text = candidates.Count == 0 ? "No matching employees" : $"{candidates.Count} employee{(candidates.Count == 1 ? string.Empty : "s")} shown";
+
+        if (candidates.Count == 1 && this.grid.Rows.Count == 1)
+        {
+            this.grid.CurrentCell = this.grid.Rows[0].Cells[0];
+            this.grid.Rows[0].Selected = true;
+            ShowSelection();
+            return;
+        }
+
         this.grid.ClearSelection();
         this.grid.CurrentCell = null;
         ShowSelection();
