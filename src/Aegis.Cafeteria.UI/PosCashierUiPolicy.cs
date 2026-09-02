@@ -37,6 +37,13 @@ internal static class PosCashierUiPolicy
                 if (string.Equals(label.Text, "CUSTOMER PAYMENT", StringComparison.Ordinal))
                 {
                     label.Text = "EMPLOYEE PAYMENT";
+                    continue;
+                }
+
+                if (string.Equals(label.Text, "Debt brought forward", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(label.Text, "Carried Debt", StringComparison.OrdinalIgnoreCase))
+                {
+                    label.Text = "Debt Brought Forward";
                 }
             }
         }
