@@ -41,25 +41,22 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
                 return;
             }
 
-            bool enabled = await Dispatcher.UIThread.InvokeAsync(async () =>
+            WeeklySummaryPreferenceResult? result = await Dispatcher.UIThread.InvokeAsync(async () =>
             {
                 WeeklySummaryPreferenceWindow dialog = new(account.Customer.Name, preference.EmailAddress);
                 Window? owner = (Application.Current?.ApplicationLifetime as IClassicDesktopStyleApplicationLifetime)?.MainWindow;
-                return owner is null ? false : await dialog.ShowDialog<bool>(owner);
+                return owner is null ? null : await dialog.ShowDialog<WeeklySummaryPreferenceResult?>(owner);
             });
-
-            string? emailAddress = null;
-            if (enabled)
+            if (result is null)
             {
-                // The dialog normalizes the address before returning true. Re-open is not required;
-                // preference editing remains cashier-managed through the same UI workflow.
-                emailAddress = preference.EmailAddress;
+                return;
             }
 
-            if (!enabled || !string.IsNullOrWhiteSpace(emailAddress))
-            {
-                await this.servicesClient.SetNotificationPreferenceAsync(account.Customer.Id, enabled, emailAddress, cancellationToken);
-            }
+            await this.servicesClient.SetNotificationPreferenceAsync(
+                account.Customer.Id,
+                result.Enabled,
+                result.EmailAddress,
+                cancellationToken);
         }
         catch (Exception exception)
         {
