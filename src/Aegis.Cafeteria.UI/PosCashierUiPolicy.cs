@@ -2,6 +2,8 @@ namespace Aegis.Cafeteria.UI;
 
 internal static class PosCashierUiPolicy
 {
+    private static readonly Color Orange = Color.FromArgb(235, 139, 40);
+
     public static void Apply(Form mainForm)
     {
         ArgumentNullException.ThrowIfNull(mainForm);
@@ -45,6 +47,23 @@ internal static class PosCashierUiPolicy
                     || string.Equals(label.Text, "Carried Debt", StringComparison.OrdinalIgnoreCase))
                 {
                     label.Text = "Debt Brought Forward";
+                    continue;
+                }
+
+                if (string.Equals(label.Text, "Employee Amount Due", StringComparison.OrdinalIgnoreCase))
+                {
+                    label.Text = "Outstanding Employee Balance";
+                    continue;
+                }
+
+                if (string.Equals
+                (
+                    label.Text,
+                    "Record money received from the employee to reduce the Employee Amount Due shown above.",
+                    StringComparison.Ordinal
+                ))
+                {
+                    label.Text = "Record money received from the employee to reduce the Outstanding Employee Balance shown above.";
                 }
             }
         }
@@ -134,15 +153,22 @@ internal static class PosCashierUiPolicy
 
         if (highlightPanel is not null)
         {
-            highlightPanel.Visible = false;
-            highlightPanel.Height = 0;
-            highlightPanel.Margin = Padding.Empty;
+            highlightPanel.SuspendLayout();
+            highlightPanel.Controls.Clear();
+            highlightPanel.AutoSize = false;
+            highlightPanel.Visible = true;
+            highlightPanel.Height = 5;
+            highlightPanel.MinimumSize = new Size(0, 5);
+            highlightPanel.BackColor = Orange;
             highlightPanel.Padding = Padding.Empty;
+            highlightPanel.Margin = new Padding(0, 0, 0, 12);
+            highlightPanel.ResumeLayout(true);
         }
 
         HideFinancialRow(mainForm, "Monthly cafeteria credit");
         HideFinancialRow(mainForm, "Company subsidy remaining");
         HideFinancialRow(mainForm, "Employee-funded remaining");
+        HideFinancialRow(mainForm, "Customer Responsibility (before payments)");
     }
 
     private static void HideFinancialRow(Form mainForm, string captionText)
