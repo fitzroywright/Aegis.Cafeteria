@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 namespace Aegis.Cafeteria.UI;
 
 internal sealed class WinFormsBusySynchronizationContext : SynchronizationContext, IDisposable
