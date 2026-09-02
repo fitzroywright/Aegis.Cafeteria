@@ -1,0 +1,60 @@
+namespace Aegis.Cafeteria.Services.Workers;
+
+using Aegis.Cafeteria.Application.Integration;
+using Aegis.Cafeteria.Infrastructure.ActiveDirectory;
+
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+public sealed class EmployeeDirectorySyncWorker(
+    IWorkforceReferenceSource workforceSource,
+    EmployeeDirectoryMetadataCache directoryCache,
+    ILogger<EmployeeDirectorySyncWorker> logger) : BackgroundService
+{
+    private static readonly TimeSpan RefreshInterval = TimeSpan.FromMinutes(15);
+    private readonly ActiveDirectoryEmployeeDirectory directory = new();
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                IReadOnlyList<ExternalCustomerSnapshot> employees = await workforceSource.GetCustomersAsync(stoppingToken);
+                string[] loginNames = employees
+                    .Select(employee => employee.LoginName)
+                    .Where(loginName => !string.IsNullOrWhiteSpace(loginName))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
+
+                IReadOnlyDictionary<string, ActiveDirectoryEmployeeRecord> records =
+                    this.directory.GetByLoginNames(loginNames);
+                directoryCache.Replace(records);
+
+                logger.LogInformation(
+                    "Background AD employee metadata sync refreshed {DirectoryCount} of {EmployeeCount} eligible employees",
+                    records.Count,
+                    employees.Count);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Background AD employee metadata sync failed; existing cached metadata will remain in use");
+            }
+
+            try
+            {
+                await Task.Delay(RefreshInterval, stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+        }
+    }
+}
