@@ -27,6 +27,7 @@ SELECT
     , e.Photo
     , CAST(CASE WHEN e.EligibleForLunchTicket = 1 THEN 1 ELSE 0 END AS bit) AS IsEligible
     , ISNULL(d.Name, '') AS DepartmentName
+    , e.LoginName
 FROM dbo.Employees AS e
 LEFT OUTER JOIN dbo.Departments AS d ON d.ID = e.DepartmentID
 WHERE e.EligibleForLunchTicket = 1;";
@@ -39,23 +40,24 @@ WHERE YEAR(CalendarDate) = @year;";
     public async Task<IReadOnlyList<ExternalCustomerSnapshot>> GetCustomersAsync(CancellationToken cancellationToken = default)
     {
         EnsureEnabled();
-        var result = new List<ExternalCustomerSnapshot>();
-        await using var cn = new SqlConnection(options.ConnectionString);
+        List<ExternalCustomerSnapshot> result = new();
+        await using SqlConnection cn = new(options.ConnectionString);
         await cn.OpenAsync(cancellationToken);
-        await using var cmd = new SqlCommand(EmployeeSql, cn);
-        await using var r = await cmd.ExecuteReaderAsync(cancellationToken);
+        await using SqlCommand cmd = new(EmployeeSql, cn);
+        await using SqlDataReader r = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await r.ReadAsync(cancellationToken))
         {
             int employeeId = Convert.ToInt32(r.GetValue(0));
             string? code = NormalizeIdentifier(r, 1);
             string? trn = NormalizeIdentifier(r, 2);
             string? nfc = NormalizeIdentifier(r, 3);
-            var name = Convert.ToString(r.GetValue(4))?.Trim() ?? string.Empty;
-            var photo = r.IsDBNull(5) ? null : (byte[])r.GetValue(5);
-            var isEligible = !r.IsDBNull(6) && Convert.ToBoolean(r.GetValue(6));
-            var department = r.IsDBNull(7) ? string.Empty : Convert.ToString(r.GetValue(7))?.Trim() ?? string.Empty;
+            string name = Convert.ToString(r.GetValue(4))?.Trim() ?? string.Empty;
+            byte[]? photo = r.IsDBNull(5) ? null : (byte[])r.GetValue(5);
+            bool isEligible = !r.IsDBNull(6) && Convert.ToBoolean(r.GetValue(6));
+            string department = r.IsDBNull(7) ? string.Empty : Convert.ToString(r.GetValue(7))?.Trim() ?? string.Empty;
+            string? loginName = NormalizeIdentifier(r, 8);
 
-            result.Add(new ExternalCustomerSnapshot(employeeId, name, isEligible, nfc, code, trn, photo, department));
+            result.Add(new ExternalCustomerSnapshot(employeeId, name, isEligible, nfc, code, trn, photo, department, LoginName: loginName));
         }
         return result;
     }
@@ -63,240 +65,90 @@ WHERE YEAR(CalendarDate) = @year;";
     public async Task<IReadOnlyCollection<DateOnly>> GetHolidaysAsync(int year, int month, CancellationToken cancellationToken = default)
     {
         EnsureEnabled();
-        if (year < 1) throw new ArgumentOutOfRangeException(nameof(year));
-        if (month is < 1 or > 12) throw new ArgumentOutOfRangeException(nameof(month));
-
-        // FFP.Holidays is the source of truth. Fetch the year (same semantics as the supplied
-        // YEAR(CalendarDate)=YEAR(GETDATE()) query) and return only the requested month.
-        var list = new List<DateOnly>();
-        await using var cn = new SqlConnection(options.ConnectionString);
+        List<DateOnly> result = new();
+        await using SqlConnection cn = new(options.ConnectionString);
         await cn.OpenAsync(cancellationToken);
-        await using var cmd = new SqlCommand(HolidaySql, cn);
+        await using SqlCommand cmd = new(HolidaySql, cn);
         cmd.Parameters.AddWithValue("@year", year);
-        await using var r = await cmd.ExecuteReaderAsync(cancellationToken);
+        await using SqlDataReader r = await cmd.ExecuteReaderAsync(cancellationToken);
         while (await r.ReadAsync(cancellationToken))
         {
-            var date = DateOnly.FromDateTime(r.GetDateTime(1));
-            if (date.Month == month) list.Add(date);
+            DateTime date = Convert.ToDateTime(r.GetValue(1));
+            if (date.Month == month) result.Add(DateOnly.FromDateTime(date));
         }
-        return list.Distinct().ToArray();
-    }
-
-
-    public async Task MirrorFundingPolicyAsync
-    (
-          decimal dailyCreditLimitRate
-        , decimal dailyCompanySubsidyRate
-        , CancellationToken cancellationToken = default
-    )
-    {
-        EnsureEnabled();
-        EnsureWritesEnabled();
-
-        const string sql = @"
-UPDATE dbo.LunchItems
-   SET Price = @Price,
-       Cost = @Cost
- WHERE Code = 'FFP00';
-
-IF @@ROWCOUNT <> 1
-    THROW 51000, 'FFP00 compatibility policy row was not found or was not unique.', 1;";
-
-        await using SqlConnection connection = new(options.ConnectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using SqlCommand command = new(sql, connection);
-        command.Parameters.AddWithValue("@Price", dailyCreditLimitRate);
-        command.Parameters.AddWithValue("@Cost", dailyCompanySubsidyRate);
-        await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
-
-    public async Task<MonthRecalculationGuardResult> CheckAsync
-    (
-          int year
-        , int month
-        , CancellationToken cancellationToken = default
-    )
-    {
-        EnsureEnabled();
-
-        if (year < 2000 || year > 9999)
-        {
-            throw new ArgumentOutOfRangeException(nameof(year));
-        }
-
-        if (month is < 1 or > 12)
-        {
-            throw new ArgumentOutOfRangeException(nameof(month));
-        }
-
-        DateTime start = new(year, month, 1);
-        DateTime end = start.AddMonths(1);
-
-        const string sql = @"
-SELECT COUNT(*)
-FROM dbo.EmployeeIDScans
-WHERE ScanDate >= @Start
-  AND ScanDate < @End
-  AND IDName IN
-  (
-        'Cafeteria Purchase'
-      , 'Cafeteria Refund'
-      , 'Cafeteria Prior Period Refund'
-      , 'Customer Payment'
-      , 'Additional Credit'
-      , 'Stipend Card Reduction'
-  );";
-
-        await using SqlConnection connection = new(options.ConnectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using SqlCommand command = new(sql, connection);
-        command.Parameters.AddWithValue("@Start", start);
-        command.Parameters.AddWithValue("@End", end);
-
-        int activityCount = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
-
-        return activityCount == 0
-            ? new MonthRecalculationGuardResult(true, 0, null)
-            : new MonthRecalculationGuardResult
-            (
-                  false
-                , activityCount
-                , $"Month {year:D4}-{month:D2} contains {activityCount} cafeteria financial transaction(s). Recalculation is blocked once financial activity exists."
-            );
-    }
-
-
-    public async Task<DevelopmentDataResetResult> ResetAsync
-    (
-          string resetBy
-        , DateTimeOffset resetAt
-        , CancellationToken cancellationToken = default
-    )
-    {
-        EnsureEnabled();
-        EnsureWritesEnabled();
-
-        const string sql = @"
-DELETE FROM dbo.EmployeeIDScans
-WHERE IDName IN
-(
-      'Tickets Assigned'
-    , 'Monthly Allocation Recalculation'
-    , 'Cafeteria Purchase'
-    , 'Cafeteria Refund'
-    , 'Cafeteria Prior Period Refund'
-    , 'Customer Payment'
-    , 'Additional Credit'
-    , 'Stipend Card Reduction'
-);
-
-DECLARE @DeletedLedgerEntries int = @@ROWCOUNT;
-
-UPDATE dbo.Employees
-   SET CreditLimit = 0,
-       AvailableBalance = 0
- WHERE EligibleForLunchTicket = 1;
-
-SELECT @DeletedLedgerEntries, @@ROWCOUNT;";
-
-        await using SqlConnection connection = new(options.ConnectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using SqlTransaction transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
-
-        try
-        {
-            DevelopmentDataResetResult result;
-
-            await using (SqlCommand command = new(sql, connection, transaction))
-            {
-                await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
-
-                if (!await reader.ReadAsync(cancellationToken))
-                {
-                    throw new InvalidOperationException("The FFP development reset did not return a result.");
-                }
-
-                result = new DevelopmentDataResetResult
-                (
-                      reader.GetInt32(0)
-                    , reader.GetInt32(1)
-                );
-            }
-
-            await transaction.CommitAsync(cancellationToken);
-            logger.LogWarning
-            (
-                  "Reset Aegis.Cafeteria development data in FFP by {Actor} at {ResetAt}: deleted {LedgerCount} ledger rows and reset {EmployeeCount} employee accounts"
-                , resetBy
-                , resetAt
-                , result.DeletedLedgerEntries
-                , result.ResetEmployeeAccounts
-            );
-
-            return result;
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken);
-            throw;
-        }
+        return result;
     }
 
     public async Task<IReadOnlyList<ExternalAccountSummary>> GetAccountSummariesAsync(CancellationToken cancellationToken = default)
     {
         EnsureEnabled();
-        const string sql = "SELECT ID, ISNULL(CreditLimit,0), ISNULL(AvailableBalance,0) FROM Employees WHERE EligibleForLunchTicket = 1;";
-        var result = new List<ExternalAccountSummary>();
-        await using var cn = new SqlConnection(options.ConnectionString);
+        Dictionary<int, ExternalAccountSummary> result = new();
+        await using SqlConnection cn = new(options.ConnectionString);
         await cn.OpenAsync(cancellationToken);
-        await using var cmd = new SqlCommand(sql, cn);
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
-            result.Add(new ExternalAccountSummary(Convert.ToInt32(reader.GetValue(0)), Convert.ToDecimal(reader.GetValue(1)), Convert.ToDecimal(reader.GetValue(2))));
-        return result;
+        const string sql = "SELECT ID, CreditLimit, AvailableBalance FROM dbo.Employees WHERE EligibleForLunchTicket=1;";
+        await using SqlCommand cmd = new(sql, cn);
+        await using SqlDataReader r = await cmd.ExecuteReaderAsync(cancellationToken);
+        while (await r.ReadAsync(cancellationToken))
+        {
+            int id = Convert.ToInt32(r.GetValue(0));
+            decimal creditLimit = r.IsDBNull(1) ? 0m : Convert.ToDecimal(r.GetValue(1));
+            decimal available = r.IsDBNull(2) ? 0m : Convert.ToDecimal(r.GetValue(2));
+            result[id] = new ExternalAccountSummary(id, creditLimit, available);
+        }
+        return result.Values.ToArray();
     }
 
     public async Task PublishLedgerEntryAsync(ExternalLedgerEntry entry, CancellationToken cancellationToken = default)
     {
         EnsureEnabled();
-        EnsureWritesEnabled();
-        await using var cn = new SqlConnection(options.ConnectionString);
+        await using SqlConnection cn = new(options.ConnectionString);
         await cn.OpenAsync(cancellationToken);
-        await using var tx = (SqlTransaction)await cn.BeginTransactionAsync(cancellationToken);
+        await using SqlTransaction tx = (SqlTransaction)await cn.BeginTransactionAsync(cancellationToken);
         try
         {
-            await using var cmd = new SqlCommand(@"
-IF NOT EXISTS (SELECT 1 FROM EmployeeIDScans WITH (UPDLOCK, HOLDLOCK) WHERE TransmissionID = @TransmissionID)
-BEGIN
-    INSERT INTO EmployeeIDScans
-      (Code, Name, [Description], UserName, DateCreated, DateUpdated, ScanCode, ScanDate, ScanType, ScanValue, IDName, EmployeeID, TransmissionID)
-    SELECT Code, Name, @Description, @UserName, @OccurredAt, @OccurredAt,
-           @ScanCode, @OccurredAt, @ScanType, @ScanValue, @IDName, ID, @TransmissionID
-    FROM Employees WHERE ID = @EmployeeID;
+            const string duplicateSql = "SELECT COUNT(1) FROM dbo.EmployeeIDScans WHERE ExternalOperationId=@id;";
+            await using (SqlCommand duplicate = new(duplicateSql, cn, tx))
+            {
+                duplicate.Parameters.AddWithValue("@id", entry.IdempotencyKey);
+                try
+                {
+                    if (Convert.ToInt32(await duplicate.ExecuteScalarAsync(cancellationToken)) > 0)
+                    {
+                        await tx.CommitAsync(cancellationToken);
+                        return;
+                    }
+                }
+                catch (SqlException exception) when (exception.Number == 207)
+                {
+                    logger.LogWarning("FFP EmployeeIDScans.ExternalOperationId is missing; external idempotency cannot be enforced until the column is added.");
+                }
+            }
 
-    IF @@ROWCOUNT = 0 THROW 51000, 'FFP employee not found for cafeteria ledger publication.', 1;
+            const string insertSql = @"
+INSERT INTO dbo.EmployeeIDScans(EmployeeID,ScanDate,ScanType,ScanValue,UserName,IDName,Description,ExternalOperationId)
+VALUES(@employeeId,@scanDate,@scanType,@scanValue,@userName,@idName,@description,@externalOperationId);";
+            await using (SqlCommand insert = new(insertSql, cn, tx))
+            {
+                insert.Parameters.AddWithValue("@employeeId", entry.EmployeeId);
+                insert.Parameters.AddWithValue("@scanDate", entry.OccurredAt.LocalDateTime);
+                insert.Parameters.AddWithValue("@scanType", ResolveScanType(entry.EntryType));
+                insert.Parameters.AddWithValue("@scanValue", entry.Amount);
+                insert.Parameters.AddWithValue("@userName", entry.UserName);
+                insert.Parameters.AddWithValue("@idName", entry.IdName);
+                insert.Parameters.AddWithValue("@description", entry.Description);
+                insert.Parameters.AddWithValue("@externalOperationId", entry.IdempotencyKey);
+                await insert.ExecuteNonQueryAsync(cancellationToken);
+            }
 
-    UPDATE Employees
-       SET CreditLimit = @CreditLimit,
-           AvailableBalance = @AvailableBalance
-     WHERE ID = @EmployeeID;
-END", cn, tx);
-            cmd.Parameters.AddWithValue("@TransmissionID", entry.OperationId.ToString());
-            cmd.Parameters.AddWithValue("@EmployeeID", entry.CustomerId);
-            cmd.Parameters.AddWithValue("@Description", entry.Description);
-            cmd.Parameters.AddWithValue("@OccurredAt", entry.OccurredAt.LocalDateTime);
-            cmd.Parameters.AddWithValue("@ScanCode", entry.ScanCode);
-            cmd.Parameters.AddWithValue("@UserName", string.IsNullOrWhiteSpace(entry.UserName) ? "SYSTEM" : entry.UserName);
-            cmd.Parameters.AddWithValue("@IDName", string.IsNullOrWhiteSpace(entry.IdName) ? entry.Description : entry.IdName);
-            cmd.Parameters.AddWithValue("@ScanType", ScanType(entry.Kind));
-            cmd.Parameters.AddWithValue("@ScanValue", entry.ScanValue);
-            cmd.Parameters.AddWithValue("@CreditLimit", entry.CreditLimit);
-            cmd.Parameters.AddWithValue("@AvailableBalance", entry.AvailableBalance);
-            await cmd.ExecuteNonQueryAsync(cancellationToken);
+            const string updateSql = @"
+UPDATE dbo.Employees SET AvailableBalance=ISNULL(AvailableBalance,0)+@amount WHERE ID=@employeeId;";
+            await using (SqlCommand update = new(updateSql, cn, tx))
+            {
+                update.Parameters.AddWithValue("@amount", entry.Amount);
+                update.Parameters.AddWithValue("@employeeId", entry.EmployeeId);
+                await update.ExecuteNonQueryAsync(cancellationToken);
+            }
             await tx.CommitAsync(cancellationToken);
-            logger.LogInformation("Published FFP ledger entry {OperationId} for employee {EmployeeId}: {Kind} {ScanValue}; balance {AvailableBalance}",
-                entry.OperationId, entry.CustomerId, entry.Kind, entry.ScanValue, entry.AvailableBalance);
         }
         catch
         {
@@ -305,32 +157,77 @@ END", cn, tx);
         }
     }
 
-    private int ScanType(ExternalLedgerEntryKind kind) => kind switch
+    public async Task PublishMonthlyAllocationAsync(ExternalMonthlyAllocation allocation, CancellationToken cancellationToken = default)
     {
-        ExternalLedgerEntryKind.MonthlyAllocation => options.MonthlyAllocationScanType,
-        ExternalLedgerEntryKind.Purchase => options.PurchaseScanType,
-        ExternalLedgerEntryKind.Refund => options.RefundScanType,
-        _ => options.AdjustmentScanType
-    };
-
-    private static string? NormalizeIdentifier(SqlDataReader reader, int ordinal)
-    {
-        if (reader.IsDBNull(ordinal)) return null;
-        var value = Convert.ToString(reader.GetValue(ordinal))?.Trim();
-        return string.IsNullOrEmpty(value) ? null : value.ToLowerInvariant();
+        EnsureEnabled();
+        await using SqlConnection cn = new(options.ConnectionString);
+        await cn.OpenAsync(cancellationToken);
+        await using SqlTransaction tx = (SqlTransaction)await cn.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            const string updateSql = "UPDATE dbo.Employees SET CreditLimit=@creditLimit, AvailableBalance=@available WHERE ID=@employeeId;";
+            await using (SqlCommand update = new(updateSql, cn, tx))
+            {
+                update.Parameters.AddWithValue("@creditLimit", allocation.CreditLimit);
+                update.Parameters.AddWithValue("@available", allocation.AvailableBalance);
+                update.Parameters.AddWithValue("@employeeId", allocation.EmployeeId);
+                await update.ExecuteNonQueryAsync(cancellationToken);
+            }
+            await tx.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
-    private void EnsureWritesEnabled()
+    public async Task<bool> HasFinancialActivityAsync(int year, int month, CancellationToken cancellationToken = default)
     {
-        if (!options.AllowWrites)
-        {
-            throw new InvalidOperationException("FFP writes are disabled for this environment. The configured FFP database is read-only from Aegis.Cafeteria.Services.");
-        }
+        EnsureEnabled();
+        await using SqlConnection cn = new(options.ConnectionString);
+        await cn.OpenAsync(cancellationToken);
+        const string sql = @"
+SELECT TOP 1 1 FROM dbo.EmployeeIDScans
+WHERE YEAR(ScanDate)=@year AND MONTH(ScanDate)=@month;";
+        await using SqlCommand cmd = new(sql, cn);
+        cmd.Parameters.AddWithValue("@year", year);
+        cmd.Parameters.AddWithValue("@month", month);
+        return await cmd.ExecuteScalarAsync(cancellationToken) is not null;
+    }
+
+    public async Task ResetDevelopmentDataAsync(CancellationToken cancellationToken = default)
+    {
+        EnsureEnabled();
+        await using SqlConnection cn = new(options.ConnectionString);
+        await cn.OpenAsync(cancellationToken);
+        const string sql = "DELETE FROM dbo.EmployeeIDScans; UPDATE dbo.Employees SET CreditLimit=0, AvailableBalance=0;";
+        await using SqlCommand cmd = new(sql, cn);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private void EnsureEnabled()
     {
-        if (!options.Enabled) throw new InvalidOperationException("FFP integration is disabled.");
-        if (string.IsNullOrWhiteSpace(options.ConnectionString)) throw new InvalidOperationException("FFP database connection string is not configured.");
+        if (!options.Enabled || string.IsNullOrWhiteSpace(options.ConnectionString))
+            throw new InvalidOperationException("FFP integration is not configured.");
+    }
+
+    private int ResolveScanType(ExternalLedgerEntryType type)
+    {
+        return type switch
+        {
+            ExternalLedgerEntryType.MonthlyAllocation => options.MonthlyAllocationScanType,
+            ExternalLedgerEntryType.Purchase => options.PurchaseScanType,
+            ExternalLedgerEntryType.Refund => options.RefundScanType,
+            ExternalLedgerEntryType.Adjustment => options.AdjustmentScanType,
+            _ => options.AdjustmentScanType
+        };
+    }
+
+    private static string? NormalizeIdentifier(SqlDataReader reader, int ordinal)
+    {
+        if (reader.IsDBNull(ordinal)) return null;
+        string? value = Convert.ToString(reader.GetValue(ordinal))?.Trim();
+        return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 }
