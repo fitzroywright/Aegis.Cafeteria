@@ -147,6 +147,7 @@ internal static class Program
 
             MainForm mainForm = host.Services.GetRequiredService<MainForm>();
             PosCashierUiPolicy.Apply(mainForm);
+            FfpDataToolsUiPolicy.Apply(uiOptions);
             HomeDashboardEnhancementPolicy.Apply
             (
                 mainForm,
@@ -186,7 +187,7 @@ internal static class Program
 
         try
         {
-            ReferenceDataRefreshService refresh = host.Services.GetRequiredService<ReferenceDataRefreshService>();
+            ReferenceDataRefreshService refresh = host.Services.GetRequiredServiceService<ReferenceDataRefreshService>();
 
             splash.Update("Refreshing employees...", "Checking for current employee data. Startup will continue offline if Services is slow.");
             int count = await refresh.RefreshCustomersAsync(startupRefresh.Token);
