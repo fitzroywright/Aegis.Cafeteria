@@ -9,11 +9,16 @@ public sealed class PosCheckoutService
 {
     private readonly ICafeteriaPersistenceStore persistenceStore;
     private readonly IExternalLedgerProjectionService? externalProjection;
+    private readonly IEnumerable<IPostSaleObserver> postSaleObservers;
 
-    public PosCheckoutService(ICafeteriaPersistenceStore persistenceStore, IExternalLedgerProjectionService? externalProjection = null)
+    public PosCheckoutService(
+        ICafeteriaPersistenceStore persistenceStore,
+        IExternalLedgerProjectionService? externalProjection = null,
+        IEnumerable<IPostSaleObserver>? postSaleObservers = null)
     {
         this.persistenceStore = persistenceStore;
         this.externalProjection = externalProjection;
+        this.postSaleObservers = postSaleObservers ?? [];
     }
 
     [Obsolete("Production callers must supply the authenticated cashier user ID and terminal ID.")]
@@ -54,16 +59,16 @@ public sealed class PosCheckoutService
         if (cafeteriaAccountAmount > account.FinancialStatus.TotalAvailableToSpend)
             throw new InvalidOperationException("The cafeteria-account portion exceeds the customer's available credit.");
 
-        var now = DateTimeOffset.Now;
-        var order = new Order(Guid.NewGuid(), account.Customer.Id, now);
-        foreach (var line in lines)
+        DateTimeOffset now = DateTimeOffset.Now;
+        Order order = new(Guid.NewGuid(), account.Customer.Id, now);
+        foreach (PosOrderLine line in lines)
         {
             if (line.Quantity <= 0) throw new InvalidOperationException("Order quantities must be greater than zero.");
             order.AddItem(new OrderItem(line.ProductId, line.ProductName, line.UnitPrice, line.Quantity));
         }
 
         order.Submit(now);
-        var payments = new List<OrderPayment>();
+        List<OrderPayment> payments = [];
         if (cafeteriaAccountAmount > 0m)
             payments.Add(new OrderPayment(Guid.NewGuid(), PaymentMethod.CafeteriaAccount, cafeteriaAccountAmount, now));
         if (cashAmount > 0m)
@@ -76,6 +81,19 @@ public sealed class PosCheckoutService
         await persistenceStore.SaveOrderAsync(order, cancellationToken);
         if (externalProjection is not null && !account.Customer.IsCashCustomer)
             await externalProjection.PublishCompletedOrderAsync(account, order, cancellationToken);
+
+        foreach (IPostSaleObserver observer in postSaleObservers)
+        {
+            try
+            {
+                await observer.OnSaleCompletedAsync(account, order, cancellationToken);
+            }
+            catch
+            {
+                // A post-sale convenience feature must never turn a committed sale into a checkout failure.
+            }
+        }
+
         return order;
     }
 }
