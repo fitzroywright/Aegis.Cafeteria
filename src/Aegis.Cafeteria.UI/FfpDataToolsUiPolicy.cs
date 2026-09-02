@@ -15,8 +15,7 @@ internal static class FfpDataToolsUiPolicy
             return;
         }
 
-        EventHandler? idleHandler = null;
-        idleHandler = (_, _) =>
+        System.Windows.Forms.Application.Idle += (_, _) =>
         {
             foreach (CafeteriaAdministrationDialog dialog in System.Windows.Forms.Application.OpenForms
                          .OfType<CafeteriaAdministrationDialog>())
@@ -24,8 +23,6 @@ internal static class FfpDataToolsUiPolicy
                 HideDataTools(dialog);
             }
         };
-
-        System.Windows.Forms.Application.Idle += idleHandler;
     }
 
     private static void HideDataTools(CafeteriaAdministrationDialog dialog)
