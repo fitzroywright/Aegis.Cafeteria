@@ -1,8 +1,8 @@
 namespace Aegis.Cafeteria.UI;
 
 /// <summary>
-/// Compact horizontal weekday bar chart used by the POS home dashboard.
-/// Values represent unique employees served on each business day.
+/// Compact horizontal weekday participation chart used by the POS home dashboard.
+/// Each bar compares unique eligible employees served with the total eligible population.
 /// </summary>
 internal sealed class EmployeeWeekBarChartControl : Control
 {
@@ -16,20 +16,27 @@ internal sealed class EmployeeWeekBarChartControl : Control
     ];
 
     private IReadOnlyList<BarItem> items = [];
-    private string title = "EMPLOYEES SERVED BY DAY — THIS WEEK";
+    private string title = "EMPLOYEES SERVED VS ELIGIBLE — THIS WEEK";
+    private int eligibleEmployeeCount;
 
     public EmployeeWeekBarChartControl()
     {
         DoubleBuffered = true;
         BackColor = Color.White;
-        MinimumSize = new Size(220, 300);
+        MinimumSize = new Size(260, 300);
     }
 
-    public void SetData(string title, IEnumerable<(string Label, int Value)> values)
+    public void SetData
+    (
+        string title,
+        int eligibleEmployeeCount,
+        IEnumerable<(string Label, int Served)> values
+    )
     {
         this.title = title;
+        this.eligibleEmployeeCount = Math.Max(0, eligibleEmployeeCount);
         this.items = values
-            .Select((item, index) => new BarItem(item.Label, Math.Max(0, item.Value), Palette[index % Palette.Length]))
+            .Select((item, index) => new BarItem(item.Label, Math.Max(0, item.Served), Palette[index % Palette.Length]))
             .ToArray();
         Invalidate();
     }
@@ -41,53 +48,67 @@ internal sealed class EmployeeWeekBarChartControl : Control
         e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 
         using Font titleFont = new("Segoe UI", 9.5F, FontStyle.Bold);
+        using Font subtitleFont = new("Segoe UI", 8.5F);
         using Font labelFont = new("Segoe UI", 8.5F, FontStyle.Bold);
-        using Font valueFont = new("Segoe UI", 8.5F);
+        using Font valueFont = new("Segoe UI", 8.3F);
         using SolidBrush titleBrush = new(Color.FromArgb(24, 45, 68));
         using SolidBrush mutedBrush = new(Color.FromArgb(104, 117, 132));
-        using Pen guidePen = new(Color.FromArgb(225, 230, 235));
+        using SolidBrush trackBrush = new(Color.FromArgb(235, 239, 243));
 
-        e.Graphics.DrawString(this.title, titleFont, titleBrush, new RectangleF(8, 6, Math.Max(1, Width - 16), 36));
+        e.Graphics.DrawString(this.title, titleFont, titleBrush, new RectangleF(8, 6, Math.Max(1, Width - 16), 24));
+        e.Graphics.DrawString
+        (
+            $"Eligible employees: {this.eligibleEmployeeCount:N0}",
+            subtitleFont,
+            mutedBrush,
+            new RectangleF(8, 29, Math.Max(1, Width - 16), 22)
+        );
 
         if (this.items.Count == 0)
         {
-            e.Graphics.DrawString("No employee activity this week", valueFont, mutedBrush, new PointF(8, 48));
+            e.Graphics.DrawString("No employee activity this week", valueFont, mutedBrush, new PointF(8, 58));
             return;
         }
 
-        int top = 48;
+        int top = 58;
         int bottomPadding = 10;
-        int labelWidth = Math.Min(78, Math.Max(58, Width / 4));
-        int valueWidth = 38;
+        int labelWidth = Math.Min(82, Math.Max(60, Width / 5));
+        int valueWidth = Math.Min(120, Math.Max(92, Width / 3));
         int barLeft = labelWidth + 10;
-        int barRight = Math.Max(barLeft + 10, Width - valueWidth - 12);
+        int barRight = Math.Max(barLeft + 10, Width - valueWidth - 10);
         int availableBarWidth = Math.Max(10, barRight - barLeft);
         int availableHeight = Math.Max(80, Height - top - bottomPadding);
         int rowHeight = Math.Max(28, availableHeight / Math.Max(1, this.items.Count));
         int barHeight = Math.Max(10, Math.Min(22, rowHeight - 12));
-        int maxValue = Math.Max(1, this.items.Max(item => item.Value));
 
         for (int index = 0; index < this.items.Count; index++)
         {
             BarItem item = this.items[index];
             int rowTop = top + (index * rowHeight);
             int barTop = rowTop + Math.Max(3, (rowHeight - barHeight) / 2);
-            float ratio = (float)item.Value / maxValue;
-            int barWidth = item.Value == 0 ? 2 : Math.Max(4, (int)Math.Round(availableBarWidth * ratio));
+            decimal participation = this.eligibleEmployeeCount == 0
+                ? 0m
+                : Math.Min(1m, (decimal)item.Served / this.eligibleEmployeeCount);
+            int barWidth = item.Served == 0
+                ? 0
+                : Math.Max(4, (int)Math.Round(availableBarWidth * participation));
 
             RectangleF labelRect = new(6, rowTop, labelWidth, rowHeight);
             e.Graphics.DrawString(item.Label, labelFont, titleBrush, labelRect);
 
-            int guideY = barTop + (barHeight / 2);
-            e.Graphics.DrawLine(guidePen, barLeft, guideY, barRight, guideY);
+            e.Graphics.FillRectangle(trackBrush, barLeft, barTop, availableBarWidth, barHeight);
+            if (barWidth > 0)
+            {
+                using SolidBrush barBrush = new(item.Color);
+                e.Graphics.FillRectangle(barBrush, barLeft, barTop, barWidth, barHeight);
+            }
 
-            using SolidBrush barBrush = new(item.Color);
-            e.Graphics.FillRectangle(barBrush, barLeft, barTop, barWidth, barHeight);
-
+            decimal percentage = participation * 100m;
+            string value = $"{item.Served:N0} / {this.eligibleEmployeeCount:N0} ({percentage:0.#}%)";
             RectangleF valueRect = new(barRight + 6, rowTop, valueWidth, rowHeight);
-            e.Graphics.DrawString(item.Value.ToString("N0"), valueFont, titleBrush, valueRect);
+            e.Graphics.DrawString(value, valueFont, titleBrush, valueRect);
         }
     }
 
-    private sealed record BarItem(string Label, int Value, Color Color);
+    private sealed record BarItem(string Label, int Served, Color Color);
 }
