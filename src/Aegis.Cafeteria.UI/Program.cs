@@ -23,6 +23,7 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
+        UiDisplayFormattingPolicy.ConfigureApplicationCulture();
         System.Windows.Forms.Application.EnableVisualStyles();
         System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
 
@@ -199,7 +200,18 @@ internal static class Program
             host.Services.GetRequiredService<IEmployeeParticipationQuery>(),
             host.Services.GetRequiredService<ICafeteriaReportService>()
         );
-        System.Windows.Forms.Application.Run(mainForm);
+
+        EventHandler applyFormatting = (_, _) => UiDisplayFormattingPolicy.ApplyToOpenForms();
+        System.Windows.Forms.Application.Idle += applyFormatting;
+        try
+        {
+            UiDisplayFormattingPolicy.ApplyToOpenForms();
+            System.Windows.Forms.Application.Run(mainForm);
+        }
+        finally
+        {
+            System.Windows.Forms.Application.Idle -= applyFormatting;
+        }
     }
 
     private static async Task TryRefreshStartupReferenceDataAsync
