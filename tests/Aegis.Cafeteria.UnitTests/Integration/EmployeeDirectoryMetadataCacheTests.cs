@@ -20,7 +20,7 @@ public sealed class EmployeeDirectoryMetadataCacheTests
     public void Get_NormalizesLoginName(string loginName)
     {
         EmployeeDirectoryMetadataCache cache = new();
-        ActiveDirectoryEmployeeRecord employee = new("fwright", "Fitzroy Wright", "IT", "Manager", "fwright@fftpj.local", "1234");
+        ActiveDirectoryEmployeeRecord employee = new("fwright", "fwright@fftpj.local", "IT", "1234", "Manager");
         cache.Replace(new Dictionary<string, ActiveDirectoryEmployeeRecord>(StringComparer.OrdinalIgnoreCase)
         {
             ["fwright"] = employee
@@ -37,10 +37,10 @@ public sealed class EmployeeDirectoryMetadataCacheTests
         EmployeeDirectoryMetadataCache cache = new();
         cache.Replace(new Dictionary<string, ActiveDirectoryEmployeeRecord>(StringComparer.OrdinalIgnoreCase)
         {
-            ["olduser"] = new("olduser", "Old User", "Old", "", "old@example.com", "")
+            ["olduser"] = new("olduser", "old@example.com", "Old", "", "")
         });
 
-        ActiveDirectoryEmployeeRecord current = new("newuser", "New User", "New", "", "new@example.com", "");
+        ActiveDirectoryEmployeeRecord current = new("newuser", "new@example.com", "New", "", "");
         cache.Replace(new Dictionary<string, ActiveDirectoryEmployeeRecord>(StringComparer.OrdinalIgnoreCase)
         {
             ["newuser"] = current
@@ -56,7 +56,7 @@ public sealed class EmployeeDirectoryMetadataCacheTests
         EmployeeDirectoryMetadataCache cache = new();
         Dictionary<string, ActiveDirectoryEmployeeRecord> source = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["fwright"] = new("fwright", "Fitzroy Wright", "IT", "", "fwright@fftpj.local", "1234")
+            ["fwright"] = new("fwright", "fwright@fftpj.local", "IT", "1234", "")
         };
         cache.Replace(source);
 
