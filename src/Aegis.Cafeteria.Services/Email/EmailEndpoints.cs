@@ -38,11 +38,12 @@ public static class EmailEndpoints
                   int customerId
                 , IDbContextFactory<ServiceDbContext> factory
                 , IWorkforceReferenceSource workforceSource
-                , OperatorSecurityOptions securityOptions
+                , IConfiguration configuration
                 , CancellationToken cancellationToken) =>
             {
                 NotificationPreferenceStore store = new(factory);
                 CustomerNotificationPreference preference = await store.GetCustomerAsync(customerId, cancellationToken);
+                OperatorSecurityOptions securityOptions = configuration.GetSection("Security").Get<OperatorSecurityOptions>() ?? new();
 
                 // A previously confirmed Cafeteria address always wins. AD is only a first-time suggestion.
                 if (!string.IsNullOrWhiteSpace(preference.EmailAddress) || preference.PreferenceAsked || !securityOptions.Enabled)
