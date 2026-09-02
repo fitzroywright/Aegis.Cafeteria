@@ -113,7 +113,7 @@ public sealed class EfCustomerAccountQuery(
         IReadOnlyList<CustomerMonthlyTransactionView> transactions = BuildTransactions(orderRows, events, year, month);
 
         return new CustomerAccountView(
-            new CustomerIdentityView(customer.Id, customer.Name, customer.Photo, customer.IsEligibleForCredit),
+            new CustomerIdentityView(customer.Id, customer.Name, customer.Photo, customer.IsEligibleForCredit, false, customerRow.EmailAddress),
             new AccountPeriodView(year, month, allocation.EligibleWorkingDays, allocation.EmployeeFundedAllocation, allocation.SubsidyAllocation, periodRow?.IsClosed ?? false),
             financial,
             transactions,
