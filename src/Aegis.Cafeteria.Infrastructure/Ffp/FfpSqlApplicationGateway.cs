@@ -328,9 +328,15 @@ SELECT @DeletedLedgerEntries, @@ROWCOUNT;";
     {
         EnsureEnabled();
         EnsureWritesEnabled();
+
+        // Once Services accepts a financial publication, a POS/client disconnect must not cancel
+        // the FFP transaction halfway through. Use a bounded server-side timeout instead.
+        using CancellationTokenSource publicationTimeout = new(TimeSpan.FromSeconds(30));
+        CancellationToken durableToken = publicationTimeout.Token;
+
         await using SqlConnection connection = new(options.ConnectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using SqlTransaction transaction = (SqlTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        await connection.OpenAsync(durableToken);
+        await using SqlTransaction transaction = (SqlTransaction)await connection.BeginTransactionAsync(durableToken);
         try
         {
             await using SqlCommand command = new(@"
@@ -360,8 +366,8 @@ END", connection, transaction);
             command.Parameters.AddWithValue("@ScanValue", entry.ScanValue);
             command.Parameters.AddWithValue("@CreditLimit", entry.CreditLimit);
             command.Parameters.AddWithValue("@AvailableBalance", entry.AvailableBalance);
-            await command.ExecuteNonQueryAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
+            await command.ExecuteNonQueryAsync(durableToken);
+            await transaction.CommitAsync(durableToken);
             logger.LogInformation
             (
                   "Published FFP ledger entry {OperationId} for employee {EmployeeId}: {Kind} {ScanValue}; balance {AvailableBalance}"
@@ -374,7 +380,19 @@ END", connection, transaction);
         }
         catch
         {
-            await transaction.RollbackAsync(cancellationToken);
+            try
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+            }
+            catch (Exception rollbackException)
+            {
+                logger.LogError
+                (
+                      rollbackException
+                    , "Rollback failed for FFP ledger entry {OperationId}"
+                    , entry.OperationId
+                );
+            }
             throw;
         }
     }
