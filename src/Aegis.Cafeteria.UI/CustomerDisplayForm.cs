@@ -14,6 +14,9 @@ public sealed class CustomerDisplayForm : Form
     private static readonly Color Green = Color.FromArgb(23, 119, 76);
     private static readonly Color Red = Color.FromArgb(176, 52, 52);
     private static readonly Color Muted = Color.FromArgb(104, 117, 132);
+    private static readonly Color Purple = Color.FromArgb(120, 86, 180);
+    private static readonly Color Orange = Color.FromArgb(202, 111, 26);
+    private static readonly Color Teal = Color.FromArgb(31, 126, 140);
 
     private readonly PictureBox photo = new()
     {
@@ -32,6 +35,15 @@ public sealed class CustomerDisplayForm : Form
         MaximumSize = new Size(900, 0)
     };
 
+    private readonly Label creditLimitSummary = new()
+    {
+        AutoSize = true,
+        Font = new Font("Segoe UI", 14, FontStyle.Bold),
+        ForeColor = Blue,
+        Margin = new Padding(0, 3, 0, 0),
+        Visible = false
+    };
+
     private readonly Label eligibility = new()
     {
         AutoSize = true,
@@ -48,12 +60,12 @@ public sealed class CustomerDisplayForm : Form
         Margin = new Padding(0, 14, 0, 0)
     };
 
-    private readonly Label creditLimit = MoneyValue();
-    private readonly Label available = MoneyValue();
-    private readonly Label subsidyRemaining = MoneyValue();
-    private readonly Label nonSubsidyRemaining = MoneyValue();
-    private readonly Label carriedDebt = MoneyValue();
-    private readonly Label employeeAmountDue = MoneyValue();
+    private readonly Label creditLimit = MoneyValue(Blue);
+    private readonly Label available = MoneyValue(Green);
+    private readonly Label subsidyRemaining = MoneyValue(Purple);
+    private readonly Label nonSubsidyRemaining = MoneyValue(Orange);
+    private readonly Label carriedDebt = MoneyValue(Red);
+    private readonly Label employeeAmountDue = MoneyValue(Teal);
 
     private readonly Label historyTitle = new()
     {
@@ -125,6 +137,8 @@ public sealed class CustomerDisplayForm : Form
         if (account.Customer.IsEligibleForCredit && !account.Customer.IsCashCustomer)
         {
             this.creditLimit.Text = Money(account.FinancialStatus.CreditLimit);
+            this.creditLimitSummary.Text = $"Credit Limit: {Money(account.FinancialStatus.CreditLimit)}";
+            this.creditLimitSummary.Visible = true;
             this.available.Text = Money(account.FinancialStatus.TotalAvailableToSpend);
             this.subsidyRemaining.Text = Money(account.FinancialStatus.SubsidyAmountRemaining);
             this.nonSubsidyRemaining.Text = Money(account.FinancialStatus.NonSubsidyAmountRemaining);
@@ -134,6 +148,8 @@ public sealed class CustomerDisplayForm : Form
         else
         {
             this.creditLimit.Text = "—";
+            this.creditLimitSummary.Text = string.Empty;
+            this.creditLimitSummary.Visible = false;
             this.available.Text = "—";
             this.subsidyRemaining.Text = "—";
             this.nonSubsidyRemaining.Text = "—";
@@ -166,7 +182,7 @@ public sealed class CustomerDisplayForm : Form
 
     private void BuildLayout()
     {
-        var root = new TableLayoutPanel
+        TableLayoutPanel root = new()
         {
             Dock = DockStyle.Fill,
             RowCount = 3,
@@ -178,7 +194,7 @@ public sealed class CustomerDisplayForm : Form
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        var brand = new Label
+        Label brand = new()
         {
             AutoSize = true,
             Text = "CAFETERIA",
@@ -188,7 +204,7 @@ public sealed class CustomerDisplayForm : Form
         };
         root.Controls.Add(brand, 0, 0);
 
-        var identityCard = new Panel
+        Panel identityCard = new()
         {
             Dock = DockStyle.Top,
             AutoSize = true,
@@ -196,12 +212,12 @@ public sealed class CustomerDisplayForm : Form
             Padding = new Padding(30),
             Margin = new Padding(0, 0, 0, 28)
         };
-        var identity = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, RowCount = 1 };
+        TableLayoutPanel identity = new() { Dock = DockStyle.Top, AutoSize = true, ColumnCount = 2, RowCount = 1 };
         identity.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         identity.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         identity.Controls.Add(this.photo, 0, 0);
 
-        var details = new FlowLayoutPanel
+        FlowLayoutPanel details = new()
         {
             Dock = DockStyle.Fill,
             AutoSize = true,
@@ -209,6 +225,7 @@ public sealed class CustomerDisplayForm : Form
             WrapContents = false
         };
         details.Controls.Add(this.name);
+        details.Controls.Add(this.creditLimitSummary);
         details.Controls.Add(this.eligibility);
         details.Controls.Add(this.period);
         details.Controls.Add(BuildFinancialGrid());
@@ -216,7 +233,7 @@ public sealed class CustomerDisplayForm : Form
         identityCard.Controls.Add(identity);
         root.Controls.Add(identityCard, 0, 1);
 
-        var historyCard = new Panel
+        Panel historyCard = new()
         {
             Dock = DockStyle.Fill,
             BackColor = Color.White,
@@ -234,14 +251,18 @@ public sealed class CustomerDisplayForm : Form
 
     private Control BuildFinancialGrid()
     {
-        var grid = new TableLayoutPanel
+        TableLayoutPanel grid = new()
         {
             AutoSize = true,
             ColumnCount = 6,
             RowCount = 2,
             Margin = new Padding(0, 26, 0, 0)
         };
-        for (var i = 0; i < 6; i++) grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        for (int index = 0; index < 6; index++)
+        {
+            grid.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        }
+
         AddFinancial(grid, 0, "CREDIT LIMIT", this.creditLimit);
         AddFinancial(grid, 1, "AVAILABLE TO SPEND", this.available);
         AddFinancial(grid, 2, "SUBSIDY REMAINING", this.subsidyRemaining);
@@ -253,7 +274,7 @@ public sealed class CustomerDisplayForm : Form
 
     private static void AddFinancial(TableLayoutPanel grid, int column, string caption, Label value)
     {
-        var label = new Label
+        Label label = new()
         {
             AutoSize = true,
             Text = caption,
@@ -269,10 +290,14 @@ public sealed class CustomerDisplayForm : Form
     {
         this.photo.Image?.Dispose();
         this.photo.Image = null;
-        if (bytes is null || bytes.Length == 0) return;
+        if (bytes is null || bytes.Length == 0)
+        {
+            return;
+        }
+
         try
         {
-            using var stream = new MemoryStream(bytes);
+            using MemoryStream stream = new(bytes);
             this.photo.Image = Image.FromStream(stream).Clone() as Image;
         }
         catch
@@ -281,17 +306,17 @@ public sealed class CustomerDisplayForm : Form
         }
     }
 
-    private static Label MoneyValue() => new()
+    private static Label MoneyValue(Color color) => new()
     {
         AutoSize = true,
         Font = new Font("Segoe UI", 22, FontStyle.Bold),
-        ForeColor = Navy,
+        ForeColor = color,
         Margin = new Padding(0, 0, 38, 0)
     };
 
     private static DataGridView CreateGrid()
     {
-        var grid = new DataGridView
+        DataGridView grid = new()
         {
             Dock = DockStyle.Fill,
             ReadOnly = true,
