@@ -1,17 +1,15 @@
 namespace Aegis.Cafeteria.UI;
 
-using Aegis.Cafeteria.Reporting;
-using Aegis.Cafeteria.Reporting.Models;
+using Aegis.Cafeteria.Application.Reporting;
 
 internal static class HomeDashboardEnhancementPolicy
 {
-    private const string EmployeeChartTitle = "EMPLOYEES SERVED BY DAY — THIS WEEK";
-    private const string CashCustomerName = "Cash Customer";
+    private const string EmployeeChartTitle = "EMPLOYEES SERVED VS ELIGIBLE — THIS WEEK";
 
-    public static void Apply(Form mainForm, ICafeteriaReportService reportService)
+    public static void Apply(Form mainForm, IEmployeeParticipationQuery participationQuery)
     {
         ArgumentNullException.ThrowIfNull(mainForm);
-        ArgumentNullException.ThrowIfNull(reportService);
+        ArgumentNullException.ThrowIfNull(participationQuery);
 
         WeekdayBarChartControl? salesChart = Descendants(mainForm)
             .OfType<WeekdayBarChartControl>()
@@ -30,7 +28,7 @@ internal static class HomeDashboardEnhancementPolicy
             Dock = DockStyle.Fill,
             Margin = new Padding(8, 0, 0, 0)
         };
-        employeeChart.SetData(EmployeeChartTitle, EmptyWeek());
+        employeeChart.SetData(EmployeeChartTitle, 0, EmptyWeek());
 
         ConfigureMetrics(mainForm);
         ConfigureCharts(new DashboardCharts(charts, salesChart, itemsChart, employeeChart));
@@ -52,11 +50,11 @@ internal static class HomeDashboardEnhancementPolicy
             refreshInProgress = true;
             try
             {
-                await RefreshEmployeeChartAsync(reportService, employeeChart);
+                await RefreshEmployeeChartAsync(participationQuery, employeeChart);
             }
             catch
             {
-                employeeChart.SetData(EmployeeChartTitle, EmptyWeek());
+                employeeChart.SetData(EmployeeChartTitle, 0, EmptyWeek());
             }
             finally
             {
@@ -77,47 +75,20 @@ internal static class HomeDashboardEnhancementPolicy
 
     private static async Task RefreshEmployeeChartAsync
     (
-        ICafeteriaReportService reportService,
+        IEmployeeParticipationQuery participationQuery,
         EmployeeWeekBarChartControl employeeChart
     )
     {
         DateOnly today = DateOnly.FromDateTime(DateTime.Today);
         int daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
         DateOnly monday = today.AddDays(-daysSinceMonday);
-        DateOnly friday = monday.AddDays(4);
+        EmployeeParticipationWeekView week = await participationQuery.GetWeekAsync(monday);
 
-        CafeteriaReport report = await reportService.GenerateAsync
-        (
-            CafeteriaReportKind.PurchaseByPerson,
-            new ReportFilter(monday, friday, Grouping: PurchaseGrouping.Day)
-        );
+        IReadOnlyList<(string Label, int Served)> values = week.Days
+            .Select(day => (day.Date.ToString("dddd"), day.EmployeesServed))
+            .ToArray();
 
-        IReadOnlyList<IReadOnlyDictionary<string, object?>> rows = report.Tables
-            .FirstOrDefault(table => table.Title.StartsWith("Totals by person", StringComparison.OrdinalIgnoreCase))?
-            .Rows ?? [];
-
-        List<(string Label, int Value)> values = [];
-        for (int dayOffset = 0; dayOffset < 5; dayOffset++)
-        {
-            DateOnly day = monday.AddDays(dayOffset);
-            string periodLabel = day.ToString("dd MMM yyyy");
-            int employeeCount = rows.Count(row =>
-                !string.Equals
-                (
-                    Convert.ToString(row.GetValueOrDefault("customer")),
-                    CashCustomerName,
-                    StringComparison.OrdinalIgnoreCase
-                )
-                && string.Equals
-                (
-                    Convert.ToString(row.GetValueOrDefault("period")),
-                    periodLabel,
-                    StringComparison.OrdinalIgnoreCase
-                ));
-            values.Add((day.ToString("dddd"), employeeCount));
-        }
-
-        employeeChart.SetData(EmployeeChartTitle, values);
+        employeeChart.SetData(EmployeeChartTitle, week.EligibleEmployeeCount, values);
     }
 
     private static void ConfigureMetrics(Form mainForm)
@@ -180,7 +151,7 @@ internal static class HomeDashboardEnhancementPolicy
         dashboard.Items.Dock = DockStyle.Fill;
         dashboard.Items.MinimumSize = new Size(0, 160);
         dashboard.Items.Margin = new Padding(0, 5, 8, 0);
-        dashboard.Employees.MinimumSize = new Size(210, 330);
+        dashboard.Employees.MinimumSize = new Size(260, 330);
 
         charts.Controls.Add(dashboard.Sales, 0, 0);
         charts.Controls.Add(dashboard.Items, 0, 1);
@@ -198,11 +169,16 @@ internal static class HomeDashboardEnhancementPolicy
                 label.Text,
                 "Today's KPIs with this week's Monday–Friday sales trend.",
                 StringComparison.Ordinal
+            ) || string.Equals
+            (
+                label.Text,
+                "Today's KPIs with this week's Monday–Friday sales and employee activity.",
+                StringComparison.Ordinal
             ));
 
         if (subtitle is not null)
         {
-            subtitle.Text = "Today's KPIs with this week's Monday–Friday sales and employee activity.";
+            subtitle.Text = "Today's KPIs with this week's sales and eligible-employee participation.";
         }
     }
 
@@ -225,7 +201,7 @@ internal static class HomeDashboardEnhancementPolicy
             .Any(label => string.Equals(label.Text, text, StringComparison.Ordinal));
     }
 
-    private static IReadOnlyList<(string Label, int Value)> EmptyWeek()
+    private static IReadOnlyList<(string Label, int Served)> EmptyWeek()
         =>
         [
             ("Monday", 0),
