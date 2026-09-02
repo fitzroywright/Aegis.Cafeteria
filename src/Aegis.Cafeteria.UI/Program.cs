@@ -187,7 +187,7 @@ internal static class Program
 
         try
         {
-            ReferenceDataRefreshService refresh = host.Services.GetRequiredServiceService<ReferenceDataRefreshService>();
+            ReferenceDataRefreshService refresh = host.Services.GetRequiredService<ReferenceDataRefreshService>();
 
             splash.Update("Refreshing employees...", "Checking for current employee data. Startup will continue offline if Services is slow.");
             int count = await refresh.RefreshCustomersAsync(startupRefresh.Token);
