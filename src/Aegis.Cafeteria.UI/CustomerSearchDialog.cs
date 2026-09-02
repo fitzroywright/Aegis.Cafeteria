@@ -12,7 +12,6 @@ internal sealed class CustomerSearchDialog : Form
     private readonly PictureBox photo = new() { Dock = DockStyle.Top, Height = 190, SizeMode = PictureBoxSizeMode.Zoom };
     private readonly Label name = new() { AutoSize = true, Font = new Font("Segoe UI", 18, FontStyle.Bold), MaximumSize = new Size(330, 0) };
     private readonly Label department = DetailLabel();
-    private readonly Label manager = DetailLabel();
     private readonly Label emailAddress = DetailLabel();
     private readonly Label extension = DetailLabel();
     private readonly Label count = new() { AutoSize = true, ForeColor = Color.DimGray };
@@ -144,7 +143,6 @@ internal sealed class CustomerSearchDialog : Form
         stack.Controls.Add(this.photo);
         stack.Controls.Add(this.name);
         stack.Controls.Add(this.department);
-        stack.Controls.Add(this.manager);
         stack.Controls.Add(this.emailAddress);
         stack.Controls.Add(this.extension);
         card.Controls.Add(stack);
@@ -154,11 +152,50 @@ internal sealed class CustomerSearchDialog : Form
     private void ConfigureGrid()
     {
         this.grid.AutoGenerateColumns = false;
-        this.grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(CustomerSearchCandidate.Name), HeaderText = "Employee", FillWeight = 26 });
-        this.grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(CustomerSearchCandidate.Department), HeaderText = "Department", FillWeight = 20 });
-        this.grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(CustomerSearchCandidate.Manager), HeaderText = "Manager", FillWeight = 20 });
-        this.grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(CustomerSearchCandidate.EmailAddress), HeaderText = "Email Address", FillWeight = 26 });
-        this.grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = nameof(CustomerSearchCandidate.Extension), HeaderText = "Extension", FillWeight = 8 });
+
+        DataGridViewTextBoxColumn employeeColumn = new()
+        {
+            DataPropertyName = nameof(CustomerSearchCandidate.Name),
+            HeaderText = "Employee",
+            FillWeight = 34,
+            MinimumWidth = 220,
+            DefaultCellStyle = new DataGridViewCellStyle
+            {
+                Font = new Font("Segoe UI", 10.5f, FontStyle.Bold),
+                Padding = new Padding(8, 2, 4, 2)
+            }
+        };
+
+        DataGridViewTextBoxColumn departmentColumn = new()
+        {
+            DataPropertyName = nameof(CustomerSearchCandidate.Department),
+            HeaderText = "Department",
+            FillWeight = 24,
+            DefaultCellStyle = SupportingCellStyle()
+        };
+
+        DataGridViewTextBoxColumn emailColumn = new()
+        {
+            DataPropertyName = nameof(CustomerSearchCandidate.EmailAddress),
+            HeaderText = "Email Address",
+            FillWeight = 32,
+            MinimumWidth = 220,
+            DefaultCellStyle = SupportingCellStyle()
+        };
+
+        DataGridViewTextBoxColumn extensionColumn = new()
+        {
+            DataPropertyName = nameof(CustomerSearchCandidate.Extension),
+            HeaderText = "Extension",
+            FillWeight = 10,
+            MinimumWidth = 95,
+            DefaultCellStyle = SupportingCellStyle(DataGridViewContentAlignment.MiddleCenter)
+        };
+
+        this.grid.Columns.Add(employeeColumn);
+        this.grid.Columns.Add(departmentColumn);
+        this.grid.Columns.Add(emailColumn);
+        this.grid.Columns.Add(extensionColumn);
     }
 
     private async Task SearchAsync()
@@ -179,7 +216,6 @@ internal sealed class CustomerSearchDialog : Form
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // A newer keystroke superseded this search.
         }
     }
 
@@ -200,7 +236,6 @@ internal sealed class CustomerSearchDialog : Form
         {
             this.name.Text = "Select an employee";
             this.department.Text = string.Empty;
-            this.manager.Text = string.Empty;
             this.emailAddress.Text = string.Empty;
             this.extension.Text = string.Empty;
             SetPhoto(null);
@@ -209,7 +244,6 @@ internal sealed class CustomerSearchDialog : Form
 
         this.name.Text = customer.Name;
         this.department.Text = $"Department: {DisplayValue(customer.Department)}";
-        this.manager.Text = $"Manager: {DisplayValue(customer.Manager)}";
         this.emailAddress.Text = $"Email: {DisplayValue(customer.EmailAddress)}";
         this.extension.Text = $"Extension: {DisplayValue(customer.Extension)}";
         SetPhoto(customer.Photo);
@@ -228,13 +262,26 @@ internal sealed class CustomerSearchDialog : Form
         }
         catch
         {
-            // Bad legacy photos should not stop employee selection.
         }
     }
 
     private static string DisplayValue(string value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
 
-    private static Label DetailLabel() => new() { AutoSize = true, Font = new Font("Segoe UI", 11), ForeColor = Color.FromArgb(61, 74, 89), Margin = new Padding(0, 8, 0, 0) };
+    private static Label DetailLabel() => new()
+    {
+        AutoSize = true,
+        Font = new Font("Segoe UI", 10),
+        ForeColor = Color.FromArgb(82, 94, 108),
+        Margin = new Padding(0, 8, 0, 0)
+    };
+
+    private static DataGridViewCellStyle SupportingCellStyle(DataGridViewContentAlignment alignment = DataGridViewContentAlignment.MiddleLeft) => new()
+    {
+        Font = new Font("Segoe UI", 9f, FontStyle.Regular),
+        ForeColor = Color.FromArgb(74, 86, 99),
+        Alignment = alignment,
+        Padding = new Padding(8, 2, 4, 2)
+    };
 
     private static DataGridView CreateGrid() => new()
     {
@@ -242,29 +289,40 @@ internal sealed class CustomerSearchDialog : Form
         ReadOnly = true,
         AllowUserToAddRows = false,
         AllowUserToDeleteRows = false,
+        AllowUserToResizeRows = false,
         RowHeadersVisible = false,
         SelectionMode = DataGridViewSelectionMode.FullRowSelect,
         MultiSelect = false,
         AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill,
         BackgroundColor = Color.White,
         BorderStyle = BorderStyle.None,
-        GridColor = Color.FromArgb(229, 233, 238),
-        RowTemplate = { Height = 38 },
+        CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
+        GridColor = Color.FromArgb(232, 236, 240),
+        RowTemplate = { Height = 44 },
         EnableHeadersVisualStyles = false,
-        ColumnHeadersHeight = 42,
+        ColumnHeadersHeight = 44,
+        ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None,
         ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle
         {
-            BackColor = Color.FromArgb(236, 241, 246),
+            BackColor = Color.FromArgb(239, 243, 247),
             ForeColor = Color.FromArgb(47, 61, 76),
-            Font = new Font("Segoe UI", 10, FontStyle.Bold),
-            SelectionBackColor = Color.FromArgb(236, 241, 246),
+            Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+            Padding = new Padding(8, 0, 4, 0),
+            SelectionBackColor = Color.FromArgb(239, 243, 247),
             SelectionForeColor = Color.FromArgb(47, 61, 76)
         },
         DefaultCellStyle = new DataGridViewCellStyle
         {
             BackColor = Color.White,
             ForeColor = Color.FromArgb(42, 53, 65),
-            SelectionBackColor = Color.FromArgb(220, 235, 249),
+            Font = new Font("Segoe UI", 9f),
+            SelectionBackColor = Color.FromArgb(225, 238, 250),
+            SelectionForeColor = Color.FromArgb(28, 48, 71)
+        },
+        AlternatingRowsDefaultCellStyle = new DataGridViewCellStyle
+        {
+            BackColor = Color.FromArgb(249, 251, 253),
+            SelectionBackColor = Color.FromArgb(225, 238, 250),
             SelectionForeColor = Color.FromArgb(28, 48, 71)
         }
     };
