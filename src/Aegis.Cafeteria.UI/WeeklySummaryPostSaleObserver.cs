@@ -4,22 +4,18 @@ using Aegis.Cafeteria.Application.Orders;
 using Aegis.Cafeteria.Application.Reporting;
 using Aegis.Cafeteria.Domain.Orders;
 using Aegis.Cafeteria.Infrastructure.Services;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
 {
     private readonly CafeteriaServicesClient servicesClient;
-    private readonly IHostEnvironment environment;
     private readonly ILogger<WeeklySummaryPostSaleObserver> logger;
 
     public WeeklySummaryPostSaleObserver(
         CafeteriaServicesClient servicesClient,
-        IHostEnvironment environment,
         ILogger<WeeklySummaryPostSaleObserver> logger)
     {
         this.servicesClient = servicesClient;
-        this.environment = environment;
         this.logger = logger;
     }
 
@@ -49,9 +45,9 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
             preference = new CustomerNotificationPreferenceSnapshot(account.Customer.Id, false, false, null);
         }
 
-        // Production asks only once automatically. Development deliberately re-prompts so the
-        // cashier workflow can be tested repeatedly without editing the Services SQLite database.
-        if (preference.PreferenceAsked && !this.environment.IsDevelopment())
+        // A completed preference decision is respected in every environment. Development must not
+        // repeatedly prompt after the employee/cashier has already chosen Yes or No.
+        if (preference.PreferenceAsked)
         {
             return;
         }
