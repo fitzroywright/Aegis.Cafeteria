@@ -172,7 +172,38 @@ await using (var scope = app.Services.CreateAsyncScope())
             , DailyCompanySubsidyRate TEXT NOT NULL
             , UpdatedBy TEXT NOT NULL
             , UpdatedAt TEXT NOT NULL
-        );"
+        );
+        CREATE TABLE IF NOT EXISTS CustomerNotificationPreferences (
+              CustomerId INTEGER NOT NULL CONSTRAINT PK_CustomerNotificationPreferences PRIMARY KEY
+            , PreferenceAsked INTEGER NOT NULL
+            , WeeklySummaryEnabled INTEGER NOT NULL
+            , EmailAddress TEXT NULL
+            , UpdatedAt TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS ManagerReportSettings (
+              Id INTEGER NOT NULL CONSTRAINT PK_ManagerReportSettings PRIMARY KEY
+            , WeeklySummaryEnabled INTEGER NOT NULL
+            , EmailAddress TEXT NULL
+            , WeeklySummaryDay INTEGER NOT NULL
+            , WeeklySummaryHourLocal INTEGER NOT NULL
+            , UpdatedAt TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS OutboundEmails (
+              Id TEXT NOT NULL CONSTRAINT PK_OutboundEmails PRIMARY KEY
+            , DispatchKey TEXT NOT NULL
+            , Recipient TEXT NOT NULL
+            , Subject TEXT NOT NULL
+            , Body TEXT NOT NULL
+            , AttemptCount INTEGER NOT NULL
+            , CreatedAt TEXT NOT NULL
+            , NextAttemptAt TEXT NOT NULL
+            , LastAttemptAt TEXT NULL
+            , SentAt TEXT NULL
+            , MessageId TEXT NULL
+            , LastError TEXT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS IX_OutboundEmails_DispatchKey ON OutboundEmails (DispatchKey);
+        CREATE INDEX IF NOT EXISTS IX_OutboundEmails_SentAt_NextAttemptAt ON OutboundEmails (SentAt, NextAttemptAt);"
     );
 
     CafeteriaFundingPolicyStore fundingPolicyStore = scope.ServiceProvider.GetRequiredService<CafeteriaFundingPolicyStore>();
@@ -225,6 +256,7 @@ app.Use(async (context, next) =>
 });
 
 app.MapGet("/health", () => Results.Ok(new { status="running", application="Aegis.Cafeteria.Services", timeUtc=DateTimeOffset.UtcNow }));
+EmailEndpoints.Map(app);
 
 app.MapGet("/engineering/login", (HttpContext http) =>
 {
@@ -537,8 +569,6 @@ app.MapPut("/api/management/funding-policy", async (FundingPolicyRequest request
         )
     );
 }).RequireAuthorization("CafeteriaManagement");
-
-
 
 app.MapGet("/api/management/payroll-report", async (int year, int month, PayrollDeductionReportSource payroll, CancellationToken ct) =>
 {
