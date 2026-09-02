@@ -45,8 +45,8 @@ public static class EmailEndpoints
                 CustomerNotificationPreference preference = await store.GetCustomerAsync(customerId, cancellationToken);
                 OperatorSecurityOptions securityOptions = configuration.GetSection("Security").Get<OperatorSecurityOptions>() ?? new();
 
-                // A previously confirmed Cafeteria address always wins. AD is only a first-time suggestion.
-                if (!string.IsNullOrWhiteSpace(preference.EmailAddress) || preference.PreferenceAsked || !securityOptions.Enabled)
+                // A previously confirmed Cafeteria address always wins.
+                if (!string.IsNullOrWhiteSpace(preference.EmailAddress) || preference.PreferenceAsked)
                 {
                     return Results.Ok(preference);
                 }
@@ -55,7 +55,22 @@ public static class EmailEndpoints
                 {
                     IReadOnlyList<ExternalCustomerSnapshot> customers = await workforceSource.GetCustomersAsync(cancellationToken);
                     ExternalCustomerSnapshot? customer = customers.FirstOrDefault(item => item.CustomerId == customerId);
-                    if (customer is null || string.IsNullOrWhiteSpace(customer.LoginName))
+                    if (customer is null)
+                    {
+                        return Results.Ok(preference);
+                    }
+
+                    // Prefer the address already present on the employee snapshot. This is the same
+                    // cached employee metadata surfaced by Employee Search and avoids a second AD lookup.
+                    string? cachedEmail = EmailAddressValidator.Normalize(customer.EmailAddress);
+                    if (cachedEmail is not null)
+                    {
+                        return Results.Ok(preference with { EmailAddress = cachedEmail });
+                    }
+
+                    // Only fall back to a fresh directory lookup when the cached employee snapshot
+                    // has no usable email address.
+                    if (!securityOptions.Enabled || string.IsNullOrWhiteSpace(customer.LoginName))
                     {
                         return Results.Ok(preference);
                     }
@@ -81,7 +96,7 @@ public static class EmailEndpoints
                 }
                 catch
                 {
-                    // Directory discovery is advisory. It must never prevent the cashier prompt or a sale.
+                    // Email discovery is advisory. It must never prevent the cashier prompt or a sale.
                     return Results.Ok(preference);
                 }
             }
