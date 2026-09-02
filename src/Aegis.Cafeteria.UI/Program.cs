@@ -146,6 +146,7 @@ internal static class Program
             }
 
             MainForm mainForm = host.Services.GetRequiredService<MainForm>();
+            PosCashierUiPolicy.Apply(mainForm);
             try
             {
                 System.Windows.Forms.Application.Run(mainForm);
