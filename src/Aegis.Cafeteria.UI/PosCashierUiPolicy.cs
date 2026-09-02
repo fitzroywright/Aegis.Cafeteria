@@ -1,12 +1,22 @@
 namespace Aegis.Cafeteria.UI;
 
+using Aegis.Cafeteria.Application.Abstractions;
+using Aegis.Cafeteria.Application.Reporting;
+using Aegis.Cafeteria.Domain.Orders;
+using System.Reflection;
+
 internal static class PosCashierUiPolicy
 {
     private static readonly Color Orange = Color.FromArgb(235, 139, 40);
 
-    public static void Apply(Form mainForm)
+    public static void Apply(
+        Form mainForm,
+        IOrderQuery orderQuery,
+        ICustomerIdentificationService identification)
     {
         ArgumentNullException.ThrowIfNull(mainForm);
+        ArgumentNullException.ThrowIfNull(orderQuery);
+        ArgumentNullException.ThrowIfNull(identification);
 
         foreach (Control control in Descendants(mainForm))
         {
@@ -70,6 +80,7 @@ internal static class PosCashierUiPolicy
 
         SimplifyCustomerFunding(mainForm);
         MoveReadyCustomerInstructions(mainForm);
+        ConfigureRecentTransactionNavigation(mainForm, orderQuery, identification);
     }
 
     private static void SimplifyCustomerFunding(Form mainForm)
@@ -169,6 +180,81 @@ internal static class PosCashierUiPolicy
         HideFinancialRow(mainForm, "Company subsidy remaining");
         HideFinancialRow(mainForm, "Employee-funded remaining");
         HideFinancialRow(mainForm, "Customer Responsibility (before payments)");
+    }
+
+    private static void ConfigureRecentTransactionNavigation(
+        Form mainForm,
+        IOrderQuery orderQuery,
+        ICustomerIdentificationService identification)
+    {
+        Label? recentTitle = Descendants(mainForm)
+            .OfType<Label>()
+            .FirstOrDefault(label => string.Equals
+            (
+                label.Text,
+                "RECENT TRANSACTIONS - TODAY",
+                StringComparison.OrdinalIgnoreCase
+            ));
+        if (recentTitle?.Parent is not TableLayoutPanel recentLayout)
+        {
+            return;
+        }
+
+        DataGridView? recentGrid = recentLayout.Controls
+            .OfType<DataGridView>()
+            .FirstOrDefault();
+        if (recentGrid is null)
+        {
+            return;
+        }
+
+        recentGrid.CellDoubleClick += async (_, eventArgs) =>
+        {
+            if (eventArgs.RowIndex < 0 || eventArgs.RowIndex >= recentGrid.Rows.Count)
+            {
+                return;
+            }
+
+            object? row = recentGrid.Rows[eventArgs.RowIndex].DataBoundItem;
+            PropertyInfo? orderIdProperty = row?.GetType().GetProperty("OrderId");
+            if (orderIdProperty?.GetValue(row) is not Guid orderId || orderId == Guid.Empty)
+            {
+                return;
+            }
+
+            try
+            {
+                Order? order = await orderQuery.GetAsync(orderId);
+                if (order is null || order.CustomerId <= 0)
+                {
+                    return;
+                }
+
+                CustomerAccountView? account = await identification.LoadAsync(order.CustomerId);
+                if (account is null)
+                {
+                    return;
+                }
+
+                MethodInfo? showCustomer = mainForm.GetType().GetMethod
+                (
+                    "ShowCustomer",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                );
+                showCustomer?.Invoke(mainForm, [account]);
+            }
+            catch (Exception exception)
+            {
+                MessageBox.Show
+                (
+                    mainForm,
+                    exception.GetBaseException().Message,
+                    "Open Customer",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
+        };
     }
 
     private static void HideFinancialRow(Form mainForm, string captionText)
