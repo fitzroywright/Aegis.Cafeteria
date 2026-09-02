@@ -7,6 +7,7 @@ using System.Reflection;
 
 internal static class PosCashierUiPolicy
 {
+    private static readonly Color Blue = Color.FromArgb(31, 111, 190);
     private static readonly Color Orange = Color.FromArgb(235, 139, 40);
     private static readonly Color Green = Color.FromArgb(23, 119, 76);
     private static readonly Color Red = Color.FromArgb(176, 52, 52);
@@ -93,10 +94,28 @@ internal static class PosCashierUiPolicy
             }
         }
 
+        StyleProductHeading(mainForm);
         StyleFinancialSummary(mainForm);
         SimplifyCustomerFunding(mainForm);
         MoveReadyCustomerInstructions(mainForm);
         ConfigureRecentTransactionNavigation(mainForm, orderQuery, identification);
+    }
+
+    private static void StyleProductHeading(Form mainForm)
+    {
+        Label? productHeading = Descendants(mainForm)
+            .OfType<Label>()
+            .FirstOrDefault(label => string.Equals(label.Text, "PRODUCTS", StringComparison.OrdinalIgnoreCase));
+        if (productHeading is null)
+        {
+            return;
+        }
+
+        productHeading.Text = "PRODUCTS";
+        productHeading.Font = new Font("Segoe UI", 14F, FontStyle.Bold);
+        productHeading.ForeColor = Blue;
+        productHeading.Height = 38;
+        productHeading.Padding = new Padding(0, 4, 0, 4);
     }
 
     private static void StyleFinancialSummary(Form mainForm)
