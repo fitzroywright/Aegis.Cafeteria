@@ -158,7 +158,12 @@ internal static class Program
             }
 
             MainForm mainForm = host.Services.GetRequiredService<MainForm>();
-            PosCashierUiPolicy.Apply(mainForm);
+            PosCashierUiPolicy.Apply
+            (
+                  mainForm
+                , host.Services.GetRequiredService<IOrderQuery>()
+                , host.Services.GetRequiredService<ICustomerIdentificationService>()
+            );
             FfpDataToolsUiPolicy.Apply(uiOptions);
             HomeDashboardEnhancementPolicy.Apply
             (
