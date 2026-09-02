@@ -33,32 +33,35 @@ public sealed class ScheduledEmailWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!this.options.Enabled) return;
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 await DeliverQueuedAsync(stoppingToken);
-                DateTime now = DateTime.Now;
-                DateOnly today = DateOnly.FromDateTime(now.Date);
-                await SendDailyOnceAsync(today.AddDays(-1), stoppingToken);
-                if (now.Hour >= this.options.DailySummaryHourLocal) await SendDailyOnceAsync(today, stoppingToken);
-                int daysSinceMonday = ((int)now.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
-                int employeeOffset = ((int)this.options.WeeklyEmployeeDay - (int)DayOfWeek.Monday + 7) % 7;
-                if (daysSinceMonday > employeeOffset || (daysSinceMonday == employeeOffset && now.Hour >= this.options.WeeklyEmployeeHourLocal)) await QueuePreviousWeekAsync(today, stoppingToken);
-                ManagerReportSettings manager = await this.preferences.GetManagerAsync(stoppingToken);
-                int managerOffset = ((int)manager.WeeklySummaryDay - (int)DayOfWeek.Monday + 7) % 7;
-                if (manager.WeeklySummaryEnabled && (daysSinceMonday > managerOffset || (daysSinceMonday == managerOffset && now.Hour >= manager.WeeklySummaryHourLocal))) await QueueManagerPreviousWeekAsync(today, manager, stoppingToken);
-                if (this.options.PayrollNotificationEnabled && now.Hour >= this.options.PayrollReportHourLocal)
+
+                if (this.options.Enabled)
                 {
-                    DateOnly previousMonth = today.AddDays(1 - today.Day).AddMonths(-1);
-                    await SendPayrollReportAsync(previousMonth.Year, previousMonth.Month, false, stoppingToken);
+                    DateTime now = DateTime.Now;
+                    DateOnly today = DateOnly.FromDateTime(now.Date);
+                    await SendDailyOnceAsync(today.AddDays(-1), stoppingToken);
+                    if (now.Hour >= this.options.DailySummaryHourLocal) await SendDailyOnceAsync(today, stoppingToken);
+                    int daysSinceMonday = ((int)now.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+                    int employeeOffset = ((int)this.options.WeeklyEmployeeDay - (int)DayOfWeek.Monday + 7) % 7;
+                    if (daysSinceMonday > employeeOffset || (daysSinceMonday == employeeOffset && now.Hour >= this.options.WeeklyEmployeeHourLocal)) await QueuePreviousWeekAsync(today, stoppingToken);
+                    ManagerReportSettings manager = await this.preferences.GetManagerAsync(stoppingToken);
+                    int managerOffset = ((int)manager.WeeklySummaryDay - (int)DayOfWeek.Monday + 7) % 7;
+                    if (manager.WeeklySummaryEnabled && (daysSinceMonday > managerOffset || (daysSinceMonday == managerOffset && now.Hour >= manager.WeeklySummaryHourLocal))) await QueueManagerPreviousWeekAsync(today, manager, stoppingToken);
+                    if (this.options.PayrollNotificationEnabled && now.Hour >= this.options.PayrollReportHourLocal)
+                    {
+                        DateOnly previousMonth = today.AddDays(1 - today.Day).AddMonths(-1);
+                        await SendPayrollReportAsync(previousMonth.Year, previousMonth.Month, false, stoppingToken);
+                    }
+                    await DeliverQueuedAsync(stoppingToken);
                 }
-                await DeliverQueuedAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
-            catch (Exception exception) { this.logger.LogError(exception, "Scheduled Cafeteria email job failed; it will retry"); }
-            await Task.Delay(TimeSpan.FromMinutes(15), stoppingToken);
+            catch (Exception exception) { this.logger.LogError(exception, "Cafeteria email worker failed; queued mail remains durable and will retry"); }
+            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
         }
     }
 
