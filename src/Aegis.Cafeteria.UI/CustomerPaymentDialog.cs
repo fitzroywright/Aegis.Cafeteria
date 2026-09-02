@@ -4,11 +4,12 @@ public sealed class CustomerPaymentDialog : Form
 {
     private static readonly Color Navy = Color.FromArgb(24, 45, 68);
     private static readonly Color Green = Color.FromArgb(23, 119, 76);
+    private static readonly Color Red = Color.FromArgb(176, 52, 52);
     private static readonly Color Muted = Color.FromArgb(104, 117, 132);
     private readonly NumericUpDown amount = new() { DecimalPlaces = 2, ThousandsSeparator = true, Minimum = 0.01m, Maximum = 1_000_000m, Dock = DockStyle.Fill, Font = new Font("Segoe UI", 12, FontStyle.Bold) };
     private readonly ComboBox method = new() { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
     private readonly TextBox reference = new() { Dock = DockStyle.Fill, PlaceholderText = "Optional receipt / POS / bank reference" };
-    private readonly Label remaining = new() { AutoSize = true, Font = new Font("Segoe UI", 12, FontStyle.Bold), ForeColor = Navy };
+    private readonly Label remaining = new() { AutoSize = true, Font = new Font("Segoe UI", 12, FontStyle.Bold), ForeColor = Red };
     private readonly decimal amountDue;
 
     public CustomerPaymentDialog(string customerName, decimal amountDue)
@@ -37,16 +38,16 @@ public sealed class CustomerPaymentDialog : Form
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         Label title = new() { Text = "EMPLOYEE PAYMENT", AutoSize = true, Font = new Font("Segoe UI", 16, FontStyle.Bold), ForeColor = Navy, Margin = new Padding(0, 0, 0, 2) };
-        Label subtitle = new() { Text = "Record money received from the employee. This reduces the Outstanding Employee Balance for the current period.", AutoSize = true, MaximumSize = new Size(520, 0), ForeColor = Muted, Margin = new Padding(0, 0, 0, 14) };
+        Label subtitle = new() { Text = "Record money received from the employee. This reduces the Outstanding Balance for the current period.", AutoSize = true, MaximumSize = new Size(520, 0), ForeColor = Muted, Margin = new Padding(0, 0, 0, 14) };
         root.Controls.Add(title, 0, 0); root.SetColumnSpan(title, 2);
         root.Controls.Add(subtitle, 0, 1); root.SetColumnSpan(subtitle, 2);
 
         AddRow(root, 2, "Employee", new Label { Text = customerName, AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold) });
-        AddRow(root, 3, "Outstanding Employee Balance before payment", new Label { Text = amountDue.ToString("C2"), AutoSize = true, Font = new Font("Segoe UI", 14, FontStyle.Bold), ForeColor = Navy });
+        AddRow(root, 3, "Outstanding Balance before payment", new Label { Text = amountDue.ToString("C2"), AutoSize = true, Font = new Font("Segoe UI", 14, FontStyle.Bold), ForeColor = Red });
         AddRow(root, 4, "Payment amount", this.amount);
         AddRow(root, 5, "Payment method", this.method);
         AddRow(root, 6, "Reference", this.reference);
-        AddRow(root, 7, "Outstanding Employee Balance after payment", this.remaining);
+        AddRow(root, 7, "Outstanding Balance after payment", this.remaining);
 
         FlowLayoutPanel buttons = new() { FlowDirection = FlowDirection.RightToLeft, Dock = DockStyle.Bottom, AutoSize = true, Padding = new Padding(0, 16, 0, 0) };
         Button apply = new() { Text = "Apply Payment", AutoSize = true, Height = 40, DialogResult = DialogResult.OK, BackColor = Green, ForeColor = Color.White, FlatStyle = FlatStyle.Flat, Font = new Font("Segoe UI", 10, FontStyle.Bold) };
