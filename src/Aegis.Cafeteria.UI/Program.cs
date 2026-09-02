@@ -21,7 +21,7 @@ namespace Aegis.Cafeteria.UI;
 internal static class Program
 {
     [STAThread]
-    private static async Task Main()
+    private static void Main()
     {
         System.Windows.Forms.Application.EnableVisualStyles();
         System.Windows.Forms.Application.SetCompatibleTextRenderingDefault(false);
@@ -53,12 +53,12 @@ internal static class Program
         CafeteriaRuntimeOptions runtime;
         try
         {
-            runtime = await CafeteriaRuntimeOptionsResolver.ResolveAsync
+            runtime = CafeteriaRuntimeOptionsResolver.ResolveAsync
             (
                   builder.Configuration
                 , secretProvider
                 , allowDirectFfpDatabase: false
-            );
+            ).GetAwaiter().GetResult();
         }
         catch (Exception ex)
         {
@@ -122,11 +122,16 @@ internal static class Program
             using IHost host = builder.Build();
 
             splash.Update("Opening local database...", "Checking the local cache and offline transaction store.");
-            await host.Services.GetRequiredService<PersistenceInitializer>().InitializeLocalAsync();
+            host.Services.GetRequiredService<PersistenceInitializer>()
+                .InitializeLocalAsync()
+                .GetAwaiter()
+                .GetResult();
 
             if (runtime.FfpIntegration.Enabled && runtime.Services.Enabled)
             {
-                await TryRefreshStartupReferenceDataAsync(host, runtime, splash);
+                TryRefreshStartupReferenceDataAsync(host, runtime, splash)
+                    .GetAwaiter()
+                    .GetResult();
             }
             else if (runtime.FfpIntegration.Enabled)
             {
@@ -138,46 +143,18 @@ internal static class Program
             }
 
             splash.Update("Starting terminal services...", "Starting local health monitoring and available background integrations.");
-            await host.StartAsync();
+            host.StartAsync().GetAwaiter().GetResult();
 
             splash.Update("Operator sign-in required...", "Authenticating against FFTPJ Active Directory over LDAPS.");
             splash.Close();
 
-            using WinFormsBusySynchronizationContext busyContext = WinFormsBusySynchronizationContext.Install();
-            using (OperatorLoginForm login = new
-            (
-                  host.Services.GetRequiredService<IOperatorAuthenticator>()
-                , host.Services.GetRequiredService<IOperatorSession>()
-            ))
-            {
-                if (login.ShowDialog() != DialogResult.OK)
-                {
-                    await host.StopAsync();
-                    return;
-                }
-            }
-
-            MainForm mainForm = host.Services.GetRequiredService<MainForm>();
-            PosCashierUiPolicy.Apply
-            (
-                  mainForm
-                , host.Services.GetRequiredService<IOrderQuery>()
-                , host.Services.GetRequiredService<ICustomerIdentificationService>()
-            );
-            FfpDataToolsUiPolicy.Apply(uiOptions);
-            HomeDashboardEnhancementPolicy.Apply
-            (
-                mainForm,
-                host.Services.GetRequiredService<IEmployeeParticipationQuery>(),
-                host.Services.GetRequiredService<ICafeteriaReportService>()
-            );
             try
             {
-                System.Windows.Forms.Application.Run(mainForm);
+                RunTerminalUi(host, uiOptions);
             }
             finally
             {
-                await host.StopAsync();
+                host.StopAsync().GetAwaiter().GetResult();
             }
         }
         catch (Exception ex)
@@ -191,6 +168,38 @@ internal static class Program
                 MessageBoxIcon.Error
             );
         }
+    }
+
+    private static void RunTerminalUi(IHost host, CafeteriaUiOptions uiOptions)
+    {
+        using WinFormsBusySynchronizationContext busyContext = WinFormsBusySynchronizationContext.Install();
+        using (OperatorLoginForm login = new
+        (
+              host.Services.GetRequiredService<IOperatorAuthenticator>()
+            , host.Services.GetRequiredService<IOperatorSession>()
+        ))
+        {
+            if (login.ShowDialog() != DialogResult.OK)
+            {
+                return;
+            }
+        }
+
+        MainForm mainForm = host.Services.GetRequiredService<MainForm>();
+        PosCashierUiPolicy.Apply
+        (
+              mainForm
+            , host.Services.GetRequiredService<IOrderQuery>()
+            , host.Services.GetRequiredService<ICustomerIdentificationService>()
+        );
+        FfpDataToolsUiPolicy.Apply(uiOptions);
+        HomeDashboardEnhancementPolicy.Apply
+        (
+            mainForm,
+            host.Services.GetRequiredService<IEmployeeParticipationQuery>(),
+            host.Services.GetRequiredService<ICafeteriaReportService>()
+        );
+        System.Windows.Forms.Application.Run(mainForm);
     }
 
     private static async Task TryRefreshStartupReferenceDataAsync
