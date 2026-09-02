@@ -178,7 +178,38 @@ await using (var scope = app.Services.CreateAsyncScope())
             , DailyCompanySubsidyRate TEXT NOT NULL
             , UpdatedBy TEXT NOT NULL
             , UpdatedAt TEXT NOT NULL
-        );"
+        );
+        CREATE TABLE IF NOT EXISTS CustomerNotificationPreferences (
+              CustomerId INTEGER NOT NULL CONSTRAINT PK_CustomerNotificationPreferences PRIMARY KEY
+            , PreferenceAsked INTEGER NOT NULL
+            , WeeklySummaryEnabled INTEGER NOT NULL
+            , EmailAddress TEXT NULL
+            , UpdatedAt TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS ManagerReportSettings (
+              Id INTEGER NOT NULL CONSTRAINT PK_ManagerReportSettings PRIMARY KEY
+            , WeeklySummaryEnabled INTEGER NOT NULL
+            , EmailAddress TEXT NULL
+            , WeeklySummaryDay INTEGER NOT NULL
+            , WeeklySummaryHourLocal INTEGER NOT NULL
+            , UpdatedAt TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS OutboundEmails (
+              Id TEXT NOT NULL CONSTRAINT PK_OutboundEmails PRIMARY KEY
+            , DispatchKey TEXT NOT NULL
+            , Recipient TEXT NOT NULL
+            , Subject TEXT NOT NULL
+            , Body TEXT NOT NULL
+            , AttemptCount INTEGER NOT NULL
+            , CreatedAt TEXT NOT NULL
+            , NextAttemptAt TEXT NOT NULL
+            , LastAttemptAt TEXT NULL
+            , SentAt TEXT NULL
+            , MessageId TEXT NULL
+            , LastError TEXT NULL
+        );
+        CREATE UNIQUE INDEX IF NOT EXISTS IX_OutboundEmails_DispatchKey ON OutboundEmails (DispatchKey);
+        CREATE INDEX IF NOT EXISTS IX_OutboundEmails_SentAt_NextAttemptAt ON OutboundEmails (SentAt, NextAttemptAt);"
     );
 
     CafeteriaFundingPolicyStore fundingPolicyStore = scope.ServiceProvider.GetRequiredService<CafeteriaFundingPolicyStore>();
@@ -302,6 +333,7 @@ app.MapPost("/api/engineering/diagnostics/run", async (EngineeringDiagnosticRunR
 app.MapHub<ManagementEventsHub>("/hubs/cafeteria");
 app.MapGet("/api/pos/events", async (long afterSequence, int? take, ServiceEventStore store, CancellationToken ct)
     => Results.Ok(await store.GetAfterAsync(Math.Max(0,afterSequence), take ?? 100, ct)));
+EmailEndpoints.Map(app);
 
 app.MapGet("/api/management/customers", async (string? search, int? take, IWorkforceReferenceSource workforce, CancellationToken ct) =>
 {
