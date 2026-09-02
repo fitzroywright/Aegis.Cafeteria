@@ -8,6 +8,7 @@ using System.Reflection;
 internal static class PosCashierUiPolicy
 {
     private static readonly Color Orange = Color.FromArgb(235, 139, 40);
+    private static readonly Color Green = Color.FromArgb(23, 119, 76);
     private static readonly Color Red = Color.FromArgb(176, 52, 52);
 
     public static void Apply(
@@ -54,6 +55,12 @@ internal static class PosCashierUiPolicy
                     continue;
                 }
 
+                if (string.Equals(label.Text, "Customer Payments", StringComparison.OrdinalIgnoreCase))
+                {
+                    label.Text = "Employee Payments";
+                    continue;
+                }
+
                 if (string.Equals(label.Text, "Debt brought forward", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(label.Text, "Carried Debt", StringComparison.OrdinalIgnoreCase))
                 {
@@ -86,21 +93,32 @@ internal static class PosCashierUiPolicy
             }
         }
 
-        StyleOutstandingBalance(mainForm);
+        StyleFinancialSummary(mainForm);
         SimplifyCustomerFunding(mainForm);
         MoveReadyCustomerInstructions(mainForm);
         ConfigureRecentTransactionNavigation(mainForm, orderQuery, identification);
     }
 
-    private static void StyleOutstandingBalance(Form mainForm)
+    private static void StyleFinancialSummary(Form mainForm)
+    {
+        StyleFinancialRow(mainForm, "Debt Brought Forward", Red);
+        StyleFinancialRow(mainForm, "Credit sales this month", Orange);
+        StyleFinancialRow(mainForm, "Employee Payments", Green);
+        StyleFinancialRow(mainForm, "Outstanding Balance", Red);
+    }
+
+    private static void StyleFinancialRow(Form mainForm, string captionText, Color color)
     {
         Label? caption = Descendants(mainForm)
             .OfType<Label>()
-            .FirstOrDefault(label => string.Equals(label.Text, "Outstanding Balance", StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(label => string.Equals(label.Text, captionText, StringComparison.OrdinalIgnoreCase));
         if (caption?.Parent is not TableLayoutPanel table)
         {
             return;
         }
+
+        caption.Font = new Font(caption.Font, caption.Font.Style | FontStyle.Bold);
+        caption.ForeColor = color;
 
         TableLayoutPanelCellPosition position = table.GetPositionFromControl(caption);
         if (position.Row < 0)
@@ -108,11 +126,13 @@ internal static class PosCashierUiPolicy
             return;
         }
 
-        Control? value = table.GetControlFromPosition(1, position.Row);
-        if (value is not null)
+        if (table.GetControlFromPosition(1, position.Row) is not Label value)
         {
-            value.ForeColor = Red;
+            return;
         }
+
+        value.Font = new Font(value.Font, value.Font.Style | FontStyle.Bold);
+        value.ForeColor = color;
     }
 
     private static void SimplifyCustomerFunding(Form mainForm)
