@@ -245,7 +245,7 @@ public sealed class MainForm : Form
         this.cartGrid.CellDoubleClick += (_, e) => RemoveCartRow(e.RowIndex);
         this.checkoutButton.Click += async (_, _) => await CheckoutAsync();
         this.voidButton.Click += async (_, _) => await VoidCurrentSaleAsync();
-        this.refundButton.Click += async (_, _) => await RefundSelectedAsync();
+        this.refundButton.Click += async (_, e) => await RefundSelectedAsync();
         this.customerPaymentButton.Click += async (_, _) => await RecordCustomerPaymentAsync();
         this.clearButton.Click += (_, _) => ClearCustomer();
         this.cacheStatus.Click += async (_, _) => await ShowCacheStatusAsync();
@@ -1177,8 +1177,8 @@ public sealed class MainForm : Form
     private static IReadOnlyList<(string Label, decimal Value)> DashboardPieBuckets(IEnumerable<(string Label, decimal Value)> source)
     {
         var ordered = source.Where(x => x.Value > 0m).OrderByDescending(x => x.Value).ToArray();
-        if (ordered.Length <= 6) return ordered;
-        return ordered.Take(5).Append(("Other", ordered.Skip(5).Sum(x => x.Value))).ToArray();
+        if (ordered.Length <= 7) return ordered;
+        return ordered.Take(7).Append(("Other", ordered.Skip(7).Sum(x => x.Value))).ToArray();
     }
 
     private async Task LoadRecentTransactionsAsync()
