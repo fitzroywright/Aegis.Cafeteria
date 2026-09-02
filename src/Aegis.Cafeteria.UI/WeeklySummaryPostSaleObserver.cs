@@ -29,18 +29,35 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
             return;
         }
 
+        CustomerNotificationPreferenceSnapshot preference;
         try
         {
-            CustomerNotificationPreferenceSnapshot preference = await this.servicesClient.GetNotificationPreferenceAsync(
+            preference = await this.servicesClient.GetNotificationPreferenceAsync(
                 account.Customer.Id,
                 cancellationToken);
-            if (preference.PreferenceAsked)
-            {
-                return;
-            }
+        }
+        catch (Exception exception)
+        {
+            this.logger.LogWarning(
+                exception,
+                "Could not load weekly email preference for customer {CustomerId}; showing prompt without a saved/AD suggestion",
+                account.Customer.Id);
+            preference = new CustomerNotificationPreferenceSnapshot(account.Customer.Id, false, false, null);
+        }
 
-            using WeeklySummaryOptInDialog dialog = new(account.Customer.Name, preference.EmailAddress);
-            DialogResult result = dialog.ShowDialog();
+        if (preference.PreferenceAsked)
+        {
+            return;
+        }
+
+        using WeeklySummaryOptInDialog dialog = new(account.Customer.Name, preference.EmailAddress);
+        IWin32Window? owner = System.Windows.Forms.Application.OpenForms
+            .Cast<Form>()
+            .FirstOrDefault(form => form is MainForm && form.Visible);
+        DialogResult result = owner is null ? dialog.ShowDialog() : dialog.ShowDialog(owner);
+
+        try
+        {
             await this.servicesClient.SetNotificationPreferenceAsync(
                 account.Customer.Id,
                 result == DialogResult.Yes,
@@ -49,7 +66,11 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
         }
         catch (Exception exception)
         {
-            this.logger.LogWarning(exception, "Weekly email preference prompt failed for customer {CustomerId} after sale {OrderId}", account.Customer.Id, order.Id);
+            this.logger.LogWarning(
+                exception,
+                "Could not save weekly email preference for customer {CustomerId} after sale {OrderId}; sale remains committed",
+                account.Customer.Id,
+                order.Id);
         }
     }
 }
