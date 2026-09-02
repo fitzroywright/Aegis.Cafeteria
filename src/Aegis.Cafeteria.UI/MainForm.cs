@@ -382,12 +382,25 @@ public sealed class MainForm : Form
         ToolStripMenuItem cafeteriaAdministration = new("Price Maintenance...");
         cafeteriaAdministration.Click += async (_, _) => await OpenCafeteriaAdministrationAsync();
         administration.DropDownItems.Add(cafeteriaAdministration);
+
+        ToolStripMenuItem emailPreferences = new("Employee Email Preferences...");
+        emailPreferences.Click += (_, _) => OpenEmployeeEmailPreferences();
+        administration.DropDownItems.Add(emailPreferences);
+
         administration.DropDownItems.Add(new ToolStripSeparator());
         ToolStripMenuItem diagnostics = new("Diagnostics");
         diagnostics.Click += (_, _) => OpenEngineeringDiagnostics();
         administration.DropDownItems.Add(diagnostics);
         menu.Items.Add(administration);
         return menu;
+    }
+
+    private void OpenEmployeeEmailPreferences()
+    {
+        CafeteriaServicesClient servicesClient = this.services.GetRequiredService<CafeteriaServicesClient>();
+        using EmployeeEmailPreferencesDialog dialog = new(this.identification, servicesClient);
+        dialog.ShowDialog(this);
+        RegisterActivity();
     }
 
     private void OpenEngineeringDiagnostics()
