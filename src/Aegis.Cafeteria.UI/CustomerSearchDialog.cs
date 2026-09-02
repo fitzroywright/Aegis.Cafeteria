@@ -42,7 +42,10 @@ internal sealed class CustomerSearchDialog : Form
         : this(identification)
     {
         if (!string.IsNullOrWhiteSpace(initialSearchText))
+        {
             this.search.Text = initialSearchText;
+        }
+
         LoadCandidates(candidates);
     }
 
@@ -66,13 +69,21 @@ internal sealed class CustomerSearchDialog : Form
         this.grid.SelectionChanged += (_, _) => ShowSelection();
         this.grid.CellDoubleClick += (_, e) =>
         {
-            if (e.RowIndex < 0) return;
+            if (e.RowIndex < 0)
+            {
+                return;
+            }
+
             DialogResult = DialogResult.OK;
             Close();
         };
         this.search.TextChanged += (_, _) =>
         {
-            if (this.identification is null) return;
+            if (this.identification is null)
+            {
+                return;
+            }
+
             this.searchDebounce.Stop();
             this.searchDebounce.Start();
         };
@@ -83,7 +94,11 @@ internal sealed class CustomerSearchDialog : Form
         };
         this.search.KeyDown += async (_, e) =>
         {
-            if (e.KeyCode != Keys.Enter) return;
+            if (e.KeyCode != Keys.Enter)
+            {
+                return;
+            }
+
             e.SuppressKeyPress = true;
             this.searchDebounce.Stop();
             await SearchAsync();
@@ -98,7 +113,16 @@ internal sealed class CustomerSearchDialog : Form
         Shown += async (_, _) =>
         {
             this.search.Focus();
-            if (this.identification is not null && this.source.Count == 0) await SearchAsync();
+            if (this.source.Count == 1)
+            {
+                ConfirmSingleCandidate();
+                return;
+            }
+
+            if (this.identification is not null && this.source.Count == 0)
+            {
+                await SearchAsync();
+            }
         };
     }
 
@@ -233,7 +257,11 @@ internal sealed class CustomerSearchDialog : Form
 
     private async Task SearchAsync()
     {
-        if (this.identification is null) return;
+        if (this.identification is null)
+        {
+            return;
+        }
+
         this.searchCancellation?.Cancel();
         this.searchCancellation?.Dispose();
         this.searchCancellation = new CancellationTokenSource();
@@ -244,7 +272,9 @@ internal sealed class CustomerSearchDialog : Form
         {
             IReadOnlyList<CustomerSearchCandidate> rows = await this.identification.SearchAsync(searchText, 50, cancellationToken);
             if (!cancellationToken.IsCancellationRequested && string.Equals(searchText, this.search.Text, StringComparison.Ordinal))
+            {
                 LoadCandidates(rows);
+            }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -258,15 +288,41 @@ internal sealed class CustomerSearchDialog : Form
 
         if (candidates.Count == 1 && this.grid.Rows.Count == 1)
         {
-            this.grid.CurrentCell = this.grid.Rows[0].Cells[0];
-            this.grid.Rows[0].Selected = true;
-            ShowSelection();
+            SelectSingleCandidate();
+            if (Visible)
+            {
+                ConfirmSingleCandidate();
+            }
             return;
         }
 
         this.grid.ClearSelection();
         this.grid.CurrentCell = null;
         ShowSelection();
+    }
+
+    private void SelectSingleCandidate()
+    {
+        if (this.grid.Rows.Count != 1)
+        {
+            return;
+        }
+
+        this.grid.CurrentCell = this.grid.Rows[0].Cells[0];
+        this.grid.Rows[0].Selected = true;
+        ShowSelection();
+    }
+
+    private void ConfirmSingleCandidate()
+    {
+        SelectSingleCandidate();
+        if (SelectedCustomer is null)
+        {
+            return;
+        }
+
+        DialogResult = DialogResult.OK;
+        Close();
     }
 
     private void ShowSelection()
@@ -294,7 +350,11 @@ internal sealed class CustomerSearchDialog : Form
     {
         this.photo.Image?.Dispose();
         this.photo.Image = null;
-        if (bytes is null || bytes.Length == 0) return;
+        if (bytes is null || bytes.Length == 0)
+        {
+            return;
+        }
+
         try
         {
             using MemoryStream stream = new(bytes);
