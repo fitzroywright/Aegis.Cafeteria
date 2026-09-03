@@ -4,6 +4,9 @@ internal static class MainCustomerFinancialLayoutPolicy
 {
     private const string AvailableCaption = "AVAILABLE TO SPEND";
     private const string DebtCaption = "Debt brought forward";
+    private const string CreditSalesCaption = "Credit sales this month";
+    private const string CustomerPaymentsCaption = "Customer Payments";
+    private const string EmployeeAmountDueCaption = "Employee Amount Due";
     private const string AppliedControlName = "AvailableToSpendFinancialRow";
 
     public static void Apply(Form form)
@@ -29,26 +32,21 @@ internal static class MainCustomerFinancialLayoutPolicy
             .OfType<TableLayoutPanel>()
             .FirstOrDefault(table => table.Controls
                 .OfType<Label>()
-                .Any(label => string.Equals(label.Text, DebtCaption, StringComparison.Ordinal)));
+                .Any(label => string.Equals(label.Text, DebtCaption, StringComparison.OrdinalIgnoreCase)));
 
-        Label? debtCaption = finances?.Controls
-            .OfType<Label>()
-            .FirstOrDefault(label => string.Equals(label.Text, DebtCaption, StringComparison.Ordinal));
-
-        if (availableValue is null || highlight is null || finances is null || debtCaption is null)
+        if (availableValue is null || highlight is null || finances is null)
         {
             return;
         }
 
-        int debtRow = finances.GetRow(debtCaption);
-        Control[] controlsToMove = finances.Controls
-            .Cast<Control>()
-            .Where(control => finances.GetRow(control) >= debtRow)
-            .ToArray();
+        Control? debtValue = FindValueForCaption(finances, DebtCaption);
+        Control? creditSalesValue = FindValueForCaption(finances, CreditSalesCaption);
+        Control? paymentsValue = FindValueForCaption(finances, CustomerPaymentsCaption);
+        Control? outstandingValue = FindValueForCaption(finances, EmployeeAmountDueCaption);
 
-        foreach (Control control in controlsToMove)
+        if (debtValue is null || creditSalesValue is null || paymentsValue is null || outstandingValue is null)
         {
-            finances.SetRow(control, finances.GetRow(control) + 1);
+            return;
         }
 
         availableStack.Controls.Remove(availableValue);
@@ -60,18 +58,57 @@ internal static class MainCustomerFinancialLayoutPolicy
         availableValue.ForeColor = Color.FromArgb(24, 45, 68);
         availableValue.Anchor = AnchorStyles.Right;
 
+        finances.SuspendLayout();
+        try
+        {
+            finances.Controls.Clear();
+            finances.RowStyles.Clear();
+            finances.RowCount = 5;
+
+            AddRow(finances, 0, "Available to Spend", availableValue);
+            AddRow(finances, 1, "Debt Brought Forward", debtValue);
+            AddRow(finances, 2, "Credit Sales This Month", creditSalesValue);
+            AddRow(finances, 3, "Employee Payments", paymentsValue);
+            AddRow(finances, 4, "Outstanding Balance", outstandingValue);
+        }
+        finally
+        {
+            finances.ResumeLayout(true);
+        }
+    }
+
+    private static Control? FindValueForCaption(TableLayoutPanel finances, string captionText)
+    {
+        Label? caption = finances.Controls
+            .OfType<Label>()
+            .FirstOrDefault(label => string.Equals(label.Text, captionText, StringComparison.OrdinalIgnoreCase));
+
+        if (caption is null)
+        {
+            return null;
+        }
+
+        int row = finances.GetRow(caption);
+        return finances.Controls
+            .Cast<Control>()
+            .FirstOrDefault(control => !ReferenceEquals(control, caption) && finances.GetRow(control) == row && finances.GetColumn(control) == 1);
+    }
+
+    private static void AddRow(TableLayoutPanel finances, int row, string captionText, Control value)
+    {
+        finances.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
         Label caption = new()
         {
-            Text = "Available to Spend",
+            Text = captionText,
             AutoSize = true,
             ForeColor = Color.FromArgb(104, 117, 132),
             Padding = new Padding(0, 5, 0, 5)
         };
 
-        finances.RowCount++;
-        finances.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        finances.Controls.Add(caption, 0, debtRow);
-        finances.Controls.Add(availableValue, 1, debtRow);
+        value.Anchor = AnchorStyles.Right;
+        finances.Controls.Add(caption, 0, row);
+        finances.Controls.Add(value, 1, row);
     }
 
     private static IEnumerable<Control> Descendants(Control root)
