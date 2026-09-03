@@ -75,7 +75,7 @@ internal static class CustomerActivitySummaryPolicy
                 return;
             }
 
-            CustomerAccountTransactionView[] purchases = account.Transactions
+            CustomerMonthlyTransactionView[] purchases = account.Transactions
                 .Where(transaction => string.Equals(transaction.Kind, "Purchase", StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(transaction => transaction.OccurredAt)
                 .ToArray();
