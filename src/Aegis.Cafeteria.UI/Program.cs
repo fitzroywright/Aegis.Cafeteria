@@ -200,7 +200,8 @@ internal static class Program
             host.Services.GetRequiredService<IEmployeeParticipationQuery>(),
             host.Services.GetRequiredService<ICafeteriaReportService>()
         );
-        MainCustomerFinancialLayoutPolicy.Apply(mainForm);
+
+        mainForm.Shown += (_, _) => MainCustomerFinancialLayoutPolicy.Apply(mainForm);
 
         EventHandler applyFormatting = (_, _) => UiDisplayFormattingPolicy.ApplyToOpenForms();
         System.Windows.Forms.Application.Idle += applyFormatting;
