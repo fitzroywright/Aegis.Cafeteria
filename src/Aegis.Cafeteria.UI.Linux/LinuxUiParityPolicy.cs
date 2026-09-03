@@ -48,6 +48,8 @@ internal static class LinuxUiParityPolicy
 
     private static void ApplyToVisualTree(Control root)
     {
+        NormalizeMainCustomerFinancialLayout(root);
+
         foreach (Control control in DescendantsAndSelf(root))
         {
             if (control is ListBox listBox)
@@ -60,6 +62,77 @@ internal static class LinuxUiParityPolicy
                 NormalizeTimeText(textBlock);
             }
         }
+    }
+
+    private static void NormalizeMainCustomerFinancialLayout(Control root)
+    {
+        foreach (Grid grid in DescendantsAndSelf(root).OfType<Grid>())
+        {
+            StackPanel? availableRow = grid.Children
+                .OfType<StackPanel>()
+                .FirstOrDefault(panel => HasCaption(panel, "Total Available to Spend") || HasCaption(panel, "Available to Spend"));
+
+            StackPanel? debtRow = grid.Children
+                .OfType<StackPanel>()
+                .FirstOrDefault(panel => HasCaption(panel, "Debt Brought Forward"));
+
+            if (availableRow is null || debtRow is null)
+            {
+                continue;
+            }
+
+            TextBlock? availableCaption = availableRow.Children
+                .OfType<TextBlock>()
+                .FirstOrDefault();
+            if (availableCaption is not null)
+            {
+                availableCaption.Text = "Available to Spend";
+            }
+
+            int debtIndex = Grid.GetRow(debtRow);
+            int availableIndex = Grid.GetRow(availableRow);
+            if (availableIndex == debtIndex - 1)
+            {
+                return;
+            }
+
+            if (availableIndex < debtIndex)
+            {
+                foreach (Control child in grid.Children.OfType<Control>())
+                {
+                    int row = Grid.GetRow(child);
+                    if (!ReferenceEquals(child, availableRow) && row > availableIndex && row < debtIndex)
+                    {
+                        Grid.SetRow(child, row - 1);
+                    }
+                }
+
+                Grid.SetRow(availableRow, debtIndex - 1);
+            }
+            else
+            {
+                foreach (Control child in grid.Children.OfType<Control>())
+                {
+                    int row = Grid.GetRow(child);
+                    if (!ReferenceEquals(child, availableRow) && row >= debtIndex && row < availableIndex)
+                    {
+                        Grid.SetRow(child, row + 1);
+                    }
+                }
+
+                Grid.SetRow(availableRow, debtIndex);
+                Grid.SetRow(debtRow, debtIndex + 1);
+            }
+
+            return;
+        }
+    }
+
+    private static bool HasCaption(StackPanel panel, string caption)
+    {
+        return panel.Children
+            .OfType<TextBlock>()
+            .Any(textBlock => string.Equals(textBlock.Text, caption, StringComparison.OrdinalIgnoreCase));
     }
 
     private static void ApplyTableTheme(ListBox listBox)
