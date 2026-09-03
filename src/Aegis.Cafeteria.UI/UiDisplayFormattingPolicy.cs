@@ -126,7 +126,7 @@ internal static class UiDisplayFormattingPolicy
             return true;
         }
 
-        if (text.StartsWith('-', StringComparison.Ordinal))
+        if (text.StartsWith("-", StringComparison.Ordinal))
         {
             normalized = $"({text[1..]})";
             return true;
