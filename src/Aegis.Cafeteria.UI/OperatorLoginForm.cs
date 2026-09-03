@@ -34,7 +34,7 @@ public sealed class OperatorLoginForm : Form
         Font = new Font("Segoe UI", 10);
         AcceptButton = signIn;
 
-        var header = new Panel { BackColor = HeaderBlue, Dock = DockStyle.Top, Height = 118 };
+        Panel header = new() { BackColor = HeaderBlue, Dock = DockStyle.Top, Height = 118 };
         header.Controls.Add(new Label
         {
             AutoSize = true,
@@ -52,9 +52,9 @@ public sealed class OperatorLoginForm : Form
             Text = "Cafeteria"
         });
 
-        var accent = new Panel { BackColor = AccentOrange, Dock = DockStyle.Top, Height = 7 };
+        Panel accent = new() { BackColor = AccentOrange, Dock = DockStyle.Top, Height = 7 };
 
-        var title = new Label
+        Label title = new()
         {
             AutoSize = true,
             ForeColor = BodyText,
@@ -62,7 +62,7 @@ public sealed class OperatorLoginForm : Form
             Location = new Point(36, 158),
             Text = "Operator sign in"
         };
-        var detail = new Label
+        Label detail = new()
         {
             AutoSize = true,
             ForeColor = MutedText,
@@ -71,9 +71,9 @@ public sealed class OperatorLoginForm : Form
             Text = "Sign in with your FFTPJ Active Directory account."
         };
 
-        var userLabel = new Label { AutoSize = true, ForeColor = BodyText, Location = new Point(40, 235), Text = "Username" };
+        Label userLabel = new() { AutoSize = true, ForeColor = BodyText, Location = new Point(40, 235), Text = "Username" };
         userName.Location = new Point(40, 257);
-        var passwordLabel = new Label { AutoSize = true, ForeColor = BodyText, Location = new Point(40, 300), Text = "Password" };
+        Label passwordLabel = new() { AutoSize = true, ForeColor = BodyText, Location = new Point(40, 300), Text = "Password" };
         password.Location = new Point(40, 322);
         signIn.Location = new Point(40, 370);
         signIn.FlatAppearance.BorderSize = 0;
@@ -91,7 +91,16 @@ public sealed class OperatorLoginForm : Form
         Controls.Add(header);
 
         signIn.Click += async (_, _) => await SignInAsync();
-        Shown += (_, _) => userName.Focus();
+        Shown += OnLoginShown;
+    }
+
+    private void OnLoginShown(object? sender, EventArgs e)
+    {
+        WindowState = FormWindowState.Normal;
+        TopMost = true;
+        BringToFront();
+        Activate();
+        userName.Focus();
     }
 
     private async Task SignInAsync()
@@ -100,7 +109,7 @@ public sealed class OperatorLoginForm : Form
         signIn.Enabled = false;
         try
         {
-            var identity = await authenticator.AuthenticateAsync(userName.Text, password.Text);
+            OperatorIdentity? identity = await authenticator.AuthenticateAsync(userName.Text, password.Text);
             password.Clear();
             if (identity is null)
             {
