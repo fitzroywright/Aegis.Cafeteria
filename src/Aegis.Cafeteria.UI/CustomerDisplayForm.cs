@@ -165,9 +165,14 @@ public sealed class CustomerDisplayForm : Form
                   0m
                 , account.Period.EmployeeFundedAllocation - account.FinancialStatus.NonSubsidyAmountRemaining
             );
+            decimal outstandingBalance = Math.Max
+            (
+                  0m
+                , account.FinancialStatus.EmployeeAmountDue - amountToDeductFromPayroll
+            );
             this.payrollDeduction.Text = Money(amountToDeductFromPayroll);
             this.carriedDebt.Text = Money(account.FinancialStatus.CarriedForwardDebt);
-            this.employeeAmountDue.Text = Money(account.FinancialStatus.EmployeeAmountDue);
+            this.employeeAmountDue.Text = Money(outstandingBalance);
         }
         else
         {
