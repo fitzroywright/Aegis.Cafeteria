@@ -7,7 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Aegis.Cafeteria.Domain\Aegis.Cafeteria.Domain.csproj" />
     <ProjectReference Include="..\Aegis.Cafeteria.Application\Aegis.Cafeteria.Application.csproj" />
-    <ProjectReference Include="..\Common.Security\Common.Security.csproj" />
+    <ProjectReference Include="..\..\external\Common.Security\Common.Security.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
