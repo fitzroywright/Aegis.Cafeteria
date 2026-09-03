@@ -1,6 +1,8 @@
 namespace Aegis.Cafeteria.UI.Linux;
 
 using System.Globalization;
+using System.Reflection;
+using Aegis.Cafeteria.Application.Accounts;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
@@ -9,7 +11,9 @@ using Avalonia.Threading;
 
 internal static class LinuxUiParityPolicy
 {
+    private const string MainFinancialSummaryName = "MainCustomerFinancialSummary";
     private static readonly IBrush Navy = new SolidColorBrush(Color.Parse("#182D44"));
+    private static readonly IBrush Muted = new SolidColorBrush(Color.Parse("#687584"));
     private static readonly IBrush GridLine = new SolidColorBrush(Color.Parse("#E2E7EC"));
     private static readonly IBrush White = Brushes.White;
     private static readonly HashSet<Window> ConfiguredWindows = [];
@@ -48,7 +52,11 @@ internal static class LinuxUiParityPolicy
 
     private static void ApplyToVisualTree(Control root)
     {
-        NormalizeMainCustomerFinancialLayout(root);
+        if (root is MainWindow mainWindow)
+        {
+            NormalizeMainCustomerFinancialLayout(mainWindow);
+            RefreshCurrentCreditSalesValue(mainWindow);
+        }
 
         foreach (Control control in DescendantsAndSelf(root))
         {
@@ -64,75 +72,108 @@ internal static class LinuxUiParityPolicy
         }
     }
 
-    private static void NormalizeMainCustomerFinancialLayout(Control root)
+    private static void NormalizeMainCustomerFinancialLayout(MainWindow mainWindow)
     {
-        foreach (Grid grid in DescendantsAndSelf(root).OfType<Grid>())
+        Grid? existingSummary = DescendantsAndSelf(mainWindow)
+            .OfType<Grid>()
+            .FirstOrDefault(grid => string.Equals(grid.Name, MainFinancialSummaryName, StringComparison.Ordinal));
+        if (existingSummary is not null)
         {
-            StackPanel? availableRow = grid.Children
-                .OfType<StackPanel>()
-                .FirstOrDefault(panel => HasCaption(panel, "Total Available to Spend") || HasCaption(panel, "Available to Spend"));
-
-            StackPanel? debtRow = grid.Children
-                .OfType<StackPanel>()
-                .FirstOrDefault(panel => HasCaption(panel, "Debt Brought Forward"));
-
-            if (availableRow is null || debtRow is null)
-            {
-                continue;
-            }
-
-            TextBlock? availableCaption = availableRow.Children
-                .OfType<TextBlock>()
-                .FirstOrDefault();
-            if (availableCaption is not null)
-            {
-                availableCaption.Text = "Available to Spend";
-            }
-
-            int debtIndex = Grid.GetRow(debtRow);
-            int availableIndex = Grid.GetRow(availableRow);
-            if (availableIndex == debtIndex - 1)
-            {
-                return;
-            }
-
-            if (availableIndex < debtIndex)
-            {
-                foreach (Control child in grid.Children.OfType<Control>())
-                {
-                    int row = Grid.GetRow(child);
-                    if (!ReferenceEquals(child, availableRow) && row > availableIndex && row < debtIndex)
-                    {
-                        Grid.SetRow(child, row - 1);
-                    }
-                }
-
-                Grid.SetRow(availableRow, debtIndex - 1);
-            }
-            else
-            {
-                foreach (Control child in grid.Children.OfType<Control>())
-                {
-                    int row = Grid.GetRow(child);
-                    if (!ReferenceEquals(child, availableRow) && row >= debtIndex && row < availableIndex)
-                    {
-                        Grid.SetRow(child, row + 1);
-                    }
-                }
-
-                Grid.SetRow(availableRow, debtIndex);
-                Grid.SetRow(debtRow, debtIndex + 1);
-            }
-
             return;
         }
+
+        Grid? finances = DescendantsAndSelf(mainWindow)
+            .OfType<Grid>()
+            .FirstOrDefault(IsExistingFinancialGrid);
+        if (finances is null)
+        {
+            return;
+        }
+
+        TextBlock? available = GetPrivateTextBlock(mainWindow, "available");
+        TextBlock? carriedDebt = GetPrivateTextBlock(mainWindow, "carriedDebt");
+        TextBlock? creditSales = GetPrivateTextBlock(mainWindow, "customerLiability");
+        TextBlock? employeePayments = GetPrivateTextBlock(mainWindow, "customerPaymentsValue");
+        TextBlock? outstandingBalance = GetPrivateTextBlock(mainWindow, "employeeAmountDue");
+
+        if (available is null
+            || carriedDebt is null
+            || creditSales is null
+            || employeePayments is null
+            || outstandingBalance is null)
+        {
+            return;
+        }
+
+        finances.Children.Clear();
+        finances.RowDefinitions.Clear();
+        finances.Name = MainFinancialSummaryName;
+
+        AddFinancialRow(finances, 0, "Available to Spend", available);
+        AddFinancialRow(finances, 1, "Debt Brought Forward", carriedDebt);
+        AddFinancialRow(finances, 2, "Credit Sales This Month", creditSales);
+        AddFinancialRow(finances, 3, "Employee Payments", employeePayments);
+        AddFinancialRow(finances, 4, "Outstanding Balance", outstandingBalance);
     }
 
-    private static bool HasCaption(StackPanel panel, string caption)
+    private static bool IsExistingFinancialGrid(Grid grid)
     {
-        return panel.Children
+        IReadOnlyList<string> captions = grid.Children
             .OfType<TextBlock>()
-            .Any(textBlock => string.Equals(textBlock.Text, caption, StringComparison.OrdinalIgnoreCase));
+            .Select(textBlock => textBlock.Text ?? string.Empty)
+            .ToArray();
+
+        return captions.Any(text => string.Equals(text, "Debt Brought Forward", StringComparison.OrdinalIgnoreCase))
+            && captions.Any(text => string.Equals(text, "Customer Payments", StringComparison.OrdinalIgnoreCase))
+            && captions.Any(text => string.Equals(text, "Employee Amount Due", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void RefreshCurrentCreditSalesValue(MainWindow mainWindow)
+    {
+        TextBlock? creditSales = GetPrivateTextBlock(mainWindow, "customerLiability");
+        if (creditSales is null)
+        {
+            return;
+        }
+
+        CustomerAccountView? account = GetPrivateField<CustomerAccountView>(mainWindow, "currentCustomer");
+        if (account is null || account.Customer.IsCashCustomer || !account.Customer.IsEligibleForCredit)
+        {
+            creditSales.Text = account is null ? "$0.00" : "—";
+            return;
+        }
+
+        creditSales.Text = account.FinancialStatus.CurrentCreditSaleDebt.ToString("C2");
+    }
+
+    private static TextBlock? GetPrivateTextBlock(MainWindow mainWindow, string fieldName)
+    {
+        return GetPrivateField<TextBlock>(mainWindow, fieldName);
+    }
+
+    private static T? GetPrivateField<T>(MainWindow mainWindow, string fieldName)
+        where T : class
+    {
+        FieldInfo? field = typeof(MainWindow).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        return field?.GetValue(mainWindow) as T;
+    }
+
+    private static void AddFinancialRow(Grid grid, int row, string caption, Control value)
+    {
+        grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+        TextBlock label = new()
+        {
+            Text = caption,
+            Foreground = Muted,
+            Margin = new Thickness(0, 3)
+        };
+        Grid.SetRow(label, row);
+        grid.Children.Add(label);
+
+        Grid.SetRow(value, row);
+        Grid.SetColumn(value, 1);
+        grid.Children.Add(value);
     }
 
     private static void ApplyTableTheme(ListBox listBox)
