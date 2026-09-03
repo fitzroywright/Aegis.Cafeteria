@@ -197,20 +197,15 @@ internal static class UiDisplayFormattingPolicy
 
     private static bool IsRefundSelectionGrid(DataGridView grid)
     {
-        Control? current = grid.Parent;
-        while (current is not null)
+        Control? owningPanel = grid.Parent;
+        if (owningPanel is null)
         {
-            if (DescendantsAndSelf(current)
-                .OfType<Button>()
-                .Any(button => string.Equals(button.Text, "Refund Selected", StringComparison.OrdinalIgnoreCase)))
-            {
-                return true;
-            }
-
-            current = current.Parent;
+            return false;
         }
 
-        return false;
+        return DescendantsAndSelf(owningPanel)
+            .OfType<Button>()
+            .Any(button => string.Equals(button.Text, "Refund Selected", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool TryGetDecimal(object? value, out decimal number)
