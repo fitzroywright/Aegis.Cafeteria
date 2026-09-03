@@ -3,8 +3,6 @@ namespace Aegis.Cafeteria.UI;
 using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Infrastructure.Services;
 
-using System.Net.Mail;
-
 public sealed class EmployeeEmailPreferencesDialog : Form
 {
     private static readonly Color Navy = Color.FromArgb(24, 45, 68);
@@ -346,18 +344,23 @@ public sealed class EmployeeEmailPreferencesDialog : Form
         string? emailAddress = null;
         if (this.enabled.Checked)
         {
-            try
+            if (!EmailAddressValidator.TryNormalize(this.email.Text, out string normalizedAddress))
             {
-                MailAddress address = new(this.email.Text.Trim());
-                emailAddress = address.Address;
-                this.email.Text = emailAddress;
-            }
-            catch (FormatException)
-            {
-                MessageBox.Show(this, "Enter a valid email address.", "Employee Email Preferences", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show
+                (
+                    this,
+                    "Enter a valid email address before enabling weekly summaries.",
+                    "Employee Email Preferences",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
                 this.email.Focus();
+                this.email.SelectAll();
                 return;
             }
+
+            emailAddress = normalizedAddress;
+            this.email.Text = normalizedAddress;
         }
 
         this.save.Enabled = false;
