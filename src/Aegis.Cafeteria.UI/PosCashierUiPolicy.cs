@@ -11,6 +11,7 @@ internal static class PosCashierUiPolicy
     private static readonly Color Orange = Color.FromArgb(235, 139, 40);
     private static readonly Color Green = Color.FromArgb(23, 119, 76);
     private static readonly Color Red = Color.FromArgb(176, 52, 52);
+    private static readonly Color Muted = Color.FromArgb(104, 117, 132);
 
     public static void Apply(
         Form mainForm,
@@ -96,8 +97,6 @@ internal static class PosCashierUiPolicy
 
         StyleProductHeading(mainForm);
         SimplifyCustomerFunding(mainForm);
-        NormalizeFinancialSummary(mainForm);
-        StyleFinancialSummary(mainForm);
         MoveReadyCustomerInstructions(mainForm);
         ConfigureRecentTransactionNavigation(mainForm, orderQuery, identification);
     }
@@ -117,43 +116,6 @@ internal static class PosCashierUiPolicy
         productHeading.ForeColor = Blue;
         productHeading.Height = 38;
         productHeading.Padding = new Padding(0, 4, 0, 4);
-    }
-
-    private static void StyleFinancialSummary(Form mainForm)
-    {
-        StyleFinancialRow(mainForm, "Available Funds", Blue);
-        StyleFinancialRow(mainForm, "Debt Brought Forward", Red);
-        StyleFinancialRow(mainForm, "Credit sales this month", Orange);
-        StyleFinancialRow(mainForm, "Employee Payments", Green);
-        StyleFinancialRow(mainForm, "Outstanding Balance", Red);
-    }
-
-    private static void StyleFinancialRow(Form mainForm, string captionText, Color color)
-    {
-        Label? caption = Descendants(mainForm)
-            .OfType<Label>()
-            .FirstOrDefault(label => string.Equals(label.Text, captionText, StringComparison.OrdinalIgnoreCase));
-        if (caption?.Parent is not TableLayoutPanel table)
-        {
-            return;
-        }
-
-        caption.Font = new Font(caption.Font, caption.Font.Style | FontStyle.Bold);
-        caption.ForeColor = color;
-
-        TableLayoutPanelCellPosition position = table.GetPositionFromControl(caption);
-        if (position.Row < 0)
-        {
-            return;
-        }
-
-        if (table.GetControlFromPosition(1, position.Row) is not Label value)
-        {
-            return;
-        }
-
-        value.Font = new Font(value.Font, value.Font.Style | FontStyle.Bold);
-        value.ForeColor = color;
     }
 
     private static void SimplifyCustomerFunding(Form mainForm)
@@ -203,18 +165,13 @@ internal static class PosCashierUiPolicy
             fundingStatus.Visible = false;
         }
 
-        HideFinancialRow(mainForm, "Monthly cafeteria credit");
-        HideFinancialRow(mainForm, "Company subsidy remaining");
-        HideFinancialRow(mainForm, "Employee-funded remaining");
-        HideFinancialRow(mainForm, "Customer Responsibility (before payments)");
-
         if (availableValue is not null)
         {
-            InsertAvailableFundsRow(mainForm, availableValue);
+            RebuildFinancialSummary(mainForm, availableValue);
         }
     }
 
-    private static void InsertAvailableFundsRow(Form mainForm, Label availableValue)
+    private static void RebuildFinancialSummary(Form mainForm, Label availableValue)
     {
         Label? debtCaption = Descendants(mainForm)
             .OfType<Label>()
@@ -224,88 +181,83 @@ internal static class PosCashierUiPolicy
             return;
         }
 
-        Label caption = new()
-        {
-            Text = "Available Funds",
-            AutoSize = true,
-            ForeColor = Blue,
-            Padding = new Padding(0, 5, 0, 5)
-        };
+        Label? debtValue = GetFinancialValue(table, "Debt Brought Forward");
+        Label? creditSalesValue = GetFinancialValue(table, "Credit sales this month");
+        Label? employeePaymentsValue = GetFinancialValue(table, "Employee Payments");
+        Label? outstandingValue = GetFinancialValue(table, "Outstanding Balance");
 
-        availableValue.AutoSize = true;
-        availableValue.Anchor = AnchorStyles.Right;
-        availableValue.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
-        availableValue.ForeColor = Blue;
-        availableValue.BackColor = Color.Transparent;
-        availableValue.Padding = Padding.Empty;
-        availableValue.Margin = Padding.Empty;
-
-        table.Controls.Add(caption, 0, 0);
-        table.Controls.Add(availableValue, 1, 0);
-    }
-
-    private static void NormalizeFinancialSummary(Form mainForm)
-    {
-        string[] captions =
-        [
-            "Available Funds",
-            "Debt Brought Forward",
-            "Credit sales this month",
-            "Employee Payments",
-            "Outstanding Balance"
-        ];
-
-        Label? firstCaption = Descendants(mainForm)
-            .OfType<Label>()
-            .FirstOrDefault(label => string.Equals(label.Text, captions[0], StringComparison.OrdinalIgnoreCase));
-        if (firstCaption?.Parent is not TableLayoutPanel table)
+        if (debtValue is null
+            || creditSalesValue is null
+            || employeePaymentsValue is null
+            || outstandingValue is null)
         {
             return;
         }
 
-        for (int row = 0; row < captions.Length; row++)
+        table.SuspendLayout();
+        try
         {
-            Label? caption = table.Controls
-                .OfType<Label>()
-                .FirstOrDefault(label => string.Equals(label.Text, captions[row], StringComparison.OrdinalIgnoreCase));
-            if (caption is null)
-            {
-                continue;
-            }
+            table.Controls.Clear();
+            table.RowStyles.Clear();
+            table.RowCount = 5;
 
-            int currentRow = table.GetRow(caption);
-            Control? value = table.GetControlFromPosition(1, currentRow);
+            AddFinancialRow(table, 0, "Available Funds", availableValue, Blue);
+            AddFinancialRow(table, 1, "Debt Brought Forward", debtValue, Red);
+            AddFinancialRow(table, 2, "Credit Sales This Month", creditSalesValue, Orange);
+            AddFinancialRow(table, 3, "Employee Payments", employeePaymentsValue, Green);
+            AddFinancialRow(table, 4, "Outstanding Balance", outstandingValue, Red);
+        }
+        finally
+        {
+            table.ResumeLayout(true);
+        }
+    }
 
-            table.SetRow(caption, row);
-            table.SetColumn(caption, 0);
-            caption.Visible = true;
-
-            if (value is not null)
-            {
-                table.SetRow(value, row);
-                table.SetColumn(value, 1);
-                value.Visible = true;
-            }
+    private static Label? GetFinancialValue(TableLayoutPanel table, string captionText)
+    {
+        Label? caption = table.Controls
+            .OfType<Label>()
+            .FirstOrDefault(label => string.Equals(label.Text, captionText, StringComparison.OrdinalIgnoreCase));
+        if (caption is null)
+        {
+            return null;
         }
 
-        while (table.RowStyles.Count < captions.Length)
-        {
-            table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        }
+        int row = table.GetRow(caption);
+        return table.GetControlFromPosition(1, row) as Label;
+    }
 
-        for (int row = 0; row < table.RowStyles.Count; row++)
+    private static void AddFinancialRow(
+        TableLayoutPanel table,
+        int row,
+        string captionText,
+        Label value,
+        Color color)
+    {
+        table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        Label caption = new()
         {
-            if (row < captions.Length)
-            {
-                table.RowStyles[row].SizeType = SizeType.AutoSize;
-                table.RowStyles[row].Height = 0F;
-            }
-            else
-            {
-                table.RowStyles[row].SizeType = SizeType.Absolute;
-                table.RowStyles[row].Height = 0F;
-            }
-        }
+            Text = captionText,
+            AutoSize = true,
+            Font = new Font("Segoe UI", 10F, FontStyle.Bold),
+            ForeColor = color,
+            BackColor = Color.Transparent,
+            Padding = new Padding(0, 5, 0, 5),
+            Margin = new Padding(0)
+        };
+
+        value.AutoSize = true;
+        value.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+        value.ForeColor = color;
+        value.BackColor = Color.Transparent;
+        value.Padding = new Padding(0, 5, 0, 5);
+        value.Margin = new Padding(0);
+        value.Anchor = AnchorStyles.Right;
+        value.Visible = true;
+
+        table.Controls.Add(caption, 0, row);
+        table.Controls.Add(value, 1, row);
     }
 
     private static void ConfigureRecentTransactionNavigation(
@@ -381,38 +333,6 @@ internal static class PosCashierUiPolicy
                 );
             }
         };
-    }
-
-    private static void HideFinancialRow(Form mainForm, string captionText)
-    {
-        Label? caption = Descendants(mainForm)
-            .OfType<Label>()
-            .FirstOrDefault(label => string.Equals(label.Text, captionText, StringComparison.OrdinalIgnoreCase));
-        if (caption?.Parent is not TableLayoutPanel table)
-        {
-            return;
-        }
-
-        TableLayoutPanelCellPosition position = table.GetPositionFromControl(caption);
-        if (position.Row < 0)
-        {
-            return;
-        }
-
-        caption.Visible = false;
-        Control? value = table.GetControlFromPosition(1, position.Row);
-        if (value is not null)
-        {
-            value.Visible = false;
-        }
-
-        while (table.RowStyles.Count <= position.Row)
-        {
-            table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        }
-
-        table.RowStyles[position.Row].SizeType = SizeType.Absolute;
-        table.RowStyles[position.Row].Height = 0F;
     }
 
     private static void MoveReadyCustomerInstructions(Form mainForm)
