@@ -1,6 +1,7 @@
 namespace Aegis.Cafeteria.UI;
 
 using System.Globalization;
+using System.Reflection;
 
 internal static class UiDisplayFormattingPolicy
 {
@@ -77,8 +78,7 @@ internal static class UiDisplayFormattingPolicy
             }
         };
 
-        grid.DataBindingComplete += (_, _) => HideRefundRowsFromRefundSelectionGrid(grid);
-        HideRefundRowsFromRefundSelectionGrid(grid);
+        ConfigureRefundSelectionFilter(grid);
     }
 
     private static void ConfigureLabel(Label label)
@@ -135,22 +135,64 @@ internal static class UiDisplayFormattingPolicy
         return false;
     }
 
-    private static void HideRefundRowsFromRefundSelectionGrid(DataGridView grid)
+    private static void ConfigureRefundSelectionFilter(DataGridView grid)
     {
-        if (!IsRefundSelectionGrid(grid))
+        if (!IsRefundSelectionGrid(grid) || grid.DataSource is not BindingSource source)
         {
             return;
         }
 
-        foreach (DataGridViewRow row in grid.Rows)
+        BindingSource filtered = new();
+        grid.DataSource = filtered;
+
+        void RefreshFilteredRows()
         {
-            object? boundItem = row.DataBoundItem;
-            string? kind = boundItem?.GetType().GetProperty("Kind")?.GetValue(boundItem)?.ToString();
-            if (string.Equals(kind, "Refund", StringComparison.OrdinalIgnoreCase))
+            List<RefundSelectionTransactionRow> rows = [];
+            foreach (object? item in source.List)
             {
-                row.Visible = false;
+                RefundSelectionTransactionRow? row = MapRefundSelectionRow(item);
+                if (row is not null && !string.Equals(row.Kind, "Refund", StringComparison.OrdinalIgnoreCase))
+                {
+                    rows.Add(row);
+                }
             }
+
+            filtered.DataSource = rows;
         }
+
+        source.DataSourceChanged += (_, _) => RefreshFilteredRows();
+        source.ListChanged += (_, _) => RefreshFilteredRows();
+        RefreshFilteredRows();
+    }
+
+    private static RefundSelectionTransactionRow? MapRefundSelectionRow(object? source)
+    {
+        if (source is null)
+        {
+            return null;
+        }
+
+        Type type = source.GetType();
+        PropertyInfo? dateProperty = type.GetProperty("Date");
+        PropertyInfo? kindProperty = type.GetProperty("Kind");
+        PropertyInfo? descriptionProperty = type.GetProperty("Description");
+        PropertyInfo? amountProperty = type.GetProperty("Amount");
+        PropertyInfo? accountProperty = type.GetProperty("Account");
+        PropertyInfo? cashProperty = type.GetProperty("Cash");
+        PropertyInfo? referenceProperty = type.GetProperty("ReferenceId");
+
+        if (dateProperty?.GetValue(source) is not DateTime date
+            || kindProperty?.GetValue(source) is not string kind
+            || descriptionProperty?.GetValue(source) is not string description
+            || referenceProperty?.GetValue(source) is not Guid referenceId)
+        {
+            return null;
+        }
+
+        decimal amount = Convert.ToDecimal(amountProperty?.GetValue(source) ?? 0m, CultureInfo.InvariantCulture);
+        decimal account = Convert.ToDecimal(accountProperty?.GetValue(source) ?? 0m, CultureInfo.InvariantCulture);
+        decimal cash = Convert.ToDecimal(cashProperty?.GetValue(source) ?? 0m, CultureInfo.InvariantCulture);
+        return new RefundSelectionTransactionRow(date, kind, description, amount, account, cash, referenceId);
     }
 
     private static bool IsRefundSelectionGrid(DataGridView grid)
@@ -210,4 +252,15 @@ internal static class UiDisplayFormattingPolicy
             }
         }
     }
+
+    private sealed record RefundSelectionTransactionRow
+    (
+          DateTime Date
+        , string Kind
+        , string Description
+        , decimal Amount
+        , decimal Account
+        , decimal Cash
+        , Guid ReferenceId
+    );
 }
