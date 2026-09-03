@@ -54,6 +54,13 @@ internal sealed class EmployeeWeekBarChartControl : Control
         using SolidBrush titleBrush = new(Color.FromArgb(24, 45, 68));
         using SolidBrush mutedBrush = new(Color.FromArgb(104, 117, 132));
         using SolidBrush trackBrush = new(Color.FromArgb(235, 239, 243));
+        using StringFormat weekdayFormat = new()
+        {
+            FormatFlags = StringFormatFlags.NoWrap,
+            Trimming = StringTrimming.None,
+            LineAlignment = StringAlignment.Center,
+            Alignment = StringAlignment.Near
+        };
 
         e.Graphics.DrawString(this.title, titleFont, titleBrush, new RectangleF(8, 6, Math.Max(1, Width - 16), 24));
         e.Graphics.DrawString
@@ -72,7 +79,11 @@ internal sealed class EmployeeWeekBarChartControl : Control
 
         int top = 58;
         int bottomPadding = 10;
-        int labelWidth = Math.Min(82, Math.Max(60, Width / 5));
+        float widestLabel = this.items
+            .Select(item => e.Graphics.MeasureString(item.Label, labelFont).Width)
+            .DefaultIfEmpty(72F)
+            .Max();
+        int labelWidth = Math.Max(82, (int)Math.Ceiling(widestLabel) + 10);
         int valueWidth = Math.Min(120, Math.Max(92, Width / 3));
         int barLeft = labelWidth + 10;
         int barRight = Math.Max(barLeft + 10, Width - valueWidth - 10);
@@ -94,7 +105,7 @@ internal sealed class EmployeeWeekBarChartControl : Control
                 : Math.Max(4, (int)Math.Round(availableBarWidth * participation));
 
             RectangleF labelRect = new(6, rowTop, labelWidth, rowHeight);
-            e.Graphics.DrawString(item.Label, labelFont, titleBrush, labelRect);
+            e.Graphics.DrawString(item.Label, labelFont, titleBrush, labelRect, weekdayFormat);
 
             e.Graphics.FillRectangle(trackBrush, barLeft, barTop, availableBarWidth, barHeight);
             if (barWidth > 0)
