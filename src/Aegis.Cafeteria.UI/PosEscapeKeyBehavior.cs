@@ -40,8 +40,16 @@ internal static class PosEscapeKeyBehavior
                 return false;
             }
 
-            Control? focusedControl = Control.FromHandle(message.HWnd);
-            if (focusedControl?.FindForm() is not MainForm mainForm)
+            Form? focusedForm = Control.FromHandle(message.HWnd)?.FindForm();
+            if (focusedForm is not MainForm && focusedForm is not CustomerDisplayForm)
+            {
+                return false;
+            }
+
+            MainForm? mainForm = System.Windows.Forms.Application.OpenForms
+                .OfType<MainForm>()
+                .FirstOrDefault();
+            if (mainForm is null || mainForm.IsDisposed)
             {
                 return false;
             }
@@ -63,6 +71,7 @@ internal static class PosEscapeKeyBehavior
                 , BindingFlags.Instance | BindingFlags.NonPublic
             );
 
+            mainForm.Activate();
             cancelActiveTransaction?.Invoke(mainForm, null);
             return true;
         }
