@@ -96,6 +96,7 @@ public sealed class OperatorLoginForm : Form
 
     private void OnLoginShown(object? sender, EventArgs e)
     {
+        FfpBranding.Apply(this);
         WindowState = FormWindowState.Normal;
         TopMost = true;
         BringToFront();
