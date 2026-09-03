@@ -349,7 +349,14 @@ public sealed class CustomerDisplayForm : Form
         DataPropertyName = propertyName,
         HeaderText = headerText,
         FillWeight = fillWeight,
-        SortMode = DataGridViewColumnSortMode.Automatic
+        SortMode = DataGridViewColumnSortMode.Automatic,
+        HeaderCell =
+        {
+            Style =
+            {
+                Alignment = DataGridViewContentAlignment.MiddleLeft
+            }
+        }
     };
 
     private static DataGridViewTextBoxColumn MoneyColumn(string propertyName, string headerText, float fillWeight)
@@ -357,6 +364,7 @@ public sealed class CustomerDisplayForm : Form
         DataGridViewTextBoxColumn column = TextColumn(propertyName, headerText, fillWeight);
         column.DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleRight;
         column.DefaultCellStyle.Format = "C2";
+        column.HeaderCell.Style.Alignment = DataGridViewContentAlignment.MiddleRight;
         return column;
     }
 
@@ -416,7 +424,39 @@ public sealed class CustomerDisplayForm : Form
             SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             RowHeadersVisible = false,
             BackgroundColor = Color.White,
-            BorderStyle = BorderStyle.None
+            BorderStyle = BorderStyle.None,
+            CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal,
+            ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None,
+            EnableHeadersVisualStyles = false,
+            ColumnHeadersHeight = 44,
+            ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing,
+            RowTemplate =
+            {
+                Height = 38
+            },
+            DefaultCellStyle =
+            {
+                BackColor = Color.White,
+                ForeColor = Navy,
+                SelectionBackColor = Color.FromArgb(226, 236, 246),
+                SelectionForeColor = Navy,
+                Padding = new Padding(8, 3, 8, 3)
+            },
+            AlternatingRowsDefaultCellStyle =
+            {
+                BackColor = Color.FromArgb(248, 250, 252)
+            },
+            ColumnHeadersDefaultCellStyle =
+            {
+                BackColor = Navy,
+                ForeColor = Color.White,
+                SelectionBackColor = Navy,
+                SelectionForeColor = Color.White,
+                Font = new Font("Segoe UI", 11, FontStyle.Bold),
+                Padding = new Padding(8, 4, 8, 4),
+                WrapMode = DataGridViewTriState.False
+            },
+            GridColor = Color.FromArgb(226, 231, 236)
         };
         return grid;
     }
