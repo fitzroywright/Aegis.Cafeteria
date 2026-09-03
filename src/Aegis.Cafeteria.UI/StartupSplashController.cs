@@ -25,9 +25,11 @@ internal sealed class StartupSplashController : IDisposable
 
     public void Update(string status, string? detail = null)
     {
-        var form = this.form;
+        StartupSplashForm? form = this.form;
         if (form is null || form.IsDisposed)
+        {
             return;
+        }
 
         try
         {
@@ -41,9 +43,11 @@ internal sealed class StartupSplashController : IDisposable
 
     public void Ready(string detail)
     {
-        var form = this.form;
+        StartupSplashForm? form = this.form;
         if (form is null || form.IsDisposed)
+        {
             return;
+        }
 
         try
         {
@@ -57,13 +61,22 @@ internal sealed class StartupSplashController : IDisposable
 
     public void Close()
     {
-        var form = this.form;
+        StartupSplashForm? form = this.form;
         if (form is null || form.IsDisposed)
+        {
             return;
+        }
 
         try
         {
-            form.BeginInvoke(form.Close);
+            if (form.InvokeRequired)
+            {
+                form.Invoke(form.Close);
+            }
+            else
+            {
+                form.Close();
+            }
         }
         catch (InvalidOperationException)
         {
@@ -84,13 +97,17 @@ internal sealed class StartupSplashController : IDisposable
     public void Dispose()
     {
         if (this.disposed)
+        {
             return;
+        }
 
         this.disposed = true;
         Close();
 
         if (this.thread.IsAlive)
+        {
             this.thread.Join(TimeSpan.FromSeconds(2));
+        }
 
         this.created.Dispose();
     }
