@@ -26,6 +26,7 @@ internal static class UiDisplayFormattingPolicy
     {
         foreach (Form form in System.Windows.Forms.Application.OpenForms)
         {
+            FfpBranding.Apply(form);
             ApplyTo(form);
         }
     }
