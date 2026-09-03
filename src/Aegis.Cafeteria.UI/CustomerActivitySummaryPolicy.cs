@@ -6,7 +6,8 @@ using Aegis.Cafeteria.Application.Reporting;
 
 internal static class CustomerActivitySummaryPolicy
 {
-    private static readonly Color Muted = Color.FromArgb(104, 117, 132);
+    private static readonly Color SummaryBackground = Color.FromArgb(235, 243, 250);
+    private static readonly Color SummaryForeground = Color.FromArgb(24, 45, 68);
     private static bool applied;
     private static bool updating;
 
@@ -44,11 +45,12 @@ internal static class CustomerActivitySummaryPolicy
             return;
         }
 
-        fundingStatus.Padding = Padding.Empty;
+        fundingStatus.Padding = new Padding(8, 5, 8, 5);
         fundingStatus.Margin = new Padding(0, 7, 0, 0);
-        fundingStatus.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
-        fundingStatus.ForeColor = Muted;
-        fundingStatus.BackColor = Color.Transparent;
+        fundingStatus.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+        fundingStatus.ForeColor = SummaryForeground;
+        fundingStatus.BackColor = SummaryBackground;
+        fundingStatus.AutoSize = true;
         fundingStatus.Visible = true;
 
         customerName.TextChanged += (_, _) => Refresh(mainForm, fundingStatus);
