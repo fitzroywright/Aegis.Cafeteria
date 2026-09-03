@@ -6,6 +6,7 @@ internal static class UiDisplayFormattingPolicy
 {
     private static readonly Color Red = Color.FromArgb(176, 52, 52);
     private static readonly HashSet<DataGridView> ConfiguredGrids = [];
+    private static readonly HashSet<Label> ConfiguredLabels = [];
 
     public static void ConfigureApplicationCulture()
     {
@@ -35,6 +36,11 @@ internal static class UiDisplayFormattingPolicy
             if (control is DataGridView grid && ConfiguredGrids.Add(grid))
             {
                 ConfigureGrid(grid);
+            }
+
+            if (control is Label label && ConfiguredLabels.Add(label))
+            {
+                ConfigureLabel(label);
             }
         }
     }
@@ -72,6 +78,61 @@ internal static class UiDisplayFormattingPolicy
         };
 
         grid.DataBindingComplete += (_, _) => HideRefundRowsFromRefundSelectionGrid(grid);
+        HideRefundRowsFromRefundSelectionGrid(grid);
+    }
+
+    private static void ConfigureLabel(Label label)
+    {
+        void ApplyNegativeStyle()
+        {
+            string text = label.Text.Trim();
+            if (TryNormalizeNegativeText(text, out string normalized))
+            {
+                if (!string.Equals(label.Text, normalized, StringComparison.Ordinal))
+                {
+                    label.Text = normalized;
+                }
+
+                label.ForeColor = Red;
+            }
+        }
+
+        label.TextChanged += (_, _) => ApplyNegativeStyle();
+        ApplyNegativeStyle();
+    }
+
+    private static bool TryNormalizeNegativeText(string text, out string normalized)
+    {
+        normalized = text;
+        if (!text.Any(char.IsDigit))
+        {
+            return false;
+        }
+
+        if (text.StartsWith('(') && text.EndsWith(')'))
+        {
+            return true;
+        }
+
+        if (text.StartsWith("-$", StringComparison.Ordinal))
+        {
+            normalized = $"(${text[2..]})";
+            return true;
+        }
+
+        if (text.StartsWith("$-", StringComparison.Ordinal))
+        {
+            normalized = $"(${text[2..]})";
+            return true;
+        }
+
+        if (text.StartsWith('-', StringComparison.Ordinal))
+        {
+            normalized = $"({text[1..]})";
+            return true;
+        }
+
+        return false;
     }
 
     private static void HideRefundRowsFromRefundSelectionGrid(DataGridView grid)
