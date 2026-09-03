@@ -163,7 +163,16 @@ internal static class PosCashierUiPolicy
         if (availableCaption?.Parent is FlowLayoutPanel availableStack
             && availableStack.Parent is Panel highlightPanel)
         {
-            highlightPanel.Visible = false;
+            highlightPanel.SuspendLayout();
+            highlightPanel.Controls.Clear();
+            highlightPanel.AutoSize = false;
+            highlightPanel.Visible = true;
+            highlightPanel.Height = 5;
+            highlightPanel.MinimumSize = new Size(0, 5);
+            highlightPanel.BackColor = Orange;
+            highlightPanel.Padding = Padding.Empty;
+            highlightPanel.Margin = new Padding(0, 0, 0, 12);
+            highlightPanel.ResumeLayout(true);
         }
 
         FlowLayoutPanel? customerInfo = Descendants(mainForm)
