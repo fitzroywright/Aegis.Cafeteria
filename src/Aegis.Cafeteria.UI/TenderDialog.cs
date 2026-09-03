@@ -2,13 +2,22 @@ namespace Aegis.Cafeteria.UI;
 
 internal sealed class TenderDialog : Form
 {
+    private readonly CheckBox employeeCredit = new()
+    {
+        Text = "Use Employee Credit",
+        AutoSize = true,
+        Checked = false,
+        Dock = DockStyle.Left
+    };
+
     private readonly NumericUpDown account = new()
     {
         DecimalPlaces = 2,
         Maximum = 100000000,
         Minimum = 0,
         ThousandsSeparator = true,
-        Dock = DockStyle.Fill
+        Dock = DockStyle.Fill,
+        Enabled = false
     };
 
     private readonly NumericUpDown cashReceived = new()
@@ -28,7 +37,8 @@ internal sealed class TenderDialog : Form
     private readonly decimal subsidyRemaining;
     private readonly decimal maximumAccountAmount;
 
-    public decimal CafeteriaAccountAmount => CurrentEditorValue(this.account);
+    public bool EmployeeCreditSelected => this.employeeCredit.Checked;
+    public decimal CafeteriaAccountAmount => EmployeeCreditSelected ? CurrentEditorValue(this.account) : 0m;
     public decimal CashReceived => CurrentEditorValue(this.cashReceived);
     public decimal RemainingAmount => Math.Max(0m, this.total - CafeteriaAccountAmount - CashReceived);
     public decimal ChangeAmount => Math.Max(0m, CashReceived - Math.Max(0m, this.total - CafeteriaAccountAmount));
@@ -43,28 +53,26 @@ internal sealed class TenderDialog : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
-        Size = new Size(500, 455);
+        Size = new Size(500, 500);
 
         this.maximumAccountAmount = Math.Min(total, Math.Max(0m, availableCredit));
         this.account.Maximum = this.maximumAccountAmount;
-
-        // Employee Credit is always opt-in. The cashier must ask the employee
-        // and deliberately enter/select the amount to use for this sale.
         this.account.Value = 0m;
-        this.account.Enabled = this.maximumAccountAmount > 0m;
+        this.account.Enabled = false;
+        this.employeeCredit.Enabled = this.maximumAccountAmount > 0m;
         this.cashReceived.Value = 0m;
 
+        // Invariant: application code never turns Employee Credit on.
+        // Checked may become true only through the user's interaction with this checkbox.
+        this.employeeCredit.CheckedChanged += (_, _) => OnEmployeeCreditSelectionChanged();
         this.account.ValueChanged += (_, _) => UpdatePaymentState();
         this.cashReceived.ValueChanged += (_, _) => UpdatePaymentState();
-        // NumericUpDown does not always commit typed text to Value until focus
-        // leaves the editor. Recalculate from the live editor text so Remaining,
-        // Change and the Complete button update while the cashier is typing.
         this.account.TextChanged += (_, _) => UpdatePaymentState();
         this.cashReceived.TextChanged += (_, _) => UpdatePaymentState();
         this.complete.Click += (_, _) =>
         {
-            if (!TryCurrentEditorValue(this.account, out decimal accountAmount) ||
-                !TryCurrentEditorValue(this.cashReceived, out decimal cashReceived) ||
+            decimal accountAmount = CafeteriaAccountAmount;
+            if (!TryCurrentEditorValue(this.cashReceived, out decimal cashReceived) ||
                 Math.Max(0m, this.total - accountAmount - cashReceived) > 0m)
             {
                 return;
@@ -78,7 +86,7 @@ internal sealed class TenderDialog : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 9,
+            RowCount = 10,
             Padding = new Padding(18)
         };
         table.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 55));
@@ -91,29 +99,32 @@ internal sealed class TenderDialog : Form
         table.Controls.Add(ValueLabel(availableCredit.ToString("C2")), 1, 1);
 
         table.Controls.Add(Caption("Employee Credit"), 0, 2);
-        table.Controls.Add(this.account, 1, 2);
+        table.Controls.Add(this.employeeCredit, 1, 2);
 
-        table.Controls.Add(Caption("New Customer Responsibility"), 0, 3);
-        table.Controls.Add(this.newResponsibility, 1, 3);
+        table.Controls.Add(Caption("Employee Credit Amount"), 0, 3);
+        table.Controls.Add(this.account, 1, 3);
 
-        table.Controls.Add(Caption("Cash Received"), 0, 4);
-        table.Controls.Add(this.cashReceived, 1, 4);
+        table.Controls.Add(Caption("New Customer Responsibility"), 0, 4);
+        table.Controls.Add(this.newResponsibility, 1, 4);
 
-        table.Controls.Add(Caption("Remaining"), 0, 5);
-        table.Controls.Add(this.remaining, 1, 5);
+        table.Controls.Add(Caption("Cash Received"), 0, 5);
+        table.Controls.Add(this.cashReceived, 1, 5);
 
-        table.Controls.Add(Caption("Change Due"), 0, 6);
-        table.Controls.Add(this.change, 1, 6);
+        table.Controls.Add(Caption("Remaining"), 0, 6);
+        table.Controls.Add(this.remaining, 1, 6);
+
+        table.Controls.Add(Caption("Change Due"), 0, 7);
+        table.Controls.Add(this.change, 1, 7);
 
         Label hint = new()
         {
             AutoSize = true,
             ForeColor = Color.DimGray,
-            Text = "Ask the employee before using Employee Credit. Employee Credit is never selected automatically. If the employee declines, leave Employee Credit at $0.00 and collect enough cash or modify the sale. The sale can complete only when the order is fully covered.",
+            Text = "Employee Credit always starts off. Only the cashier may select Use Employee Credit after confirming with the employee. The system never selects it automatically.",
             MaximumSize = new Size(420, 0),
             Margin = new Padding(0, 8, 0, 8)
         };
-        table.Controls.Add(hint, 0, 7);
+        table.Controls.Add(hint, 0, 8);
         table.SetColumnSpan(hint, 2);
 
         FlowLayoutPanel buttons = new()
@@ -124,7 +135,7 @@ internal sealed class TenderDialog : Form
         Button cancel = new() { Text = "Cancel", Width = 100, DialogResult = DialogResult.Cancel };
         buttons.Controls.Add(this.complete);
         buttons.Controls.Add(cancel);
-        table.Controls.Add(buttons, 0, 8);
+        table.Controls.Add(buttons, 0, 9);
         table.SetColumnSpan(buttons, 2);
 
         Controls.Add(table);
@@ -133,10 +144,23 @@ internal sealed class TenderDialog : Form
         Shown += (_, _) => this.cashReceived.Focus();
     }
 
+    private void OnEmployeeCreditSelectionChanged()
+    {
+        this.account.Enabled = this.employeeCredit.Checked && this.maximumAccountAmount > 0m;
+
+        if (!this.employeeCredit.Checked)
+        {
+            this.account.Value = 0m;
+        }
+
+        UpdatePaymentState();
+    }
+
     private void UpdatePaymentState()
     {
-        bool valid = TryCurrentEditorValue(this.account, out _) && TryCurrentEditorValue(this.cashReceived, out _);
-        if (!valid)
+        bool accountValid = !EmployeeCreditSelected || TryCurrentEditorValue(this.account, out _);
+        bool cashValid = TryCurrentEditorValue(this.cashReceived, out _);
+        if (!accountValid || !cashValid)
         {
             this.remaining.Text = "—";
             this.change.Text = "—";
