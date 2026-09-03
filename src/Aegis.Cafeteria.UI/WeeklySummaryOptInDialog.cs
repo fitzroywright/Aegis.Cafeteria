@@ -1,11 +1,8 @@
 namespace Aegis.Cafeteria.UI;
 
-using System.Net.Mail;
-
 public sealed class WeeklySummaryOptInDialog : Form
 {
     private static readonly Color Navy = Color.FromArgb(24, 45, 68);
-    private static readonly Color Blue = Color.FromArgb(31, 111, 190);
     private static readonly Color Canvas = Color.FromArgb(244, 247, 250);
     private static readonly Color Muted = Color.FromArgb(104, 117, 132);
     private static readonly Color Green = Color.FromArgb(23, 119, 76);
@@ -67,18 +64,24 @@ public sealed class WeeklySummaryOptInDialog : Form
 
         yes.Click += (_, _) =>
         {
-            try
+            if (!EmailAddressValidator.TryNormalize(this.emailAddress.Text, out string normalizedAddress))
             {
-                MailAddress address = new(this.emailAddress.Text.Trim());
-                this.emailAddress.Text = address.Address;
-                DialogResult = DialogResult.Yes;
-                Close();
-            }
-            catch (FormatException)
-            {
-                MessageBox.Show(this, "Enter a valid email address.", "Weekly Cafeteria Summary", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show
+                (
+                    this,
+                    "Enter a valid email address before enabling weekly summaries.",
+                    "Weekly Cafeteria Summary",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information
+                );
                 this.emailAddress.Focus();
+                this.emailAddress.SelectAll();
+                return;
             }
+
+            this.emailAddress.Text = normalizedAddress;
+            DialogResult = DialogResult.Yes;
+            Close();
         };
 
         Panel header = new()
