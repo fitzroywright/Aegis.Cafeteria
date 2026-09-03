@@ -1,0 +1,3 @@
+[submodule "external/Common.Security"]
+	path = external/Common.Security
+	url = https://github.com/fitzroywright/Common.Security.git

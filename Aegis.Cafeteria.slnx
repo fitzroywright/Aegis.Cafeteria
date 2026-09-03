@@ -3,12 +3,14 @@
     <Project Path="src/Aegis.Cafeteria.Domain/Aegis.Cafeteria.Domain.csproj" />
     <Project Path="src/Aegis.Cafeteria.Application/Aegis.Cafeteria.Application.csproj" />
     <Project Path="src/Aegis.Cafeteria.Infrastructure/Aegis.Cafeteria.Infrastructure.csproj" />
-    <Project Path="src/Common.Security/Common.Security.csproj" />
     <Project Path="src/Aegis.Cafeteria.Reporting/Aegis.Cafeteria.Reporting.csproj" />
     <Project Path="src/Aegis.Cafeteria.UI/Aegis.Cafeteria.UI.csproj" />
     <Project Path="src/Aegis.Cafeteria.UI.Linux/Aegis.Cafeteria.UI.Linux.csproj" />
     <Project Path="src/Aegis.Cafeteria.Services/Aegis.Cafeteria.Services.csproj" />
     <Project Path="src/Aegis.Cafeteria.Management/Aegis.Cafeteria.Management.csproj" />
+  </Folder>
+  <Folder Name="/external/">
+    <Project Path="external/Common.Security/Common.Security.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Aegis.Cafeteria.UnitTests/Aegis.Cafeteria.UnitTests.csproj" />
