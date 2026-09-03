@@ -57,10 +57,6 @@ internal static class MainCustomerFinancialLayoutPolicy
 
         Control? oldAvailableContainer = available.Parent;
         Panel? highlight = oldAvailableContainer?.Parent as Panel;
-        TableLayoutPanel? customerRoot = highlight?.Parent as TableLayoutPanel;
-        int highlightRow = customerRoot is null || highlight is null
-            ? -1
-            : customerRoot.GetRow(highlight);
 
         oldAvailableContainer?.Controls.Remove(available);
         if (highlight is not null)
@@ -69,31 +65,25 @@ internal static class MainCustomerFinancialLayoutPolicy
             highlight.Dispose();
         }
 
-        if (customerRoot is not null && highlightRow >= 0)
-        {
-            Panel divider = new()
-            {
-                Name = "CustomerFinancialDivider",
-                Dock = DockStyle.Top,
-                Height = 4,
-                BackColor = Color.FromArgb(235, 139, 40),
-                Margin = new Padding(0, 8, 0, 12)
-            };
-            customerRoot.Controls.Add(divider, 0, highlightRow);
-        }
-
         Label availableCaption = new()
         {
             Text = "Available to Spend",
             AutoSize = true,
-            ForeColor = Color.FromArgb(104, 117, 132),
-            Padding = new Padding(0, 5, 0, 5)
+            ForeColor = debtCaption.ForeColor,
+            Font = debtCaption.Font,
+            BackColor = debtCaption.BackColor,
+            Padding = debtCaption.Padding,
+            Margin = debtCaption.Margin
         };
 
         available.Name = AppliedControlName;
-        available.Font = new Font("Segoe UI", 11, FontStyle.Regular);
-        available.ForeColor = Color.FromArgb(42, 53, 65);
-        available.Anchor = AnchorStyles.Right;
+        available.Font = carriedDebt.Font;
+        available.ForeColor = carriedDebt.ForeColor;
+        available.BackColor = carriedDebt.BackColor;
+        available.Padding = carriedDebt.Padding;
+        available.Margin = carriedDebt.Margin;
+        available.AutoSize = carriedDebt.AutoSize;
+        available.Anchor = carriedDebt.Anchor;
 
         debtCaption.Text = "Debt Brought Forward";
         creditSalesCaption.Text = "Credit Sales This Month";
@@ -134,17 +124,6 @@ internal static class MainCustomerFinancialLayoutPolicy
             SetRow(finances, creditSalesCaption, currentCreditDebt, 2);
             SetRow(finances, paymentsCaption, customerPayments, 3);
             SetRow(finances, outstandingCaption, employeeAmountDue, 4);
-
-            while (finances.RowStyles.Count < finances.RowCount)
-            {
-                finances.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            }
-
-            for (int row = 0; row < finances.RowStyles.Count; row++)
-            {
-                finances.RowStyles[row].SizeType = row < 5 ? SizeType.AutoSize : SizeType.Absolute;
-                finances.RowStyles[row].Height = row < 5 ? 0 : 0;
-            }
         }
         finally
         {
