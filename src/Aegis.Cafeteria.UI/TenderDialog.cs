@@ -32,6 +32,7 @@ internal sealed class TenderDialog : Form
     {
         Text = "Put the uncovered balance on Employee Credit",
         AutoSize = true,
+        Checked = false,
         Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
         ForeColor = Color.FromArgb(142, 76, 8)
     };
@@ -94,7 +95,11 @@ internal sealed class TenderDialog : Form
         this.account.Enabled = this.maximumAccountAmount > 0m;
         this.cashReceived.Value = 0m;
         this.useCredit.Enabled = this.creditSalesAllowed;
-        this.useCredit.Checked = this.creditSalesAllowed && this.total > this.maximumAccountAmount;
+
+        // Employee Credit is always an explicit cashier choice. The application
+        // must never select this checkbox based on available credit, sale total,
+        // uncovered balance, or any other calculation.
+        this.useCredit.Checked = false;
 
         this.account.ValueChanged += (_, _) => UpdatePaymentState();
         this.cashReceived.ValueChanged += (_, _) => UpdateAccountFromCash();
