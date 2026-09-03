@@ -25,6 +25,8 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        LinuxUiParityPolicy.ConfigureApplicationCulture();
+
         var builder = Host.CreateApplicationBuilder(args);
         builder.Configuration
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
@@ -96,7 +98,9 @@ internal static class Program
                 .AfterSetup(appBuilder => appBuilder.Instance?.Styles.Add(new FluentTheme()))
                 .SetupWithLifetime(lifetime);
 
-            lifetime.MainWindow = host.Services.GetRequiredService<MainWindow>();
+            MainWindow mainWindow = host.Services.GetRequiredService<MainWindow>();
+            LinuxUiParityPolicy.Apply(mainWindow);
+            lifetime.MainWindow = mainWindow;
             lifetime.Start(args);
         }
         finally
