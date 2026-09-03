@@ -1,65 +1,67 @@
 namespace Aegis.Cafeteria.UI;
 
+using System.Reflection;
+
 internal static class MainCustomerFinancialLayoutPolicy
 {
-    private const string AvailableCaption = "AVAILABLE TO SPEND";
-    private const string DebtCaption = "Debt brought forward";
-    private const string CreditSalesCaption = "Credit sales this month";
-    private const string CustomerPaymentsCaption = "Customer Payments";
-    private const string EmployeeAmountDueCaption = "Employee Amount Due";
     private const string AppliedControlName = "AvailableToSpendFinancialRow";
 
     public static void Apply(Form form)
     {
         ArgumentNullException.ThrowIfNull(form);
 
-        if (form is not MainForm || form.Controls.Find(AppliedControlName, true).Length > 0)
+        if (form is not MainForm mainForm)
         {
             return;
         }
 
-        Label? availableCaption = Descendants(form)
-            .OfType<Label>()
-            .FirstOrDefault(label => string.Equals(label.Text, AvailableCaption, StringComparison.Ordinal));
+        Label? available = GetField<Label>(mainForm, "available");
+        Label? carriedDebt = GetField<Label>(mainForm, "carriedDebt");
+        Label? currentCreditDebt = GetField<Label>(mainForm, "currentCreditDebt");
+        Label? customerPayments = GetField<Label>(mainForm, "customerPaymentsValue");
+        Label? employeeAmountDue = GetField<Label>(mainForm, "employeeAmountDue");
 
-        FlowLayoutPanel? availableStack = availableCaption?.Parent as FlowLayoutPanel;
-        Panel? highlight = availableStack?.Parent as Panel;
-        Label? availableValue = availableStack?.Controls
-            .OfType<Label>()
-            .FirstOrDefault(label => !ReferenceEquals(label, availableCaption));
-
-        TableLayoutPanel? finances = Descendants(form)
-            .OfType<TableLayoutPanel>()
-            .FirstOrDefault(table => table.Controls
-                .OfType<Label>()
-                .Any(label => string.Equals(label.Text, DebtCaption, StringComparison.OrdinalIgnoreCase)));
-
-        if (availableValue is null || highlight is null || finances is null)
+        if (available is null
+            || carriedDebt is null
+            || currentCreditDebt is null
+            || customerPayments is null
+            || employeeAmountDue is null)
         {
             return;
         }
 
-        Control? debtValue = FindValueForCaption(finances, DebtCaption);
-        Control? creditSalesValue = FindValueForCaption(finances, CreditSalesCaption);
-        Control? paymentsValue = FindValueForCaption(finances, CustomerPaymentsCaption);
-        Control? outstandingValue = FindValueForCaption(finances, EmployeeAmountDueCaption);
-
-        if (debtValue is null || creditSalesValue is null || paymentsValue is null || outstandingValue is null)
+        if (string.Equals(available.Name, AppliedControlName, StringComparison.Ordinal)
+            && available.Parent is TableLayoutPanel)
         {
             return;
         }
 
-        TableLayoutPanel? customerRoot = highlight.Parent as TableLayoutPanel;
-        int highlightRow = customerRoot is null ? -1 : customerRoot.GetRow(highlight);
+        TableLayoutPanel? finances = carriedDebt.Parent as TableLayoutPanel;
+        if (finances is null)
+        {
+            return;
+        }
 
-        availableStack.Controls.Remove(availableValue);
-        highlight.Parent?.Controls.Remove(highlight);
-        highlight.Dispose();
+        Control? oldAvailableContainer = available.Parent;
+        Panel? highlight = oldAvailableContainer?.Parent as Panel;
+        TableLayoutPanel? customerRoot = highlight?.Parent as TableLayoutPanel;
+        int highlightRow = customerRoot is null || highlight is null
+            ? -1
+            : customerRoot.GetRow(highlight);
+
+        oldAvailableContainer?.Controls.Remove(available);
+
+        if (highlight is not null)
+        {
+            highlight.Parent?.Controls.Remove(highlight);
+            highlight.Dispose();
+        }
 
         if (customerRoot is not null && highlightRow >= 0)
         {
             Panel divider = new()
             {
+                Name = "CustomerFinancialDivider",
                 Dock = DockStyle.Top,
                 Height = 4,
                 BackColor = Color.FromArgb(235, 139, 40),
@@ -68,10 +70,10 @@ internal static class MainCustomerFinancialLayoutPolicy
             customerRoot.Controls.Add(divider, 0, highlightRow);
         }
 
-        availableValue.Name = AppliedControlName;
-        availableValue.Font = new Font("Segoe UI", 11, FontStyle.Bold);
-        availableValue.ForeColor = Color.FromArgb(24, 45, 68);
-        availableValue.Anchor = AnchorStyles.Right;
+        available.Name = AppliedControlName;
+        available.Font = new Font("Segoe UI", 11, FontStyle.Bold);
+        available.ForeColor = Color.FromArgb(24, 45, 68);
+        available.Anchor = AnchorStyles.Right;
 
         finances.SuspendLayout();
         try
@@ -80,11 +82,11 @@ internal static class MainCustomerFinancialLayoutPolicy
             finances.RowStyles.Clear();
             finances.RowCount = 5;
 
-            AddRow(finances, 0, "Available to Spend", availableValue);
-            AddRow(finances, 1, "Debt Brought Forward", debtValue);
-            AddRow(finances, 2, "Credit Sales This Month", creditSalesValue);
-            AddRow(finances, 3, "Employee Payments", paymentsValue);
-            AddRow(finances, 4, "Outstanding Balance", outstandingValue);
+            AddRow(finances, 0, "Available to Spend", available);
+            AddRow(finances, 1, "Debt Brought Forward", carriedDebt);
+            AddRow(finances, 2, "Credit Sales This Month", currentCreditDebt);
+            AddRow(finances, 3, "Employee Payments", customerPayments);
+            AddRow(finances, 4, "Outstanding Balance", employeeAmountDue);
         }
         finally
         {
@@ -92,21 +94,11 @@ internal static class MainCustomerFinancialLayoutPolicy
         }
     }
 
-    private static Control? FindValueForCaption(TableLayoutPanel finances, string captionText)
+    private static T? GetField<T>(MainForm mainForm, string fieldName)
+        where T : Control
     {
-        Label? caption = finances.Controls
-            .OfType<Label>()
-            .FirstOrDefault(label => string.Equals(label.Text, captionText, StringComparison.OrdinalIgnoreCase));
-
-        if (caption is null)
-        {
-            return null;
-        }
-
-        int row = finances.GetRow(caption);
-        return finances.Controls
-            .Cast<Control>()
-            .FirstOrDefault(control => !ReferenceEquals(control, caption) && finances.GetRow(control) == row && finances.GetColumn(control) == 1);
+        FieldInfo? field = typeof(MainForm).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        return field?.GetValue(mainForm) as T;
     }
 
     private static void AddRow(TableLayoutPanel finances, int row, string captionText, Control value)
@@ -124,18 +116,5 @@ internal static class MainCustomerFinancialLayoutPolicy
         value.Anchor = AnchorStyles.Right;
         finances.Controls.Add(caption, 0, row);
         finances.Controls.Add(value, 1, row);
-    }
-
-    private static IEnumerable<Control> Descendants(Control root)
-    {
-        foreach (Control child in root.Controls)
-        {
-            yield return child;
-
-            foreach (Control descendant in Descendants(child))
-            {
-                yield return descendant;
-            }
-        }
     }
 }
