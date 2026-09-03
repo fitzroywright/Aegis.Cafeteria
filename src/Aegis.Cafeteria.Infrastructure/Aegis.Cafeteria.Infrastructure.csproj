@@ -7,9 +7,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Aegis.Cafeteria.Domain\Aegis.Cafeteria.Domain.csproj" />
     <ProjectReference Include="..\Aegis.Cafeteria.Application\Aegis.Cafeteria.Application.csproj" />
-    <ProjectReference Include="..\..\external\Common.Security\Common.Security.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="Common.Security" Version="1.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.3" />
