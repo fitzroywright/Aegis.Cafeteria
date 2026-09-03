@@ -63,7 +63,51 @@ internal static class UiDisplayFormattingPolicy
             }
 
             eventArgs.CellStyle.ForeColor = Red;
+            string format = grid.Columns[eventArgs.ColumnIndex].DefaultCellStyle.Format;
+            if (string.IsNullOrWhiteSpace(format))
+            {
+                eventArgs.Value = $"({Math.Abs(value):#,##0.##})";
+                eventArgs.FormattingApplied = true;
+            }
         };
+
+        grid.DataBindingComplete += (_, _) => HideRefundRowsFromRefundSelectionGrid(grid);
+    }
+
+    private static void HideRefundRowsFromRefundSelectionGrid(DataGridView grid)
+    {
+        if (!IsRefundSelectionGrid(grid))
+        {
+            return;
+        }
+
+        foreach (DataGridViewRow row in grid.Rows)
+        {
+            object? boundItem = row.DataBoundItem;
+            string? kind = boundItem?.GetType().GetProperty("Kind")?.GetValue(boundItem)?.ToString();
+            if (string.Equals(kind, "Refund", StringComparison.OrdinalIgnoreCase))
+            {
+                row.Visible = false;
+            }
+        }
+    }
+
+    private static bool IsRefundSelectionGrid(DataGridView grid)
+    {
+        Control? current = grid.Parent;
+        while (current is not null)
+        {
+            if (DescendantsAndSelf(current)
+                .OfType<Button>()
+                .Any(button => string.Equals(button.Text, "Refund Selected", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            current = current.Parent;
+        }
+
+        return false;
     }
 
     private static bool TryGetDecimal(object? value, out decimal number)
