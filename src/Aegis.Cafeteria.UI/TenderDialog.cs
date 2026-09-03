@@ -1,7 +1,5 @@
 namespace Aegis.Cafeteria.UI;
 
-using Aegis.Cafeteria.Application.Orders;
-
 internal sealed class TenderDialog : Form
 {
     private readonly NumericUpDown account = new()
@@ -29,7 +27,6 @@ internal sealed class TenderDialog : Form
     private readonly decimal total;
     private readonly decimal subsidyRemaining;
     private readonly decimal maximumAccountAmount;
-    private bool updatingTender;
 
     public decimal CafeteriaAccountAmount => CurrentEditorValue(this.account);
     public decimal CashReceived => CurrentEditorValue(this.cashReceived);
@@ -46,33 +43,38 @@ internal sealed class TenderDialog : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
-        Size = new Size(500, 430);
+        Size = new Size(500, 455);
 
         this.maximumAccountAmount = Math.Min(total, Math.Max(0m, availableCredit));
         this.account.Maximum = this.maximumAccountAmount;
-        this.account.Value = this.maximumAccountAmount;
+
+        // Employee Credit is always opt-in. The cashier must ask the employee
+        // and deliberately enter/select the amount to use for this sale.
+        this.account.Value = 0m;
         this.account.Enabled = this.maximumAccountAmount > 0m;
         this.cashReceived.Value = 0m;
 
         this.account.ValueChanged += (_, _) => UpdatePaymentState();
-        this.cashReceived.ValueChanged += (_, _) => UpdateAccountFromCash();
+        this.cashReceived.ValueChanged += (_, _) => UpdatePaymentState();
         // NumericUpDown does not always commit typed text to Value until focus
         // leaves the editor. Recalculate from the live editor text so Remaining,
         // Change and the Complete button update while the cashier is typing.
         this.account.TextChanged += (_, _) => UpdatePaymentState();
-        this.cashReceived.TextChanged += (_, _) => UpdateAccountFromCash();
+        this.cashReceived.TextChanged += (_, _) => UpdatePaymentState();
         this.complete.Click += (_, _) =>
         {
-            if (!TryCurrentEditorValue(this.account, out var accountAmount) ||
-                !TryCurrentEditorValue(this.cashReceived, out var cashReceived) ||
+            if (!TryCurrentEditorValue(this.account, out decimal accountAmount) ||
+                !TryCurrentEditorValue(this.cashReceived, out decimal cashReceived) ||
                 Math.Max(0m, this.total - accountAmount - cashReceived) > 0m)
+            {
                 return;
+            }
 
             DialogResult = DialogResult.OK;
             Close();
         };
 
-        var table = new TableLayoutPanel
+        TableLayoutPanel table = new()
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
@@ -85,10 +87,10 @@ internal sealed class TenderDialog : Form
         table.Controls.Add(Caption("Order Total"), 0, 0);
         table.Controls.Add(ValueLabel(total.ToString("C2")), 1, 0);
 
-        table.Controls.Add(Caption("Available to Spend"), 0, 1);
+        table.Controls.Add(Caption("Available Employee Credit"), 0, 1);
         table.Controls.Add(ValueLabel(availableCredit.ToString("C2")), 1, 1);
 
-        table.Controls.Add(Caption("Cafeteria Account"), 0, 2);
+        table.Controls.Add(Caption("Employee Credit"), 0, 2);
         table.Controls.Add(this.account, 1, 2);
 
         table.Controls.Add(Caption("New Customer Responsibility"), 0, 3);
@@ -103,23 +105,23 @@ internal sealed class TenderDialog : Form
         table.Controls.Add(Caption("Change Due"), 0, 6);
         table.Controls.Add(this.change, 1, 6);
 
-        var hint = new Label
+        Label hint = new()
         {
             AutoSize = true,
             ForeColor = Color.DimGray,
-            Text = "Enter cash received and the Cafeteria Account charge account amount adjusts automatically. Spending above remaining company subsidy becomes customer responsibility for later payment/employee amount due. The sale can complete only when the order is fully covered by Cafeteria Account and/or cash.",
+            Text = "Ask the employee before using Employee Credit. Employee Credit is never selected automatically. If the employee declines, leave Employee Credit at $0.00 and collect enough cash or modify the sale. The sale can complete only when the order is fully covered.",
             MaximumSize = new Size(420, 0),
             Margin = new Padding(0, 8, 0, 8)
         };
         table.Controls.Add(hint, 0, 7);
         table.SetColumnSpan(hint, 2);
 
-        var buttons = new FlowLayoutPanel
+        FlowLayoutPanel buttons = new()
         {
             FlowDirection = FlowDirection.RightToLeft,
             Dock = DockStyle.Fill
         };
-        var cancel = new Button { Text = "Cancel", Width = 100, DialogResult = DialogResult.Cancel };
+        Button cancel = new() { Text = "Cancel", Width = 100, DialogResult = DialogResult.Cancel };
         buttons.Controls.Add(this.complete);
         buttons.Controls.Add(cancel);
         table.Controls.Add(buttons, 0, 8);
@@ -131,43 +133,9 @@ internal sealed class TenderDialog : Form
         Shown += (_, _) => this.cashReceived.Focus();
     }
 
-
-    private void UpdateAccountFromCash()
-    {
-        if (this.updatingTender)
-        {
-            return;
-        }
-
-        if (!TryCurrentEditorValue(this.cashReceived, out decimal cashAmount))
-        {
-            UpdatePaymentState();
-            return;
-        }
-
-        decimal accountAmount = TenderAllocationCalculator.CalculateCafeteriaAccountAmount
-        (
-              this.total
-            , this.maximumAccountAmount
-            , cashAmount
-        );
-
-        this.updatingTender = true;
-        try
-        {
-            this.account.Value = accountAmount;
-        }
-        finally
-        {
-            this.updatingTender = false;
-        }
-
-        UpdatePaymentState();
-    }
-
     private void UpdatePaymentState()
     {
-        var valid = TryCurrentEditorValue(this.account, out _) && TryCurrentEditorValue(this.cashReceived, out _);
+        bool valid = TryCurrentEditorValue(this.account, out _) && TryCurrentEditorValue(this.cashReceived, out _);
         if (!valid)
         {
             this.remaining.Text = "—";
@@ -179,7 +147,7 @@ internal sealed class TenderDialog : Form
 
         this.remaining.Text = RemainingAmount.ToString("C2");
         this.change.Text = ChangeAmount.ToString("C2");
-        var addedResponsibility = Math.Max(0m, CafeteriaAccountAmount - this.subsidyRemaining);
+        decimal addedResponsibility = Math.Max(0m, CafeteriaAccountAmount - this.subsidyRemaining);
         this.newResponsibility.Text = addedResponsibility.ToString("C2");
         this.newResponsibility.ForeColor = addedResponsibility > 0m ? Color.DarkOrange : Color.DarkGreen;
         this.remaining.ForeColor = RemainingAmount > 0m ? Color.Firebrick : Color.DarkGreen;
@@ -187,13 +155,12 @@ internal sealed class TenderDialog : Form
         this.complete.Enabled = RemainingAmount == 0m;
     }
 
-
     private static decimal CurrentEditorValue(NumericUpDown control)
-        => TryCurrentEditorValue(control, out var value) ? value : control.Value;
+        => TryCurrentEditorValue(control, out decimal value) ? value : control.Value;
 
     private static bool TryCurrentEditorValue(NumericUpDown control, out decimal value)
     {
-        var text = control.Text?.Trim();
+        string? text = control.Text?.Trim();
         if (string.IsNullOrEmpty(text))
         {
             value = 0m;
@@ -202,10 +169,14 @@ internal sealed class TenderDialog : Form
 
         if (!decimal.TryParse(text, System.Globalization.NumberStyles.Number,
                 System.Globalization.CultureInfo.CurrentCulture, out value))
+        {
             return false;
+        }
 
         if (value < control.Minimum || value > control.Maximum)
+        {
             return false;
+        }
 
         return true;
     }
