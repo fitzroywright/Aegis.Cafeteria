@@ -95,8 +95,8 @@ internal static class PosCashierUiPolicy
         }
 
         StyleProductHeading(mainForm);
-        StyleFinancialSummary(mainForm);
         SimplifyCustomerFunding(mainForm);
+        StyleFinancialSummary(mainForm);
         MoveReadyCustomerInstructions(mainForm);
         ConfigureRecentTransactionNavigation(mainForm, orderQuery, identification);
     }
@@ -120,6 +120,7 @@ internal static class PosCashierUiPolicy
 
     private static void StyleFinancialSummary(Form mainForm)
     {
+        StyleFinancialRow(mainForm, "Available Funds", Blue);
         StyleFinancialRow(mainForm, "Debt Brought Forward", Red);
         StyleFinancialRow(mainForm, "Credit sales this month", Orange);
         StyleFinancialRow(mainForm, "Employee Payments", Green);
@@ -160,9 +161,19 @@ internal static class PosCashierUiPolicy
             .OfType<Label>()
             .FirstOrDefault(label => string.Equals(label.Text, "AVAILABLE TO SPEND", StringComparison.Ordinal));
 
+        Label? availableValue = availableCaption?.Parent?
+            .Controls
+            .OfType<Label>()
+            .FirstOrDefault(label => !ReferenceEquals(label, availableCaption));
+
         if (availableCaption?.Parent is FlowLayoutPanel availableStack
             && availableStack.Parent is Panel highlightPanel)
         {
+            if (availableValue is not null)
+            {
+                availableStack.Controls.Remove(availableValue);
+            }
+
             highlightPanel.SuspendLayout();
             highlightPanel.Controls.Clear();
             highlightPanel.AutoSize = false;
@@ -195,6 +206,67 @@ internal static class PosCashierUiPolicy
         HideFinancialRow(mainForm, "Company subsidy remaining");
         HideFinancialRow(mainForm, "Employee-funded remaining");
         HideFinancialRow(mainForm, "Customer Responsibility (before payments)");
+
+        if (availableValue is not null)
+        {
+            InsertAvailableFundsRow(mainForm, availableValue);
+        }
+    }
+
+    private static void InsertAvailableFundsRow(Form mainForm, Label availableValue)
+    {
+        Label? debtCaption = Descendants(mainForm)
+            .OfType<Label>()
+            .FirstOrDefault(label => string.Equals(label.Text, "Debt Brought Forward", StringComparison.OrdinalIgnoreCase));
+        if (debtCaption?.Parent is not TableLayoutPanel table)
+        {
+            return;
+        }
+
+        TableLayoutPanelCellPosition debtPosition = table.GetPositionFromControl(debtCaption);
+        if (debtPosition.Row < 0)
+        {
+            return;
+        }
+
+        int insertRow = debtPosition.Row;
+        Control[] controlsToShift = table.Controls
+            .Cast<Control>()
+            .Where(control => table.GetRow(control) >= insertRow && control.Visible)
+            .OrderByDescending(table.GetRow)
+            .ToArray();
+
+        foreach (Control control in controlsToShift)
+        {
+            table.SetRow(control, table.GetRow(control) + 1);
+        }
+
+        while (table.RowStyles.Count <= insertRow)
+        {
+            table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        }
+
+        table.RowStyles[insertRow].SizeType = SizeType.AutoSize;
+        table.RowStyles[insertRow].Height = 0F;
+
+        Label caption = new()
+        {
+            Text = "Available Funds",
+            AutoSize = true,
+            ForeColor = Blue,
+            Padding = new Padding(0, 5, 0, 5)
+        };
+
+        availableValue.AutoSize = true;
+        availableValue.Anchor = AnchorStyles.Right;
+        availableValue.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+        availableValue.ForeColor = Blue;
+        availableValue.BackColor = Color.Transparent;
+        availableValue.Padding = Padding.Empty;
+        availableValue.Margin = Padding.Empty;
+
+        table.Controls.Add(caption, 0, insertRow);
+        table.Controls.Add(availableValue, 1, insertRow);
     }
 
     private static void ConfigureRecentTransactionNavigation(
