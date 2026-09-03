@@ -159,92 +159,27 @@ internal static class PosCashierUiPolicy
         Label? availableCaption = Descendants(mainForm)
             .OfType<Label>()
             .FirstOrDefault(label => string.Equals(label.Text, "AVAILABLE TO SPEND", StringComparison.Ordinal));
-        if (availableCaption?.Parent is not FlowLayoutPanel availableStack)
-        {
-            return;
-        }
 
-        Label? availableValue = availableStack.Controls
-            .OfType<Label>()
-            .FirstOrDefault(label => !ReferenceEquals(label, availableCaption));
-        Panel? highlightPanel = availableStack.Parent as Panel;
+        if (availableCaption?.Parent is FlowLayoutPanel availableStack
+            && availableStack.Parent is Panel highlightPanel)
+        {
+            highlightPanel.Visible = false;
+        }
 
         FlowLayoutPanel? customerInfo = Descendants(mainForm)
             .OfType<FlowLayoutPanel>()
             .FirstOrDefault(panel => panel.FlowDirection == FlowDirection.TopDown
                 && panel.Controls.OfType<Label>().Any(label => Math.Abs(label.Font.Size - 21F) < 0.2F));
-        if (availableValue is null || customerInfo is null)
-        {
-            return;
-        }
 
-        Label? fundingStatus = customerInfo.Controls
+        Label? fundingStatus = customerInfo?.Controls
             .OfType<Label>()
             .FirstOrDefault(label => label.Padding.Left == 8
                 && label.Padding.Top == 4
                 && label.Margin.Top == 8);
-        if (fundingStatus is null)
+
+        if (fundingStatus is not null)
         {
-            return;
-        }
-
-        customerInfo.Controls.Remove(fundingStatus);
-        availableStack.Controls.Remove(availableValue);
-
-        FlowLayoutPanel fundingRow = new()
-        {
-            AutoSize = true,
-            FlowDirection = FlowDirection.LeftToRight,
-            WrapContents = false,
-            Margin = new Padding(0, 8, 0, 0)
-        };
-        Label availableInlineCaption = new()
-        {
-            AutoSize = true,
-            Text = "Available to Spend:",
-            Margin = new Padding(12, 0, 4, 0)
-        };
-
-        fundingStatus.Margin = Padding.Empty;
-        availableValue.Margin = Padding.Empty;
-        availableValue.AutoSize = true;
-
-        void SyncFundingStyle()
-        {
-            availableInlineCaption.Font = fundingStatus.Font;
-            availableInlineCaption.ForeColor = fundingStatus.ForeColor;
-            availableInlineCaption.BackColor = fundingStatus.BackColor;
-            availableInlineCaption.Padding = fundingStatus.Padding;
-
-            availableValue.Font = fundingStatus.Font;
-            availableValue.ForeColor = fundingStatus.ForeColor;
-            availableValue.BackColor = fundingStatus.BackColor;
-            availableValue.Padding = fundingStatus.Padding;
-        }
-
-        fundingStatus.ForeColorChanged += (_, _) => SyncFundingStyle();
-        fundingStatus.BackColorChanged += (_, _) => SyncFundingStyle();
-        fundingStatus.FontChanged += (_, _) => SyncFundingStyle();
-        SyncFundingStyle();
-
-        fundingRow.Controls.Add(fundingStatus);
-        fundingRow.Controls.Add(availableInlineCaption);
-        fundingRow.Controls.Add(availableValue);
-        customerInfo.Controls.Add(fundingRow);
-        customerInfo.Controls.SetChildIndex(fundingRow, 1);
-
-        if (highlightPanel is not null)
-        {
-            highlightPanel.SuspendLayout();
-            highlightPanel.Controls.Clear();
-            highlightPanel.AutoSize = false;
-            highlightPanel.Visible = true;
-            highlightPanel.Height = 5;
-            highlightPanel.MinimumSize = new Size(0, 5);
-            highlightPanel.BackColor = Orange;
-            highlightPanel.Padding = Padding.Empty;
-            highlightPanel.Margin = new Padding(0, 0, 0, 12);
-            highlightPanel.ResumeLayout(true);
+            fundingStatus.Visible = false;
         }
 
         HideFinancialRow(mainForm, "Monthly cafeteria credit");
