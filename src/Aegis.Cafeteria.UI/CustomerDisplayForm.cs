@@ -17,6 +17,14 @@ public sealed class CustomerDisplayForm : Form
     private static readonly Color Purple = Color.FromArgb(120, 86, 180);
     private static readonly Color Orange = Color.FromArgb(202, 111, 26);
 
+    private readonly Panel customerContent = new()
+    {
+        Dock = DockStyle.Fill,
+        BackColor = Canvas
+    };
+
+    private readonly CustomerDisplayIdleClockControl idleClock = new();
+
     private readonly PictureBox photo = new()
     {
         Width = 210,
@@ -98,6 +106,7 @@ public sealed class CustomerDisplayForm : Form
         BuildLayout();
         ConfigureHistoryGrid();
         this.history.DataSource = this.historySource;
+        ShowIdleClock();
     }
 
     public void PlaceOn(Screen screen)
@@ -108,6 +117,13 @@ public sealed class CustomerDisplayForm : Form
         WindowState = CustomerDisplayPolicy.UseMaximizedWindow
             ? FormWindowState.Maximized
             : FormWindowState.Normal;
+
+        if (!Visible)
+        {
+            ShowIdleClock();
+            Show();
+            BringToFront();
+        }
     }
 
     public void ShowCustomer(
@@ -116,6 +132,11 @@ public sealed class CustomerDisplayForm : Form
         int currentYear,
         int currentMonth)
     {
+        this.idleClock.StopClock();
+        this.idleClock.Visible = false;
+        this.customerContent.Visible = true;
+        this.customerContent.BringToFront();
+
         this.name.Text = account.Customer.Name;
         this.period.Text = account.Customer.IsCashCustomer
             ? "Cash customer"
@@ -185,7 +206,15 @@ public sealed class CustomerDisplayForm : Form
         this.historySource.DataSource = null;
         this.photo.Image?.Dispose();
         this.photo.Image = null;
-        Hide();
+        ShowIdleClock();
+    }
+
+    private void ShowIdleClock()
+    {
+        this.customerContent.Visible = false;
+        this.idleClock.Visible = true;
+        this.idleClock.BringToFront();
+        this.idleClock.StartClock();
     }
 
     private void BuildLayout()
@@ -254,7 +283,10 @@ public sealed class CustomerDisplayForm : Form
         this.historyTitle.Dock = DockStyle.Top;
         this.noHistory.Dock = DockStyle.Top;
         root.Controls.Add(historyCard, 0, 2);
-        Controls.Add(root);
+
+        this.customerContent.Controls.Add(root);
+        Controls.Add(this.customerContent);
+        Controls.Add(this.idleClock);
     }
 
     private Control BuildFinancialGrid()
