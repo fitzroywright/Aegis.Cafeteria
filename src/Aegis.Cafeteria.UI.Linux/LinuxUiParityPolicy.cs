@@ -2,7 +2,7 @@ namespace Aegis.Cafeteria.UI.Linux;
 
 using System.Globalization;
 using System.Reflection;
-using Aegis.Cafeteria.Application.Accounts;
+using Aegis.Cafeteria.Application.Reporting;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
@@ -138,9 +138,15 @@ internal static class LinuxUiParityPolicy
         }
 
         CustomerAccountView? account = GetPrivateField<CustomerAccountView>(mainWindow, "currentCustomer");
-        if (account is null || account.Customer.IsCashCustomer || !account.Customer.IsEligibleForCredit)
+        if (account is null)
         {
-            creditSales.Text = account is null ? "$0.00" : "—";
+            creditSales.Text = "$0.00";
+            return;
+        }
+
+        if (account.Customer.IsCashCustomer || !account.Customer.IsEligibleForCredit)
+        {
+            creditSales.Text = "—";
             return;
         }
 
