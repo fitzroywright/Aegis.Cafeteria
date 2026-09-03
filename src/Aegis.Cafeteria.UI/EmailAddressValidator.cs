@@ -14,8 +14,8 @@ internal static class EmailAddressValidator
         }
 
         if (candidate.Any(char.IsControl)
-            || candidate.Contains(';', StringComparison.Ordinal)
-            || candidate.Contains(',', StringComparison.Ordinal))
+            || candidate.Contains(';')
+            || candidate.Contains(','))
         {
             return false;
         }
