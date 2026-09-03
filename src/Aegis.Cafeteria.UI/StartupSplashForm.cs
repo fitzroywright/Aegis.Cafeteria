@@ -22,7 +22,7 @@ internal sealed class StartupSplashForm : Form
         ShowInTaskbar = true;
         StartPosition = FormStartPosition.CenterScreen;
         Text = "Food For The Poor Jamaica - Cafeteria";
-        TopMost = false;
+        TopMost = true;
 
         Icon? applicationIcon = Icon.ExtractAssociatedIcon(System.Windows.Forms.Application.ExecutablePath);
         if (applicationIcon is not null)
