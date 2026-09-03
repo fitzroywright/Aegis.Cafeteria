@@ -49,9 +49,24 @@ internal static class MainCustomerFinancialLayoutPolicy
             return;
         }
 
+        TableLayoutPanel? customerRoot = highlight.Parent as TableLayoutPanel;
+        int highlightRow = customerRoot is null ? -1 : customerRoot.GetRow(highlight);
+
         availableStack.Controls.Remove(availableValue);
         highlight.Parent?.Controls.Remove(highlight);
         highlight.Dispose();
+
+        if (customerRoot is not null && highlightRow >= 0)
+        {
+            Panel divider = new()
+            {
+                Dock = DockStyle.Top,
+                Height = 4,
+                BackColor = Color.FromArgb(235, 139, 40),
+                Margin = new Padding(0, 8, 0, 12)
+            };
+            customerRoot.Controls.Add(divider, 0, highlightRow);
+        }
 
         availableValue.Name = AppliedControlName;
         availableValue.Font = new Font("Segoe UI", 11, FontStyle.Bold);
