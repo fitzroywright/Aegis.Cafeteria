@@ -96,6 +96,7 @@ internal static class PosCashierUiPolicy
 
         StyleProductHeading(mainForm);
         SimplifyCustomerFunding(mainForm);
+        NormalizeFinancialSummary(mainForm);
         StyleFinancialSummary(mainForm);
         MoveReadyCustomerInstructions(mainForm);
         ConfigureRecentTransactionNavigation(mainForm, orderQuery, identification);
@@ -223,32 +224,6 @@ internal static class PosCashierUiPolicy
             return;
         }
 
-        TableLayoutPanelCellPosition debtPosition = table.GetPositionFromControl(debtCaption);
-        if (debtPosition.Row < 0)
-        {
-            return;
-        }
-
-        int insertRow = debtPosition.Row;
-        Control[] controlsToShift = table.Controls
-            .Cast<Control>()
-            .Where(control => table.GetRow(control) >= insertRow && control.Visible)
-            .OrderByDescending(table.GetRow)
-            .ToArray();
-
-        foreach (Control control in controlsToShift)
-        {
-            table.SetRow(control, table.GetRow(control) + 1);
-        }
-
-        while (table.RowStyles.Count <= insertRow)
-        {
-            table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        }
-
-        table.RowStyles[insertRow].SizeType = SizeType.AutoSize;
-        table.RowStyles[insertRow].Height = 0F;
-
         Label caption = new()
         {
             Text = "Available Funds",
@@ -265,8 +240,72 @@ internal static class PosCashierUiPolicy
         availableValue.Padding = Padding.Empty;
         availableValue.Margin = Padding.Empty;
 
-        table.Controls.Add(caption, 0, insertRow);
-        table.Controls.Add(availableValue, 1, insertRow);
+        table.Controls.Add(caption, 0, 0);
+        table.Controls.Add(availableValue, 1, 0);
+    }
+
+    private static void NormalizeFinancialSummary(Form mainForm)
+    {
+        string[] captions =
+        [
+            "Available Funds",
+            "Debt Brought Forward",
+            "Credit sales this month",
+            "Employee Payments",
+            "Outstanding Balance"
+        ];
+
+        Label? firstCaption = Descendants(mainForm)
+            .OfType<Label>()
+            .FirstOrDefault(label => string.Equals(label.Text, captions[0], StringComparison.OrdinalIgnoreCase));
+        if (firstCaption?.Parent is not TableLayoutPanel table)
+        {
+            return;
+        }
+
+        for (int row = 0; row < captions.Length; row++)
+        {
+            Label? caption = table.Controls
+                .OfType<Label>()
+                .FirstOrDefault(label => string.Equals(label.Text, captions[row], StringComparison.OrdinalIgnoreCase));
+            if (caption is null)
+            {
+                continue;
+            }
+
+            int currentRow = table.GetRow(caption);
+            Control? value = table.GetControlFromPosition(1, currentRow);
+
+            table.SetRow(caption, row);
+            table.SetColumn(caption, 0);
+            caption.Visible = true;
+
+            if (value is not null)
+            {
+                table.SetRow(value, row);
+                table.SetColumn(value, 1);
+                value.Visible = true;
+            }
+        }
+
+        while (table.RowStyles.Count < captions.Length)
+        {
+            table.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        }
+
+        for (int row = 0; row < table.RowStyles.Count; row++)
+        {
+            if (row < captions.Length)
+            {
+                table.RowStyles[row].SizeType = SizeType.AutoSize;
+                table.RowStyles[row].Height = 0F;
+            }
+            else
+            {
+                table.RowStyles[row].SizeType = SizeType.Absolute;
+                table.RowStyles[row].Height = 0F;
+            }
+        }
     }
 
     private static void ConfigureRecentTransactionNavigation(
