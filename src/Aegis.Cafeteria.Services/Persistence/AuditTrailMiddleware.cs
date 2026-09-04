@@ -1,5 +1,8 @@
 namespace Aegis.Cafeteria.Services.Persistence;
 
+using Aegis.Cafeteria.Infrastructure.Configuration;
+using Microsoft.EntityFrameworkCore;
+
 public sealed class AuditTrailMiddleware
 {
     private static readonly HashSet<string> AuditedMethods = new(StringComparer.OrdinalIgnoreCase)
@@ -17,7 +20,12 @@ public sealed class AuditTrailMiddleware
         this.next = next;
     }
 
-    public async Task InvokeAsync(HttpContext http, AuditTrailService auditTrail)
+    public async Task InvokeAsync
+    (
+          HttpContext http
+        , IDbContextFactory<ServiceDbContext> factory
+        , IConfiguration configuration
+    )
     {
         if (!AuditedMethods.Contains(http.Request.Method))
         {
@@ -48,6 +56,9 @@ public sealed class AuditTrailMiddleware
             Guid? operationId = ResolveOperationId(http);
             bool succeeded = failure is null && http.Response.StatusCode < 400;
             string? terminalId = http.Request.Headers["X-Aegis-Terminal-Id"].FirstOrDefault();
+            CafeteriaLoggingOptions loggingOptions = configuration.GetSection("Logging").Get<CafeteriaLoggingOptions>()
+                ?? new CafeteriaLoggingOptions();
+            AuditTrailService auditTrail = new(factory, loggingOptions);
 
             try
             {
@@ -91,6 +102,7 @@ public sealed class AuditTrailMiddleware
         if (value.Contains("email", StringComparison.OrdinalIgnoreCase)) return "Email";
         if (value.Contains("authenticate", StringComparison.OrdinalIgnoreCase)) return "Authentication";
         if (value.Contains("development/reset", StringComparison.OrdinalIgnoreCase)) return "DevelopmentReset";
+        if (value.Contains("engineering", StringComparison.OrdinalIgnoreCase)) return "EngineeringDiagnostics";
         return "HttpOperation";
     }
 
