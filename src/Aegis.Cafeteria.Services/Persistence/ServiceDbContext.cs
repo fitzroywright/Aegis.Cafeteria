@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 public sealed class ServiceDbContext(DbContextOptions<ServiceDbContext> options) : DbContext(options)
 {
     public DbSet<ServiceEventRow> Events => Set<ServiceEventRow>();
+    public DbSet<AuditTrailRow> AuditTrail => Set<AuditTrailRow>();
     public DbSet<CustomerCreditPolicyRow> CustomerCreditPolicies => Set<CustomerCreditPolicyRow>();
     public DbSet<ScheduledDispatchRow> ScheduledDispatches => Set<ScheduledDispatchRow>();
     public DbSet<CustomerNotificationPreferenceRow> CustomerNotificationPreferences => Set<CustomerNotificationPreferenceRow>();
@@ -23,6 +24,25 @@ public sealed class ServiceDbContext(DbContextOptions<ServiceDbContext> options)
         b.Entity<ServiceEventRow>().HasIndex(x => x.FfpPublishedAt);
         b.Entity<ServiceEventRow>().Property(x => x.PayloadJson).HasMaxLength(8000);
         b.Entity<ServiceEventRow>().Property(x => x.FfpLastError).HasMaxLength(2000);
+
+        b.Entity<AuditTrailRow>().ToTable("AuditTrail");
+        b.Entity<AuditTrailRow>().HasKey(x => x.Id);
+        b.Entity<AuditTrailRow>().Property(x => x.Id).ValueGeneratedOnAdd();
+        b.Entity<AuditTrailRow>().HasIndex(x => x.OccurredAt);
+        b.Entity<AuditTrailRow>().HasIndex(x => x.Actor);
+        b.Entity<AuditTrailRow>().HasIndex(x => new { x.EntityType, x.EntityId });
+        b.Entity<AuditTrailRow>().HasIndex(x => x.CustomerId);
+        b.Entity<AuditTrailRow>().HasIndex(x => x.OperationId);
+        b.Entity<AuditTrailRow>().Property(x => x.Actor).HasMaxLength(256);
+        b.Entity<AuditTrailRow>().Property(x => x.Action).HasMaxLength(256);
+        b.Entity<AuditTrailRow>().Property(x => x.EntityType).HasMaxLength(128);
+        b.Entity<AuditTrailRow>().Property(x => x.EntityId).HasMaxLength(256);
+        b.Entity<AuditTrailRow>().Property(x => x.Source).HasMaxLength(128);
+        b.Entity<AuditTrailRow>().Property(x => x.TerminalId).HasMaxLength(128);
+        b.Entity<AuditTrailRow>().Property(x => x.CorrelationId).HasMaxLength(128);
+        b.Entity<AuditTrailRow>().Property(x => x.BeforeJson).HasMaxLength(8000);
+        b.Entity<AuditTrailRow>().Property(x => x.AfterJson).HasMaxLength(8000);
+        b.Entity<AuditTrailRow>().Property(x => x.Detail).HasMaxLength(2000);
 
         b.Entity<CustomerCreditPolicyRow>().ToTable("CustomerCreditPolicies");
         b.Entity<CustomerCreditPolicyRow>().HasKey(x => x.CustomerId);
