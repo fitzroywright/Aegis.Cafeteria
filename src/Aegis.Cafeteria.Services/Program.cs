@@ -6,7 +6,6 @@ using Aegis.Cafeteria.Domain.Customers;
 using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Infrastructure.Ffp;
-using Aegis.Cafeteria.Infrastructure.Secrets;
 using Aegis.Cafeteria.Services;
 using Aegis.Cafeteria.Services.Email;
 using Aegis.Cafeteria.Services.Development;
@@ -18,31 +17,22 @@ using Aegis.Engineering.Diagnostics;
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Negotiate;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseWindowsService(options => options.ServiceName = "Aegis.Cafeteria.Services");
 builder.Configuration.AddEnvironmentVariables();
 
-var secretProvider = ApplicationSecretProviderFactory.Create(builder.Configuration, builder.Environment);
-var runtime = await CafeteriaRuntimeOptionsResolver.ResolveAsync(builder.Configuration, secretProvider);
 bool developmentDataEnabled = builder.Configuration.GetSection("DevelopmentData").GetValue("Enabled", false);
 if (developmentDataEnabled && !builder.Environment.IsDevelopment())
     throw new InvalidOperationException("DevelopmentData can only be enabled in the Development environment.");
-if (!developmentDataEnabled && (!runtime.FfpIntegration.Enabled || string.IsNullOrWhiteSpace(runtime.FfpIntegration.ConnectionString)))
-    throw new InvalidOperationException("Aegis.Cafeteria.Services requires direct FFP integration and an FFP connection string/secret.");
 
-var configuredManagement = builder.Configuration.GetSection("ManagementApi").Get<ManagementApiOptions>() ?? new();
-var serviceApiKey = string.IsNullOrWhiteSpace(configuredManagement.ApiKey)
-    ? await secretProvider.GetSecretAsync(ApplicationSecretNames.CafeteriaServicesApiKey)
-    : configuredManagement.ApiKey.Trim();
-var management = new ManagementApiOptions
-{
-    AuthorizedGroups = configuredManagement.AuthorizedGroups,
-    ApiKey = string.IsNullOrWhiteSpace(serviceApiKey) ? null : serviceApiKey.Trim()
-};
-if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(management.ApiKey))
-    throw new InvalidOperationException("Aegis.Cafeteria.Services requires CafeteriaServicesApiKey in non-Development environments.");
+IConfigurationSection ffpSection = builder.Configuration.GetSection("FfpIntegration");
+FfpIntegrationOptions configuredFfp = ffpSection.Get<FfpIntegrationOptions>() ?? new FfpIntegrationOptions();
+FfpIntegrationOptions ffpIntegration = BuildTrustedFfpOptions(ffpSection, configuredFfp, developmentDataEnabled);
+
+var management = builder.Configuration.GetSection("ManagementApi").Get<ManagementApiOptions>() ?? new();
 var monthOpening = builder.Configuration.GetSection("MonthOpening").Get<MonthOpeningOptions>() ?? new();
 var scheduledEmail = builder.Configuration.GetSection("ScheduledEmail").Get<ScheduledEmailOptions>() ?? new();
 var serviceDb = builder.Configuration["ServicePersistence:ConnectionString"] ?? "Data Source=cafeteria.services.db";
@@ -54,7 +44,7 @@ if (!string.IsNullOrWhiteSpace(sqliteBuilder.DataSource) && sqliteBuilder.DataSo
     if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
 }
 
-builder.Services.AddSingleton(runtime.FfpIntegration);
+builder.Services.AddSingleton(ffpIntegration);
 builder.Services.AddSingleton(management);
 builder.Services.AddSingleton(monthOpening);
 builder.Services.AddSingleton(scheduledEmail);
@@ -126,6 +116,12 @@ builder.Services.AddSingleton<CafeteriaEngineeringDiagnosticService>();
 builder.Services.AddAuthentication(NegotiateDefaults.AuthenticationScheme).AddNegotiate();
 builder.Services.AddAuthorization(options =>
 {
+    options.AddPolicy("CafeteriaPos", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireClaim("aegis_authentication_source", "Common.Security");
+    });
+
     options.AddPolicy("CafeteriaManagement", policy =>
     {
         policy.RequireAuthenticatedUser();
@@ -242,23 +238,6 @@ if (app.Environment.IsDevelopment())
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.Use(async (context, next) =>
-{
-    bool serviceEndpoint = context.Request.Path.StartsWithSegments("/api/pos")
-        || context.Request.Path.StartsWithSegments("/api/ffp")
-        || context.Request.Path.StartsWithSegments("/hubs/cafeteria");
-    if (serviceEndpoint && !string.IsNullOrWhiteSpace(management.ApiKey))
-    {
-        if (!context.Request.Headers.TryGetValue("X-Cafeteria-Api-Key", out var supplied) || supplied.Count != 1 || supplied[0] != management.ApiKey)
-        {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsync("Missing or invalid Cafeteria Services API key.");
-            return;
-        }
-    }
-    await next();
-});
-
 app.MapGet("/health", () => Results.Ok(new { status="running", application="Aegis.Cafeteria.Services", timeUtc=DateTimeOffset.UtcNow }));
 
 app.MapGet("/engineering/login", (HttpContext http) =>
@@ -330,9 +309,10 @@ app.MapPost("/api/engineering/diagnostics/run", async (EngineeringDiagnosticRunR
     }
 }).RequireAuthorization("EngineeringDiagnostics");
 
-app.MapHub<ManagementEventsHub>("/hubs/cafeteria");
+app.MapHub<ManagementEventsHub>("/hubs/cafeteria").RequireAuthorization("CafeteriaPos");
 app.MapGet("/api/pos/events", async (long afterSequence, int? take, ServiceEventStore store, CancellationToken ct)
-    => Results.Ok(await store.GetAfterAsync(Math.Max(0,afterSequence), take ?? 100, ct)));
+    => Results.Ok(await store.GetAfterAsync(Math.Max(0,afterSequence), take ?? 100, ct)))
+    .RequireAuthorization("CafeteriaPos");
 EmailEndpoints.Map(app);
 
 app.MapGet("/api/management/customers", async (string? search, int? take, IWorkforceReferenceSource workforce, CancellationToken ct) =>
@@ -527,11 +507,15 @@ app.MapGet("/api/ffp/customers", async (IWorkforceReferenceSource source,Custome
     var customers=await source.GetCustomersAsync(ct);
     var limits=await policies.GetAllAdditionalCreditLimitsAsync(ct);
     return Results.Ok(customers.Select(x=>x with { AdditionalCreditLimit=limits.GetValueOrDefault(x.CustomerId,0m) }).ToArray());
-});
-app.MapGet("/api/ffp/holidays", async (int year,int month,IWorkforceReferenceSource source,CancellationToken ct)=>Results.Ok(await source.GetHolidaysAsync(year,month,ct)));
-app.MapGet("/api/ffp/lunch-items", async (ILunchItemBootstrapSource source,CancellationToken ct)=>Results.Ok(await source.GetLunchItemsAsync(ct)));
-app.MapGet("/api/ffp/month-import", async (int year, int month, IFfpMonthImportSource source, CancellationToken ct)=>Results.Ok(await source.GetMonthAsync(year, month, ct)));
-app.MapGet("/api/ffp/accounts", async (IExternalAccountingGateway gateway,CancellationToken ct)=>Results.Ok(await gateway.GetAccountSummariesAsync(ct)));
+}).RequireAuthorization("CafeteriaPos");
+app.MapGet("/api/ffp/holidays", async (int year,int month,IWorkforceReferenceSource source,CancellationToken ct)=>Results.Ok(await source.GetHolidaysAsync(year,month,ct)))
+    .RequireAuthorization("CafeteriaPos");
+app.MapGet("/api/ffp/lunch-items", async (ILunchItemBootstrapSource source,CancellationToken ct)=>Results.Ok(await source.GetLunchItemsAsync(ct)))
+    .RequireAuthorization("CafeteriaPos");
+app.MapGet("/api/ffp/month-import", async (int year, int month, IFfpMonthImportSource source, CancellationToken ct)=>Results.Ok(await source.GetMonthAsync(year, month, ct)))
+    .RequireAuthorization("CafeteriaPos");
+app.MapGet("/api/ffp/accounts", async (IExternalAccountingGateway gateway,CancellationToken ct)=>Results.Ok(await gateway.GetAccountSummariesAsync(ct)))
+    .RequireAuthorization("CafeteriaPos");
 app.MapPost("/api/ffp/ledger", async (ExternalLedgerEntry entry, IExternalAccountingGateway gateway, ServiceEventStore store, CancellationToken ct) =>
 {
     DateTimeOffset? latestResetAt = await store.GetLatestDevelopmentResetAtAsync(ct);
@@ -539,9 +523,59 @@ app.MapPost("/api/ffp/ledger", async (ExternalLedgerEntry entry, IExternalAccoun
         return Results.Ok(new { ignored = true, reason = "Entry predates the latest Development reset." });
     await gateway.PublishLedgerEntryAsync(entry, ct);
     return Results.Ok();
-});
+}).RequireAuthorization("CafeteriaPos");
 
 await app.RunAsync();
+
+static FfpIntegrationOptions BuildTrustedFfpOptions
+(
+      IConfigurationSection section
+    , FfpIntegrationOptions configured
+    , bool developmentDataEnabled
+)
+{
+    if (developmentDataEnabled)
+    {
+        return configured;
+    }
+
+    if (!configured.Enabled)
+    {
+        throw new InvalidOperationException("Aegis.Cafeteria.Services requires FFP integration in production.");
+    }
+
+    string server = section["Server"]?.Trim() ?? string.Empty;
+    string database = section["Database"]?.Trim() ?? string.Empty;
+    if (string.IsNullOrWhiteSpace(server) || string.IsNullOrWhiteSpace(database))
+    {
+        throw new InvalidOperationException("FfpIntegration:Server and FfpIntegration:Database are required. Cafeteria Services uses Windows Integrated Security and does not accept stored SQL credentials.");
+    }
+
+    SqlConnectionStringBuilder connection = new()
+    {
+          DataSource = server
+        , InitialCatalog = database
+        , IntegratedSecurity = true
+        , Encrypt = section.GetValue("Encrypt", true)
+        , TrustServerCertificate = section.GetValue("TrustServerCertificate", false)
+        , ApplicationName = "Aegis.Cafeteria.Services"
+    };
+
+    return new FfpIntegrationOptions
+    {
+          Enabled = configured.Enabled
+        , ConnectionString = connection.ConnectionString
+        , AllowWrites = configured.AllowWrites
+        , RefreshIntervalMinutes = configured.RefreshIntervalMinutes
+        , CreditLimitLunchItemCode = configured.CreditLimitLunchItemCode
+        , SubsidyLunchItemCode = configured.SubsidyLunchItemCode
+        , MonthlyAllocationScanType = configured.MonthlyAllocationScanType
+        , PurchaseScanType = configured.PurchaseScanType
+        , StipendScanType = configured.StipendScanType
+        , RefundScanType = configured.RefundScanType
+        , AdjustmentScanType = configured.AdjustmentScanType
+    };
+}
 
 static string RequireActor(HttpContext http)
 {
