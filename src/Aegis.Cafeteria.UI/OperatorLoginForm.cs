@@ -106,10 +106,7 @@ public sealed class OperatorLoginForm : Form
 
     private void OnLoginShown(object? sender, EventArgs e)
     {
-        WindowState = FormWindowState.Normal;
-        TopMost = true;
-        BringToFront();
-        Activate();
+        RestoreLoginWindow();
         userName.Focus();
     }
 
@@ -122,8 +119,7 @@ public sealed class OperatorLoginForm : Form
 
         try
         {
-            Hide();
-            this.showStartupProgress?.Invoke
+            ShowStartupProgressWindow
             (
                   "Connecting to Cafeteria Services..."
                 , "Authenticating the operator securely through Common.Security."
@@ -135,9 +131,7 @@ public sealed class OperatorLoginForm : Form
             if (identity is null)
             {
                 this.hideStartupProgress?.Invoke();
-                Show();
-                BringToFront();
-                Activate();
+                RestoreLoginWindow();
                 status.Text = "Sign-in failed.";
                 password.Focus();
                 return;
@@ -155,9 +149,7 @@ public sealed class OperatorLoginForm : Form
         catch (Exception ex)
         {
             this.hideStartupProgress?.Invoke();
-            Show();
-            BringToFront();
-            Activate();
+            RestoreLoginWindow();
             status.Text = "Cafeteria Services is unavailable: " + ex.GetBaseException().Message;
             password.Clear();
             password.Focus();
@@ -167,5 +159,23 @@ public sealed class OperatorLoginForm : Form
             enteredPassword = string.Empty;
             signIn.Enabled = true;
         }
+    }
+
+    private void ShowStartupProgressWindow(string progressStatus, string progressDetail)
+    {
+        TopMost = false;
+        Opacity = 0d;
+        Enabled = false;
+        this.showStartupProgress?.Invoke(progressStatus, progressDetail);
+    }
+
+    private void RestoreLoginWindow()
+    {
+        Enabled = true;
+        Opacity = 1d;
+        WindowState = FormWindowState.Normal;
+        TopMost = true;
+        BringToFront();
+        Activate();
     }
 }
