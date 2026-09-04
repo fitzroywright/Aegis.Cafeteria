@@ -6,12 +6,14 @@ using Aegis.Cafeteria.Services.Realtime;
 
 using Microsoft.EntityFrameworkCore;
 
+using System.Reflection;
 using System.Text.Json;
 
 public sealed class ServiceEventStore
 {
     private readonly IDbContextFactory<ServiceDbContext> factory;
     private readonly ServiceEventRealtimePublisher realtimePublisher;
+    private readonly AuditTrailService auditTrail;
 
     public ServiceEventStore
     (
@@ -21,6 +23,7 @@ public sealed class ServiceEventStore
     {
         this.factory = factory;
         this.realtimePublisher = realtimePublisher;
+        this.auditTrail = new AuditTrailService(factory);
     }
 
     public async Task<CafeteriaServiceEventEnvelope> AppendAsync<T>
@@ -69,6 +72,28 @@ public sealed class ServiceEventStore
             , cancellationToken
         );
 
+        try
+        {
+            await this.auditTrail.RecordAsync
+            (
+                  ResolveActor(payload)
+                , kind.ToString()
+                , "CafeteriaServiceEvent"
+                , row.Sequence.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                , customerId
+                , operationId
+                , "ServiceEventStore"
+                , after: payload
+                , detail: $"Service event {kind} created."
+                , cancellationToken: cancellationToken
+            );
+        }
+        catch
+        {
+            // The business event has already been durably committed. Audit transport/storage
+            // failures must not roll back or duplicate a financial operation.
+        }
+
         return envelope;
     }
 
@@ -96,12 +121,9 @@ public sealed class ServiceEventStore
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // Polling is opportunistic. If the client goes away or cancels the request,
-            // there is no error condition to surface from Services.
             return [];
         }
     }
-
 
     public async Task<DateTimeOffset?> GetLatestDevelopmentResetAtAsync
     (
@@ -320,6 +342,27 @@ public sealed class ServiceEventStore
         }
 
         await database.SaveChangesAsync(cancellationToken);
+    }
+
+    private static string ResolveActor<T>(T payload)
+    {
+        if (payload is null)
+        {
+            return "SYSTEM";
+        }
+
+        Type type = payload.GetType();
+        foreach (string propertyName in new[] { "ApprovedBy", "ProcessedBy", "UpdatedBy", "Actor", "UserName", "CashierUserId" })
+        {
+            PropertyInfo? property = type.GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.IgnoreCase);
+            string? value = property?.GetValue(payload)?.ToString();
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value.Trim();
+            }
+        }
+
+        return "SYSTEM";
     }
 
     private static CafeteriaServiceEventEnvelope ToEnvelope
