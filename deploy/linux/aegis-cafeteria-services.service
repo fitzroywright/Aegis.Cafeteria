@@ -8,6 +8,11 @@ Type=simple
 User=aegis-cafeteria
 Group=aegis-cafeteria
 WorkingDirectory=/opt/aegis-cafeteria-services
+EnvironmentFile=-/etc/aegis-cafeteria-services/environment
+
+# Acquire/refresh the Kerberos ticket before the .NET service starts. KRB5_PRINCIPAL is not a secret.
+# The default keytab is the domain-join keytab maintained by the OS; override KRB5_KEYTAB only if required.
+ExecStartPre=/bin/sh -c 'if [ -n "$KRB5_PRINCIPAL" ]; then /usr/bin/kinit -k -t "${KRB5_KEYTAB:-/etc/krb5.keytab}" "$KRB5_PRINCIPAL"; fi'
 ExecStart=/usr/bin/dotnet /opt/aegis-cafeteria-services/Aegis.Cafeteria.Services.dll
 Restart=on-failure
 RestartSec=5
@@ -21,7 +26,7 @@ Environment="FfpIntegration__Database=FFP"
 Environment="FfpIntegration__Encrypt=false"
 Environment="FfpIntegration__TrustServerCertificate=false"
 
-# Kerberos/GSSAPI uses the host/domain credential cache. No SQL username/password is supplied to the application.
+# Kerberos/GSSAPI credential cache used by Microsoft.Data.SqlClient.
 Environment="KRB5CCNAME=FILE:/run/aegis-cafeteria-services/krb5cc"
 
 # ASP.NET binding.
