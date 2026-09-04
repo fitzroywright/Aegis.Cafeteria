@@ -111,7 +111,7 @@ internal static class Program
             splash.Update("Operator sign-in required...", "Sign in to continue through Aegis.Cafeteria.Services and Common.Security.");
             splash.Hide();
 
-            if (!AuthenticateOperator(host))
+            if (!AuthenticateOperator(host, splash))
             {
                 splash.Close();
                 return;
@@ -120,16 +120,16 @@ internal static class Program
             splash.Show();
             splash.Update
             (
-                "Connected to Cafeteria Services...",
-                "Operator authenticated. Refreshing cafeteria reference data."
+                  "Connected to Cafeteria Services..."
+                , "Operator authenticated. Refreshing cafeteria reference data."
             );
 
             RefreshStartupReferenceData(host, runtime, splash);
 
             splash.Update
             (
-                "Starting terminal services...",
-                "Starting synchronization, transaction publishing, and realtime updates."
+                  "Starting terminal services..."
+                , "Starting synchronization, transaction publishing, and realtime updates."
             );
             host.StartAsync().GetAwaiter().GetResult();
 
@@ -159,12 +159,18 @@ internal static class Program
         }
     }
 
-    private static bool AuthenticateOperator(IHost host)
+    private static bool AuthenticateOperator(IHost host, StartupSplashController splash)
     {
         using OperatorLoginForm login = new
         (
               host.Services.GetRequiredService<IOperatorAuthenticator>()
             , host.Services.GetRequiredService<IOperatorSession>()
+            , (status, detail) =>
+            {
+                splash.Update(status, detail);
+                splash.Show();
+            }
+            , splash.Hide
         );
         return login.ShowDialog() == DialogResult.OK;
     }
@@ -190,8 +196,8 @@ internal static class Program
 
             splash.Update
             (
-                "Refreshing employees...",
-                "Loading current employee and cafeteria eligibility data from Cafeteria Services."
+                  "Refreshing employees..."
+                , "Loading current employee and cafeteria eligibility data from Cafeteria Services."
             );
             refresh.RefreshCustomersAsync(cancellation.Token)
                 .GetAwaiter()
@@ -199,8 +205,8 @@ internal static class Program
 
             splash.Update
             (
-                "Refreshing holidays...",
-                "Loading the current working-day calendar from Cafeteria Services."
+                  "Refreshing holidays..."
+                , "Loading the current working-day calendar from Cafeteria Services."
             );
             DateOnly today = DateOnly.FromDateTime(DateTime.Today);
             refresh.RefreshHolidaysAsync(today, cancellation.Token)
@@ -213,14 +219,14 @@ internal static class Program
                 .CreateLogger("Aegis.Cafeteria.Startup");
             logger.LogWarning
             (
-                "Cafeteria Services startup refresh exceeded {TimeoutSeconds} seconds. Continuing with the local cache.",
-                runtime.Services.StartupRefreshTimeoutSeconds
+                  "Cafeteria Services startup refresh exceeded {TimeoutSeconds} seconds. Continuing with the local cache."
+                , runtime.Services.StartupRefreshTimeoutSeconds
             );
 
             splash.Update
             (
-                "Cafeteria Services is responding slowly...",
-                "Starting with the local cache; background synchronization will continue."
+                  "Cafeteria Services is responding slowly..."
+                , "Starting with the local cache; background synchronization will continue."
             );
         }
         catch (Exception exception)
@@ -235,8 +241,8 @@ internal static class Program
 
             splash.Update
             (
-                "Reference refresh unavailable...",
-                "Starting with the local cache; background synchronization will retry."
+                  "Reference refresh unavailable..."
+                , "Starting with the local cache; background synchronization will retry."
             );
         }
     }
