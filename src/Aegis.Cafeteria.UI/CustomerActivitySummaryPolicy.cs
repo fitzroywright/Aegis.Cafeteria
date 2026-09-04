@@ -6,8 +6,7 @@ using Aegis.Cafeteria.Application.Reporting;
 
 internal static class CustomerActivitySummaryPolicy
 {
-    private static readonly Color SummaryBackground = Color.FromArgb(235, 243, 250);
-    private static readonly Color SummaryForeground = Color.FromArgb(24, 45, 68);
+    private static readonly Color SummaryForeground = Color.FromArgb(74, 45, 122);
     private static bool applied;
     private static bool updating;
 
@@ -45,11 +44,11 @@ internal static class CustomerActivitySummaryPolicy
             return;
         }
 
-        fundingStatus.Padding = new Padding(8, 5, 8, 5);
+        fundingStatus.Padding = Padding.Empty;
         fundingStatus.Margin = new Padding(0, 7, 0, 0);
         fundingStatus.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
         fundingStatus.ForeColor = SummaryForeground;
-        fundingStatus.BackColor = SummaryBackground;
+        fundingStatus.BackColor = Color.Transparent;
         fundingStatus.AutoSize = true;
         fundingStatus.Visible = true;
 
