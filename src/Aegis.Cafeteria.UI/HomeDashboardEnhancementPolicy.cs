@@ -9,6 +9,7 @@ internal static class HomeDashboardEnhancementPolicy
     private const string SalesChartTitle = "SALES VALUE — MORNING VS AFTERNOON — THIS WEEK";
     private const string EmployeeChartTitle = "EMPLOYEES SERVED VS ELIGIBLE — THIS WEEK";
     private const string ItemsChartTitle = "TOP 5 ITEMS SOLD — TODAY";
+    private const string DashboardTitle = "CAFETERIA DAILY SALES DASHBOARD";
 
     public static void Apply(
         Form mainForm,
@@ -18,6 +19,8 @@ internal static class HomeDashboardEnhancementPolicy
         ArgumentNullException.ThrowIfNull(mainForm);
         ArgumentNullException.ThrowIfNull(participationQuery);
         ArgumentNullException.ThrowIfNull(reportService);
+
+        RenameDashboardTitle(mainForm);
 
         WeekdayBarChartControl? salesChart = Descendants(mainForm)
             .OfType<WeekdayBarChartControl>()
@@ -211,13 +214,28 @@ internal static class HomeDashboardEnhancementPolicy
         itemsChart.SetData(ItemsChartTitle, chartValues, "N0");
     }
 
+    private static void RenameDashboardTitle(Form mainForm)
+    {
+        Label? title = Descendants(mainForm)
+            .OfType<Label>()
+            .FirstOrDefault(label => string.Equals(
+                label.Text,
+                "CAFETERIA SALES DASHBOARD",
+                StringComparison.OrdinalIgnoreCase));
+
+        if (title is not null)
+        {
+            title.Text = DashboardTitle;
+        }
+    }
+
     private static Control? FindDashboardHost(Control itemsChart)
     {
         Control? current = itemsChart.Parent;
         while (current is not null)
         {
             if (current is Panel panel && panel.Controls.Cast<Control>().Any(control =>
-                control is TableLayoutPanel layout && ContainsLabel(layout, "CAFETERIA SALES DASHBOARD")))
+                control is TableLayoutPanel layout && ContainsLabel(layout, DashboardTitle)))
             {
                 return panel;
             }
