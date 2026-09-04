@@ -21,14 +21,19 @@ internal static class FfpApplicationBranding
             return;
         }
 
-        foreach (Form form in System.Windows.Forms.Application.OpenForms)
+        Form[] forms = System.Windows.Forms.Application.OpenForms.Cast<Form>().ToArray();
+
+        foreach (Form form in forms)
         {
-            if (form.IsDisposed || ReferenceEquals(form.Icon, ApplicationIcon))
+            if (form.IsDisposed || form.InvokeRequired)
             {
                 continue;
             }
 
-            form.Icon = ApplicationIcon;
+            if (!ReferenceEquals(form.Icon, ApplicationIcon))
+            {
+                form.Icon = ApplicationIcon;
+            }
         }
     }
 
