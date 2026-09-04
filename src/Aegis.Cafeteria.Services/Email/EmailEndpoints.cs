@@ -1,8 +1,11 @@
 namespace Aegis.Cafeteria.Services.Email;
 
+using Aegis.Cafeteria.Infrastructure.Configuration;
+using Aegis.Cafeteria.Infrastructure.Logging;
 using Aegis.Cafeteria.Services.Persistence;
 
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 public sealed record CustomerNotificationPreferenceRequest
 (
@@ -24,6 +27,11 @@ public static class EmailEndpoints
 {
     public static void Map(WebApplication app)
     {
+        CafeteriaLoggingOptions loggingOptions = app.Configuration.GetSection("Logging").Get<CafeteriaLoggingOptions>()
+            ?? new CafeteriaLoggingOptions();
+        ILoggerFactory loggerFactory = app.Services.GetRequiredService<ILoggerFactory>();
+        loggerFactory.AddCafeteriaProviders(loggingOptions);
+
         app.UseCafeteriaAuditTrail();
         AuditTrailEndpoints.Map(app);
 
