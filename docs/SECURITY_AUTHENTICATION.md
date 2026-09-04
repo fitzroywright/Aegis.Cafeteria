@@ -9,17 +9,27 @@
 
 ## Common.Security
 
-Common.Security is restored from the GitHub Packages feed configured in `NuGet.config`.
+Common.Security is restored from the private GitHub Packages feed configured in `NuGet.config` and the source repository is `fitzroywright/Common.Security`.
 
 ### GitHub Actions
 
-The build workflow grants `packages: read` and authenticates the `github-common` NuGet source using the workflow `GITHUB_TOKEN`. No manually-created package token should be committed to the repository.
+The workflow grants `contents: read` and `packages: read`. It first looks for a repository Actions secret named `COMMON_SECURITY_TOKEN`. If that secret exists, it is used both to verify checkout access to `fitzroywright/Common.Security` and to authenticate the `github-common` NuGet feed. If the dedicated secret is absent, the workflow falls back to the current repository `GITHUB_TOKEN`.
+
+A plain `GITHUB_TOKEN` only works when the Common.Security repository/package explicitly grants Aegis.Cafeteria Actions access. If GitHub Packages returns HTTP 403, either grant Aegis.Cafeteria access to the Common.Security package/repository or configure `COMMON_SECURITY_TOKEN`.
+
+The dedicated token must have the minimum permissions needed to read the private `fitzroywright/Common.Security` repository and read its GitHub Packages NuGet package. For a classic PAT this normally means private repository read access plus `read:packages`. Never commit the token.
 
 ### Developer workstations
 
-A developer performing a fresh clone needs a GitHub credential that can read the private Common.Security package feed. Use a GitHub token/credential with the minimum package-read and repository access required by the owning account/organization. Store that credential only in the local NuGet credential configuration or an environment variable; never in `NuGet.config` committed to source.
+A developer performing a fresh clone needs a GitHub credential that can read the private Common.Security package feed. Store that credential only in local NuGet configuration or an environment variable; never in committed `NuGet.config`.
 
-Use `scripts/configure-github-packages.ps1` to configure the local source from the `GITHUB_PACKAGES_TOKEN` environment variable.
+Set `GITHUB_PACKAGES_TOKEN` locally, then run:
+
+```powershell
+./scripts/configure-github-packages.ps1
+```
+
+The helper configures the `github-common` source and immediately performs a restore, so a bad token fails before development begins.
 
 ## Management authentication
 
