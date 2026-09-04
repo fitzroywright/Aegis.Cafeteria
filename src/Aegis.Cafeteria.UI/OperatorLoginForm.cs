@@ -11,15 +11,25 @@ public sealed class OperatorLoginForm : Form
 
     private readonly IOperatorAuthenticator authenticator;
     private readonly IOperatorSession session;
+    private readonly Action<string, string?>? showStartupProgress;
+    private readonly Action? hideStartupProgress;
     private readonly TextBox userName = new() { Width = 310, Height = 32, BorderStyle = BorderStyle.FixedSingle, TabIndex = 0 };
     private readonly TextBox password = new() { Width = 310, Height = 32, BorderStyle = BorderStyle.FixedSingle, UseSystemPasswordChar = true, TabIndex = 1 };
     private readonly Button signIn = new() { Text = "Sign In", Width = 120, Height = 38, FlatStyle = FlatStyle.Flat, BackColor = HeaderBlue, ForeColor = Color.White, TabIndex = 2 };
     private readonly Label status = new() { AutoSize = true, ForeColor = Color.Firebrick, TabStop = false };
 
-    public OperatorLoginForm(IOperatorAuthenticator authenticator, IOperatorSession session)
+    public OperatorLoginForm
+    (
+          IOperatorAuthenticator authenticator
+        , IOperatorSession session
+        , Action<string, string?>? showStartupProgress = null
+        , Action? hideStartupProgress = null
+    )
     {
         this.authenticator = authenticator;
         this.session = session;
+        this.showStartupProgress = showStartupProgress;
+        this.hideStartupProgress = hideStartupProgress;
 
         AutoScaleMode = AutoScaleMode.Dpi;
         BackColor = Color.White;
@@ -107,23 +117,54 @@ public sealed class OperatorLoginForm : Form
     {
         status.Text = string.Empty;
         signIn.Enabled = false;
+        string enteredUserName = userName.Text;
+        string enteredPassword = password.Text;
+
         try
         {
-            OperatorIdentity? identity = await authenticator.AuthenticateAsync(userName.Text, password.Text);
+            Hide();
+            this.showStartupProgress?.Invoke
+            (
+                  "Connecting to Cafeteria Services..."
+                , "Authenticating the operator securely through Common.Security."
+            );
+
+            OperatorIdentity? identity = await authenticator.AuthenticateAsync(enteredUserName, enteredPassword);
             password.Clear();
+
             if (identity is null)
             {
+                this.hideStartupProgress?.Invoke();
+                Show();
+                BringToFront();
+                Activate();
                 status.Text = "Sign-in failed.";
                 password.Focus();
                 return;
             }
 
             session.SignIn(identity);
+            this.showStartupProgress?.Invoke
+            (
+                  "Cafeteria Services connected."
+                , $"Signed in as {identity.DisplayName}. Starting online synchronization."
+            );
             DialogResult = DialogResult.OK;
             Close();
         }
+        catch (Exception ex)
+        {
+            this.hideStartupProgress?.Invoke();
+            Show();
+            BringToFront();
+            Activate();
+            status.Text = "Cafeteria Services is unavailable: " + ex.GetBaseException().Message;
+            password.Clear();
+            password.Focus();
+        }
         finally
         {
+            enteredPassword = string.Empty;
             signIn.Enabled = true;
         }
     }
