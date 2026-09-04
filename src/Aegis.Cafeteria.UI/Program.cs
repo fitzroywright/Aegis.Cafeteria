@@ -13,6 +13,7 @@ using Aegis.Cafeteria.Reporting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Aegis.Cafeteria.UI;
 
@@ -107,15 +108,35 @@ internal static class Program
                 .GetAwaiter()
                 .GetResult();
 
-            splash.Update("Operator sign-in required...", "Authenticating through Aegis.Cafeteria.Services and Common.Security.");
-            splash.Close();
+            splash.Update("Operator sign-in required...", "Sign in to continue through Aegis.Cafeteria.Services and Common.Security.");
+            splash.Hide();
 
             if (!AuthenticateOperator(host))
             {
+                splash.Close();
                 return;
             }
 
+            splash.Show();
+            splash.Update
+            (
+                "Connected to Cafeteria Services...",
+                "Operator authenticated. Refreshing cafeteria reference data."
+            );
+
+            RefreshStartupReferenceData(host, runtime, splash);
+
+            splash.Update
+            (
+                "Starting terminal services...",
+                "Starting synchronization, transaction publishing, and realtime updates."
+            );
             host.StartAsync().GetAwaiter().GetResult();
+
+            splash.Ready("Cafeteria Services is connected and the terminal is ready.");
+            Thread.Sleep(250);
+            splash.Close();
+
             try
             {
                 RunTerminalUi(host, uiOptions);
@@ -146,6 +167,78 @@ internal static class Program
             , host.Services.GetRequiredService<IOperatorSession>()
         );
         return login.ShowDialog() == DialogResult.OK;
+    }
+
+    private static void RefreshStartupReferenceData
+    (
+          IHost host
+        , CafeteriaRuntimeOptions runtime
+        , StartupSplashController splash
+    )
+    {
+        if (!runtime.FfpIntegration.Enabled || !runtime.Services.Enabled)
+        {
+            return;
+        }
+
+        TimeSpan timeout = TimeSpan.FromSeconds(runtime.Services.StartupRefreshTimeoutSeconds);
+        using CancellationTokenSource cancellation = new(timeout);
+
+        try
+        {
+            ReferenceDataRefreshService refresh = host.Services.GetRequiredService<ReferenceDataRefreshService>();
+
+            splash.Update
+            (
+                "Refreshing employees...",
+                "Loading current employee and cafeteria eligibility data from Cafeteria Services."
+            );
+            refresh.RefreshCustomersAsync(cancellation.Token)
+                .GetAwaiter()
+                .GetResult();
+
+            splash.Update
+            (
+                "Refreshing holidays...",
+                "Loading the current working-day calendar from Cafeteria Services."
+            );
+            DateOnly today = DateOnly.FromDateTime(DateTime.Today);
+            refresh.RefreshHolidaysAsync(today, cancellation.Token)
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            ILogger logger = host.Services.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("Aegis.Cafeteria.Startup");
+            logger.LogWarning
+            (
+                "Cafeteria Services startup refresh exceeded {TimeoutSeconds} seconds. Continuing with the local cache.",
+                runtime.Services.StartupRefreshTimeoutSeconds
+            );
+
+            splash.Update
+            (
+                "Cafeteria Services is responding slowly...",
+                "Starting with the local cache; background synchronization will continue."
+            );
+        }
+        catch (Exception exception)
+        {
+            ILogger logger = host.Services.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("Aegis.Cafeteria.Startup");
+            logger.LogWarning
+            (
+                  exception
+                , "Cafeteria Services startup reference refresh failed. Continuing with the local cache."
+            );
+
+            splash.Update
+            (
+                "Reference refresh unavailable...",
+                "Starting with the local cache; background synchronization will retry."
+            );
+        }
     }
 
     private static void RunTerminalUi(IHost host, CafeteriaUiOptions uiOptions)
