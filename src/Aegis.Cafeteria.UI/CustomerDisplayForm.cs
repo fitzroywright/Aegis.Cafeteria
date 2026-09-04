@@ -97,9 +97,31 @@ public sealed class CustomerDisplayForm : Form
         this.historyTitle.Text = $"Transactions — {new DateTime(currentYear, currentMonth, 1):MMMM yyyy}";
         this.historySource.DataSource = currentMonthTransactions.Select(transaction =>
         {
+            bool isPayment = string.Equals(transaction.Kind, "Payment", StringComparison.OrdinalIgnoreCase);
+            if (isPayment)
+            {
+                decimal amountDueBeforePayment = transaction.OutstandingBalanceBefore ?? transaction.Amount;
+                decimal balanceAfterPayment = transaction.OutstandingBalanceAfter ?? Math.Max(0m, amountDueBeforePayment - transaction.CashAmount);
+                return new CustomerTransactionHistoryRow(
+                    transaction.OccurredAt.LocalDateTime,
+                    transaction.Kind,
+                    transaction.Description,
+                    amountDueBeforePayment,
+                    null,
+                    transaction.CashAmount,
+                    balanceAfterPayment);
+            }
+
             decimal coveredAmount = transaction.CafeteriaAccountAmount + transaction.CashAmount;
             decimal balance = transaction.Amount - coveredAmount;
-            return new CustomerTransactionHistoryRow(transaction.OccurredAt.LocalDateTime, transaction.Kind, transaction.Description, transaction.Amount, transaction.CafeteriaAccountAmount, transaction.CashAmount, balance);
+            return new CustomerTransactionHistoryRow(
+                transaction.OccurredAt.LocalDateTime,
+                transaction.Kind,
+                transaction.Description,
+                transaction.Amount,
+                transaction.CafeteriaAccountAmount,
+                transaction.CashAmount,
+                balance);
         }).ToList();
         this.noHistory.Visible = currentMonthTransactions.Count == 0;
         this.history.Visible = currentMonthTransactions.Count > 0;
@@ -229,5 +251,5 @@ public sealed class CustomerDisplayForm : Form
         return grid;
     }
     private static string Money(decimal value) => value.ToString("C2");
-    private sealed record CustomerTransactionHistoryRow(DateTime Date, string TransactionType, string Description, decimal AmountDue, decimal FromCard, decimal CashPayment, decimal Balance);
+    private sealed record CustomerTransactionHistoryRow(DateTime Date, string TransactionType, string Description, decimal AmountDue, decimal? FromCard, decimal CashPayment, decimal Balance);
 }
