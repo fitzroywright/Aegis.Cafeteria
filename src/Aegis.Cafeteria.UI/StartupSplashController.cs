@@ -59,6 +59,50 @@ internal sealed class StartupSplashController : IDisposable
         }
     }
 
+    public void Hide()
+    {
+        StartupSplashForm? form = this.form;
+        if (form is null || form.IsDisposed)
+        {
+            return;
+        }
+
+        try
+        {
+            form.BeginInvoke(form.Hide);
+        }
+        catch (InvalidOperationException)
+        {
+            // Splash is already closing.
+        }
+    }
+
+    public void Show()
+    {
+        StartupSplashForm? form = this.form;
+        if (form is null || form.IsDisposed)
+        {
+            return;
+        }
+
+        try
+        {
+            form.BeginInvoke
+            (
+                () =>
+                {
+                    form.Show();
+                    form.BringToFront();
+                    form.Activate();
+                }
+            );
+        }
+        catch (InvalidOperationException)
+        {
+            // Splash is already closing.
+        }
+    }
+
     public void Close()
     {
         StartupSplashForm? form = this.form;
