@@ -54,11 +54,10 @@ internal static class Program
         CafeteriaRuntimeOptions runtime;
         try
         {
-            runtime = CafeteriaRuntimeOptionsResolver.ResolveAsync
+            runtime = CafeteriaRuntimeOptionsResolver.ResolvePosAsync
             (
                   builder.Configuration
                 , secretProvider
-                , allowDirectFfpDatabase: false
             ).GetAwaiter().GetResult();
         }
         catch (Exception ex)
