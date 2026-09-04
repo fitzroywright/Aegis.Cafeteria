@@ -120,7 +120,19 @@ public sealed class ScheduledEmailWorker : BackgroundService
     {
         await using ServiceDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
         DateTimeOffset now = DateTimeOffset.UtcNow;
-        OutboundEmailRow[] pending = await database.OutboundEmails.Where(row => row.SentAt == null && row.NextAttemptAt <= now).OrderBy(row => row.CreatedAt).Take(25).ToArrayAsync(cancellationToken);
+
+        // SQLite cannot translate relational comparisons over DateTimeOffset values.
+        // SentAt == null is translated server-side; due-time filtering and ordering are
+        // deliberately performed in memory over the normally small durable mail queue.
+        OutboundEmailRow[] unsent = await database.OutboundEmails
+            .Where(row => row.SentAt == null)
+            .ToArrayAsync(cancellationToken);
+        OutboundEmailRow[] pending = unsent
+            .Where(row => row.NextAttemptAt <= now)
+            .OrderBy(row => row.CreatedAt)
+            .Take(25)
+            .ToArray();
+
         foreach (OutboundEmailRow row in pending)
         {
             row.AttemptCount++;
