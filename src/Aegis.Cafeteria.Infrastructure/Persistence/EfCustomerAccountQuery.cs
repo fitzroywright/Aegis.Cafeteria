@@ -83,6 +83,9 @@ public sealed class EfCustomerAccountQuery(
                 stipends: stipends,
                 priorPeriodRefundCredits: priorRefundCredits);
 
+            decimal payrollDeduction = Math.Max(0m, allocation.EmployeeFundedAllocation - snapshot.NonSubsidyAmountRemaining);
+            decimal outstandingBalance = Math.Max(0m, snapshot.EmployeeAmountDue - payrollDeduction);
+
             financial = new CustomerFinancialStatusView(
                 CreditLimit: snapshot.CreditLimit,
                 SubsidyLimit: snapshot.SubsidyLimit,
@@ -104,7 +107,7 @@ public sealed class EfCustomerAccountQuery(
                 PriorPeriodRefundCredits: snapshot.PriorPeriodRefundCredits,
                 CustomerPayments: snapshot.CustomerPayments,
                 CustomerResponsibility: snapshot.CustomerResponsibilityForCurrentCharges,
-                EmployeeAmountDue: snapshot.EmployeeAmountDue,
+                EmployeeAmountDue: outstandingBalance,
                 TotalRefunds: snapshot.TotalRefunds,
                 CurrentCreditSaleDebt: snapshot.CurrentCreditSaleDebt);
         }
