@@ -67,4 +67,6 @@ public sealed record CustomerMonthlyTransactionView(
     decimal Amount,
     decimal CafeteriaAccountAmount,
     decimal CashAmount,
-    Guid ReferenceId);
+    Guid ReferenceId,
+    decimal? OutstandingBalanceBefore = null,
+    decimal? OutstandingBalanceAfter = null);
