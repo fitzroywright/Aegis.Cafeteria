@@ -267,7 +267,25 @@ public sealed class EfCustomerAccountQuery(
     }
 
     private static CustomerMonthlyTransactionView BuildAdditionalCredit(AccountEventRow e) { AdditionalCreditApproval x = PersistencePayloadSerializer.Deserialize<AdditionalCreditApproval>(e.PayloadJson); return new(e.OccurredAt, "Additional Credit", string.IsNullOrWhiteSpace(x.Reason) ? "Manager-approved additional credit" : x.Reason!, x.Amount, 0m, 0m, x.Id); }
-    private static CustomerMonthlyTransactionView BuildCustomerPayment(AccountEventRow e) { CustomerPayment x = PersistencePayloadSerializer.Deserialize<CustomerPayment>(e.PayloadJson); string detail = $"Customer payment - {x.PaymentMethod}" + (string.IsNullOrWhiteSpace(x.Reference) ? string.Empty : $" - {x.Reference}") + $" - received by {x.ReceivedByUserId}"; return new(e.OccurredAt, "Payment", detail, -x.Amount, 0m, 0m, x.Id); }
+    private static CustomerMonthlyTransactionView BuildCustomerPayment(AccountEventRow e)
+    {
+        CustomerPayment x = PersistencePayloadSerializer.Deserialize<CustomerPayment>(e.PayloadJson);
+        string detail = $"Customer payment - {x.PaymentMethod}"
+            + (string.IsNullOrWhiteSpace(x.Reference) ? string.Empty : $" - {x.Reference}")
+            + $" - received by {x.ReceivedByUserId}";
+        decimal amountDueBeforePayment = x.OutstandingBalanceBefore ?? x.Amount;
+        decimal balanceAfterPayment = x.OutstandingBalanceAfter ?? Math.Max(0m, amountDueBeforePayment - x.Amount);
+        return new CustomerMonthlyTransactionView(
+            e.OccurredAt,
+            "Payment",
+            detail,
+            amountDueBeforePayment,
+            0m,
+            x.Amount,
+            x.Id,
+            amountDueBeforePayment,
+            balanceAfterPayment);
+    }
     private static CustomerMonthlyTransactionView BuildCarriedDebt(AccountEventRow e) { CarriedForwardDebt x = PersistencePayloadSerializer.Deserialize<CarriedForwardDebt>(e.PayloadJson); return new(e.OccurredAt, "Debt Brought Forward", $"Unpaid debt from {x.SourceYear:D4}-{x.SourceMonth:D2}", x.Amount, 0m, 0m, x.Id); }
     private static CustomerMonthlyTransactionView BuildSettlement(AccountEventRow e) { PriorPeriodOutstandingSettlement x = PersistencePayloadSerializer.Deserialize<PriorPeriodOutstandingSettlement>(e.PayloadJson); return new(e.OccurredAt, "Prior Period Correction", x.Reason, x.Amount, 0m, 0m, x.Id); }
     private static CustomerMonthlyTransactionView BuildPriorRefundCredit(AccountEventRow e) { PriorPeriodRefundCredit x = PersistencePayloadSerializer.Deserialize<PriorPeriodRefundCredit>(e.PayloadJson); return new(e.OccurredAt, "Prior Period Refund Credit", x.Reason, -x.CafeteriaAccountAmount, -x.CafeteriaAccountAmount, 0m, x.Id); }
