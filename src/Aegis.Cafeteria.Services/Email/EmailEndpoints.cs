@@ -25,6 +25,7 @@ public static class EmailEndpoints
     public static void Map(WebApplication app)
     {
         app.UseCafeteriaAuditTrail();
+        AuditTrailEndpoints.Map(app);
 
         app.MapGet
         (
