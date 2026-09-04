@@ -1,0 +1,44 @@
+[Unit]
+Description=Aegis Cafeteria Services
+After=network-online.target sssd.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aegis-cafeteria
+Group=aegis-cafeteria
+WorkingDirectory=/opt/aegis-cafeteria-services
+ExecStart=/usr/bin/dotnet /opt/aegis-cafeteria-services/Aegis.Cafeteria.Services.dll
+Restart=on-failure
+RestartSec=5
+
+# Linux-local durable service database. This overrides the Windows path in appsettings.json.
+Environment="ServicePersistence__ConnectionString=Data Source=/var/lib/aegis-cafeteria-services/cafeteria.services.db"
+
+# FFP SQL coordinates are not secrets. Authentication is Integrated Security/Kerberos.
+Environment="FfpIntegration__Server=JMDB01"
+Environment="FfpIntegration__Database=FFP"
+Environment="FfpIntegration__Encrypt=false"
+Environment="FfpIntegration__TrustServerCertificate=false"
+
+# Kerberos/GSSAPI uses the host/domain credential cache. No SQL username/password is supplied to the application.
+Environment="KRB5CCNAME=FILE:/run/aegis-cafeteria-services/krb5cc"
+
+# ASP.NET binding.
+Environment="ASPNETCORE_URLS=http://0.0.0.0:5088"
+Environment="DOTNET_ENVIRONMENT=Production"
+
+RuntimeDirectory=aegis-cafeteria-services
+RuntimeDirectoryMode=0750
+StateDirectory=aegis-cafeteria-services
+StateDirectoryMode=0750
+
+# Basic service hardening.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/aegis-cafeteria-services /run/aegis-cafeteria-services
+
+[Install]
+WantedBy=multi-user.target
