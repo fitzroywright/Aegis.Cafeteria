@@ -21,11 +21,16 @@ public sealed class CustomerPaymentService
             throw new InvalidOperationException(
                 "Payment cannot exceed the amount currently due from the customer.");
 
+        decimal outstandingBalanceBefore = account.EmployeeAmountDue;
+        decimal outstandingBalanceAfter = outstandingBalanceBefore - amount;
+
         return new CustomerPayment(
             Guid.NewGuid(),
             customer.Id,
             amount,
             receivedAt,
-            reference);
+            reference,
+            outstandingBalanceBefore: outstandingBalanceBefore,
+            outstandingBalanceAfter: outstandingBalanceAfter);
     }
 }
