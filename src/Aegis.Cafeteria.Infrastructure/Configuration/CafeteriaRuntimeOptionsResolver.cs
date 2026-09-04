@@ -21,12 +21,44 @@ public static class CafeteriaRuntimeOptionsResolver
         };
     }
 
-    public static async Task<CafeteriaRuntimeOptions> ResolveAsync
+    public static Task<CafeteriaRuntimeOptions> ResolvePosAsync
     (
           IConfiguration configuration
         , IApplicationSecretProvider secrets
         , CancellationToken cancellationToken = default
-        , bool allowDirectFfpDatabase = true
+    )
+    {
+        return ResolveCoreAsync
+        (
+              configuration
+            , secrets
+            , allowDirectFfpDatabase: false
+            , cancellationToken
+        );
+    }
+
+    public static Task<CafeteriaRuntimeOptions> ResolveAsync
+    (
+          IConfiguration configuration
+        , IApplicationSecretProvider secrets
+        , CancellationToken cancellationToken = default
+    )
+    {
+        return ResolveCoreAsync
+        (
+              configuration
+            , secrets
+            , allowDirectFfpDatabase: true
+            , cancellationToken
+        );
+    }
+
+    private static async Task<CafeteriaRuntimeOptions> ResolveCoreAsync
+    (
+          IConfiguration configuration
+        , IApplicationSecretProvider secrets
+        , bool allowDirectFfpDatabase
+        , CancellationToken cancellationToken
     )
     {
         IConfigurationSection p = configuration.GetSection("Persistence");
