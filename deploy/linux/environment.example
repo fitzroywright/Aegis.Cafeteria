@@ -1,0 +1,8 @@
+# Non-secret Linux deployment settings for Aegis.Cafeteria.Services.
+# Set KRB5_PRINCIPAL to the AD principal that SQL Server authorizes.
+# Example machine account form: CAFETERIASVC01$@FFTPJ.LOCAL
+# Example dedicated service identity: svcAegisCafeteria@FFTPJ.LOCAL
+KRB5_PRINCIPAL=
+
+# Normally leave this unset to use /etc/krb5.keytab from the domain join.
+# KRB5_KEYTAB=/etc/krb5.keytab
