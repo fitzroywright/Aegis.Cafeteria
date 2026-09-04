@@ -19,11 +19,13 @@ internal static class FfpDataToolsUiPolicy
             foreach (CafeteriaAdministrationDialog dialog in System.Windows.Forms.Application.OpenForms.OfType<CafeteriaAdministrationDialog>())
                 HideDataTools(dialog);
 
-            if (!options.ShowFfpDataTools || menuAdded)
-                return;
-
             MainForm? mainForm = System.Windows.Forms.Application.OpenForms.OfType<MainForm>().FirstOrDefault();
             if (mainForm is null)
+                return;
+
+            RefundSelectedGridPolicy.Attach(mainForm);
+
+            if (!options.ShowFfpDataTools || menuAdded)
                 return;
 
             AddMenu(mainForm);
