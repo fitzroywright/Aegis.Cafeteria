@@ -20,8 +20,10 @@ public sealed class FfpSqlApplicationGateway(FfpIntegrationOptions options, ILog
 {
     private readonly ActiveDirectoryEmployeeDirectory directory = new();
     private readonly EmployeeDirectoryMetadataCache directoryCache = new();
+    private IReadOnlyDictionary<int, byte[]> photoCache = new Dictionary<int, byte[]>();
     private string[] directoryLoginNames = [];
     private int directoryRefreshLoopStarted;
+    private int photoRefreshLoopStarted;
 
     private const string EmployeeSql = @"
 SELECT
@@ -30,11 +32,18 @@ SELECT
     , e.TRN
     , e.NFCID
     , ISNULL(e.FirstName, '') + ' ' + ISNULL(e.LastName, '') AS Name
-    , e.Photo
     , CAST(CASE WHEN e.EligibleForLunchTicket = 1 THEN 1 ELSE 0 END AS bit) AS IsEligible
     , ISNULL(CONVERT(nvarchar(256), e.LoginName), '') AS LoginName
 FROM dbo.Employees AS e
 WHERE e.EligibleForLunchTicket = 1;";
+
+    private const string PhotoSql = @"
+SELECT
+      e.ID
+    , e.Photo
+FROM dbo.Employees AS e
+WHERE e.EligibleForLunchTicket = 1
+  AND e.Photo IS NOT NULL;";
 
     private const string HolidaySql = @"
 SELECT Name, CalendarDate
@@ -63,27 +72,27 @@ WHERE YEAR(CalendarDate) = @year;";
                         , Trn = NormalizeIdentifier(reader, 2)
                         , Nfc = NormalizeIdentifier(reader, 3)
                         , Name = Convert.ToString(reader.GetValue(4))?.Trim() ?? string.Empty
-                        , Photo = reader.IsDBNull(5) ? null : (byte[])reader.GetValue(5)
-                        , IsEligible = !reader.IsDBNull(6) && Convert.ToBoolean(reader.GetValue(6))
-                        , LoginName = reader.IsDBNull(7) ? string.Empty : Convert.ToString(reader.GetValue(7))?.Trim() ?? string.Empty
+                        , IsEligible = !reader.IsDBNull(5) && Convert.ToBoolean(reader.GetValue(5))
+                        , LoginName = reader.IsDBNull(6) ? string.Empty : Convert.ToString(reader.GetValue(6))?.Trim() ?? string.Empty
                     }
                 );
             }
         }
 
-        // Foreground employee refresh is intentionally FFP Employees-only. Directory enrichment
-        // is refreshed independently in the background and never delays startup, search, or sales.
         this.directoryLoginNames = sourceRows
             .Select(employee => employee.LoginName)
             .Where(loginName => !string.IsNullOrWhiteSpace(loginName))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
         StartDirectoryRefreshLoop();
+        StartPhotoRefreshLoop();
 
+        IReadOnlyDictionary<int, byte[]> currentPhotos = this.photoCache;
         List<ExternalCustomerSnapshot> result = [];
         foreach (EmployeeSourceRow employee in sourceRows)
         {
             ActiveDirectoryEmployeeRecord? directoryEmployee = this.directoryCache.Get(employee.LoginName);
+            currentPhotos.TryGetValue(employee.EmployeeId, out byte[]? photo);
 
             result.Add
             (
@@ -95,7 +104,7 @@ WHERE YEAR(CalendarDate) = @year;";
                     , Nfc = employee.Nfc
                     , Code = employee.Code
                     , Trn = employee.Trn
-                    , Photo = employee.Photo
+                    , Photo = photo
                     , Department = directoryEmployee?.Department ?? string.Empty
                     , AdditionalCreditLimit = 0m
                     , Manager = directoryEmployee?.Manager ?? string.Empty
@@ -435,6 +444,60 @@ END", connection, transaction);
         );
     }
 
+    private void StartPhotoRefreshLoop()
+    {
+        if (Interlocked.CompareExchange(ref this.photoRefreshLoopStarted, 1, 0) != 0)
+        {
+            return;
+        }
+
+        _ = Task.Run
+        (
+            async () =>
+            {
+                while (true)
+                {
+                    try
+                    {
+                        Dictionary<int, byte[]> refreshed = [];
+                        await using SqlConnection connection = new(options.ConnectionString);
+                        await connection.OpenAsync();
+                        await using SqlCommand command = new(PhotoSql, connection)
+                        {
+                            CommandTimeout = 120
+                        };
+                        await using SqlDataReader reader = await command.ExecuteReaderAsync();
+
+                        while (await reader.ReadAsync())
+                        {
+                            if (!reader.IsDBNull(1))
+                            {
+                                refreshed[Convert.ToInt32(reader.GetValue(0))] = (byte[])reader.GetValue(1);
+                            }
+                        }
+
+                        this.photoCache = refreshed;
+                        logger.LogInformation
+                        (
+                              "Background FFP photo cache refresh loaded {PhotoCount} employee photos"
+                            , refreshed.Count
+                        );
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.LogWarning
+                        (
+                              exception
+                            , "Background FFP photo cache refresh failed; retaining the last known good photo cache"
+                        );
+                    }
+
+                    await Task.Delay(TimeSpan.FromMinutes(30));
+                }
+            }
+        );
+    }
+
     private int ScanType(ExternalLedgerEntryKind kind) => kind switch
     {
         ExternalLedgerEntryKind.MonthlyAllocation => options.MonthlyAllocationScanType,
@@ -481,7 +544,6 @@ END", connection, transaction);
         public string? Trn { get; init; }
         public string? Nfc { get; init; }
         public string Name { get; init; } = string.Empty;
-        public byte[]? Photo { get; init; }
         public bool IsEligible { get; init; }
         public string LoginName { get; init; } = string.Empty;
     }
