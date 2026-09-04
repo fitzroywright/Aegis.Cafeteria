@@ -35,7 +35,7 @@ internal static class Program
 
         var secretProvider = ApplicationSecretProviderFactory.Create(builder.Configuration, builder.Environment);
         var runtime = CafeteriaRuntimeOptionsResolver
-            .ResolveAsync(builder.Configuration, secretProvider)
+            .ResolvePosAsync(builder.Configuration, secretProvider)
             .GetAwaiter().GetResult();
         if (!builder.Environment.IsDevelopment() && runtime.Services.Enabled && string.IsNullOrWhiteSpace(runtime.Services.ApiKey))
             throw new InvalidOperationException("Cafeteria Services is enabled but CafeteriaServicesApiKey is not configured.");
@@ -69,7 +69,7 @@ internal static class Program
         using var host = builder.Build();
         host.Services.GetRequiredService<PersistenceInitializer>()
             .InitializeLocalAsync().GetAwaiter().GetResult();
-        if (runtime.FfpIntegration.Enabled)
+        if (runtime.FfpIntegration.Enabled && runtime.Services.Enabled)
         {
             try
             {
