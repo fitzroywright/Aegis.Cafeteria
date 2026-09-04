@@ -1,9 +1,10 @@
-name: ChatGPT Branch Build
+name: Aegis Cafeteria Build
 
 on:
   push:
     branches:
-      - chatgpt/cafeteria-recovery
+      - master
+      - development/post-rc1
       - chatgpt/enable-messaging-and-tests
   workflow_dispatch:
 
