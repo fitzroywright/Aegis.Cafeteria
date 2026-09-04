@@ -24,6 +24,8 @@ public static class EmailEndpoints
 {
     public static void Map(WebApplication app)
     {
+        AuditTrailEndpoints.Map(app);
+
         app.MapGet
         (
               "/api/pos/customers/{customerId:int}/notification-preference"
