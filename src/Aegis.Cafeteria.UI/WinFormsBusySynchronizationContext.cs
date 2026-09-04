@@ -5,25 +5,31 @@ namespace Aegis.Cafeteria.UI;
 internal sealed class WinFormsBusySynchronizationContext : SynchronizationContext, IDisposable
 {
     private readonly SynchronizationContext? previousContext;
-    private readonly SynchronizationContext innerContext;
+    private readonly Control uiDispatcher;
     private int pendingOperations;
     private int disposed;
 
     private WinFormsBusySynchronizationContext
     (
           SynchronizationContext? previousContext
-        , SynchronizationContext innerContext
+        , Control uiDispatcher
     )
     {
         this.previousContext = previousContext;
-        this.innerContext = innerContext;
+        this.uiDispatcher = uiDispatcher;
     }
 
     public static WinFormsBusySynchronizationContext Install()
     {
         SynchronizationContext? previousContext = SynchronizationContext.Current;
-        SynchronizationContext innerContext = previousContext ?? new WindowsFormsSynchronizationContext();
-        WinFormsBusySynchronizationContext context = new(previousContext, innerContext);
+
+        // Create a dedicated WinForms handle on the UI thread before any async POS work starts.
+        // Every continuation posted through this context is marshalled through this handle, so
+        // there is no worker-thread fallback that can later touch WinForms controls directly.
+        Control uiDispatcher = new();
+        _ = uiDispatcher.Handle;
+
+        WinFormsBusySynchronizationContext context = new(previousContext, uiDispatcher);
         SynchronizationContext.SetSynchronizationContext(context);
         return context;
     }
@@ -32,17 +38,17 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
     {
         if (IsDisposed)
         {
-            PostToUiOrThreadPool(callback, state);
+            PostAfterDispose(callback, state);
             return;
         }
 
         try
         {
-            this.innerContext.Post(callback, state);
+            this.uiDispatcher.BeginInvoke(() => callback(state));
         }
-        catch (InvalidAsynchronousStateException)
+        catch (InvalidOperationException) when (IsDisposed || this.uiDispatcher.IsDisposed)
         {
-            PostToUiOrThreadPool(callback, state);
+            PostAfterDispose(callback, state);
         }
     }
 
@@ -50,17 +56,24 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
     {
         if (IsDisposed)
         {
-            SendToUiOrCurrentThread(callback, state);
+            SendAfterDispose(callback, state);
             return;
         }
 
         try
         {
-            this.innerContext.Send(callback, state);
+            if (this.uiDispatcher.InvokeRequired)
+            {
+                this.uiDispatcher.Invoke(() => callback(state));
+            }
+            else
+            {
+                callback(state);
+            }
         }
-        catch (InvalidAsynchronousStateException)
+        catch (InvalidOperationException) when (IsDisposed || this.uiDispatcher.IsDisposed)
         {
-            SendToUiOrCurrentThread(callback, state);
+            SendAfterDispose(callback, state);
         }
     }
 
@@ -71,7 +84,6 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
             return;
         }
 
-        this.innerContext.OperationStarted();
         if (Interlocked.Increment(ref this.pendingOperations) == 1)
         {
             SetBusyState(true);
@@ -91,14 +103,6 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
             Interlocked.Exchange(ref this.pendingOperations, 0);
             SetBusyState(false);
         }
-
-        try
-        {
-            this.innerContext.OperationCompleted();
-        }
-        catch (InvalidAsynchronousStateException)
-        {
-        }
     }
 
     public override SynchronizationContext CreateCopy()
@@ -116,64 +120,33 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
         Interlocked.Exchange(ref this.pendingOperations, 0);
         SetBusyState(false);
         SynchronizationContext.SetSynchronizationContext(this.previousContext);
+        this.uiDispatcher.Dispose();
     }
 
     private bool IsDisposed => Volatile.Read(ref this.disposed) != 0;
 
-    private static void PostToUiOrThreadPool(SendOrPostCallback callback, object? state)
+    private void PostAfterDispose(SendOrPostCallback callback, object? state)
     {
-        Form? form = FindUiForm();
-        if (form is not null && form.IsHandleCreated && !form.IsDisposed)
+        SynchronizationContext? context = this.previousContext;
+        if (context is not null)
         {
-            try
-            {
-                form.BeginInvoke(() => callback(state));
-                return;
-            }
-            catch (InvalidOperationException)
-            {
-            }
+            context.Post(callback, state);
+            return;
         }
 
         ThreadPool.QueueUserWorkItem(_ => callback(state));
     }
 
-    private static void SendToUiOrCurrentThread(SendOrPostCallback callback, object? state)
+    private void SendAfterDispose(SendOrPostCallback callback, object? state)
     {
-        Form? form = FindUiForm();
-        if (form is not null && form.IsHandleCreated && !form.IsDisposed)
+        SynchronizationContext? context = this.previousContext;
+        if (context is not null)
         {
-            try
-            {
-                if (form.InvokeRequired)
-                {
-                    form.Invoke(() => callback(state));
-                }
-                else
-                {
-                    callback(state);
-                }
-                return;
-            }
-            catch (InvalidOperationException)
-            {
-            }
+            context.Send(callback, state);
+            return;
         }
 
         callback(state);
-    }
-
-    private static Form? FindUiForm()
-    {
-        foreach (Form form in System.Windows.Forms.Application.OpenForms)
-        {
-            if (!form.IsDisposed && form.IsHandleCreated)
-            {
-                return form;
-            }
-        }
-
-        return null;
     }
 
     private static void SetBusyState(bool isBusy)
