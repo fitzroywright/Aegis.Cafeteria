@@ -16,7 +16,7 @@ jobs:
   build-and-test:
     runs-on: windows-latest
     steps:
-      - name: Checkout
+      - name: Checkout Aegis.Cafeteria
         uses: actions/checkout@v4
 
       - name: Setup .NET 10
@@ -24,9 +24,30 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Select Common.Security token
+        id: common_security_token
+        shell: pwsh
+        env:
+          DEDICATED_TOKEN: ${{ secrets.COMMON_SECURITY_TOKEN }}
+          REPOSITORY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if (-not [string]::IsNullOrWhiteSpace($env:DEDICATED_TOKEN)) {
+            "token=$env:DEDICATED_TOKEN" >> $env:GITHUB_OUTPUT
+          } else {
+            "token=$env:REPOSITORY_TOKEN" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Verify Common.Security repository access
+        uses: actions/checkout@v4
+        with:
+          repository: fitzroywright/Common.Security
+          path: _common-security-access-check
+          token: ${{ steps.common_security_token.outputs.token }}
+          fetch-depth: 1
+
       - name: Authenticate GitHub Packages
         shell: pwsh
-        run: dotnet nuget update source github-common --username fitzroywright --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text --configfile NuGet.config
+        run: dotnet nuget update source github-common --username fitzroywright --password "${{ steps.common_security_token.outputs.token }}" --store-password-in-clear-text --configfile NuGet.config
 
       - name: Restore
         run: dotnet restore --configfile NuGet.config
