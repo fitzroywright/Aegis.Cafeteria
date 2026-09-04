@@ -24,15 +24,15 @@ public static class CafeteriaRuntimeOptionsResolver
     public static Task<CafeteriaRuntimeOptions> ResolvePosAsync
     (
           IConfiguration configuration
-        , IApplicationSecretProvider secrets
         , CancellationToken cancellationToken = default
     )
     {
         return ResolveCoreAsync
         (
               configuration
-            , secrets
+            , secrets: null
             , allowDirectFfpDatabase: false
+            , allowRemoteSecrets: false
             , cancellationToken
         );
     }
@@ -49,6 +49,7 @@ public static class CafeteriaRuntimeOptionsResolver
               configuration
             , secrets
             , allowDirectFfpDatabase: true
+            , allowRemoteSecrets: true
             , cancellationToken
         );
     }
@@ -56,8 +57,9 @@ public static class CafeteriaRuntimeOptionsResolver
     private static async Task<CafeteriaRuntimeOptions> ResolveCoreAsync
     (
           IConfiguration configuration
-        , IApplicationSecretProvider secrets
+        , IApplicationSecretProvider? secrets
         , bool allowDirectFfpDatabase
+        , bool allowRemoteSecrets
         , CancellationToken cancellationToken
     )
     {
@@ -67,7 +69,9 @@ public static class CafeteriaRuntimeOptionsResolver
         IConfigurationSection health = configuration.GetSection("Health");
         IConfigurationSection messaging = configuration.GetSection("Messaging");
         IConfigurationSection svc = configuration.GetSection("CafeteriaServices");
-        BitwardenSecretsManagerOptions sm = ReadSecretsManagerOptions(configuration);
+        BitwardenSecretsManagerOptions sm = allowRemoteSecrets
+            ? ReadSecretsManagerOptions(configuration)
+            : new BitwardenSecretsManagerOptions();
         bool servicesEnabled = svc.GetValue("Enabled", false);
         bool developmentDataEnabled = configuration.GetSection("DevelopmentData").GetValue("Enabled", false);
         bool ffpEnabled = ffp.GetValue("Enabled", true);
@@ -76,6 +80,11 @@ public static class CafeteriaRuntimeOptionsResolver
 
         if (allowDirectFfpDatabase && ffpEnabled && !servicesEnabled)
         {
+            if (secrets is null)
+            {
+                throw new InvalidOperationException("Direct FFP database access requires a service-side secret provider.");
+            }
+
             ffpConnectionString = !string.IsNullOrWhiteSpace(configuredFfpConnectionString)
                 ? configuredFfpConnectionString.Trim()
                 : await secrets.GetSecretAsync(ApplicationSecretNames.FfpDatabaseConnectionString, cancellationToken)
@@ -87,7 +96,7 @@ public static class CafeteriaRuntimeOptionsResolver
             }
         }
 
-        string? messagingToken = messaging.GetValue("Enabled", false)
+        string? messagingToken = allowRemoteSecrets && messaging.GetValue("Enabled", false) && secrets is not null
             ? await secrets.GetSecretAsync(ApplicationSecretNames.MessagingBearerToken, cancellationToken)
             : null;
 
@@ -132,18 +141,24 @@ public static class CafeteriaRuntimeOptionsResolver
         };
         CafeteriaMessagingOptions messagingOptions = new()
         {
-            Enabled = messaging.GetValue("Enabled", false),
+            Enabled = allowRemoteSecrets && messaging.GetValue("Enabled", false),
             Endpoint = messaging["Endpoint"] ?? string.Empty,
             BearerToken = messagingToken,
             WeeklySummaryDay = Enum.TryParse<DayOfWeek>(messaging["WeeklySummaryDay"], true, out DayOfWeek day) ? day : DayOfWeek.Monday,
             WeeklySummaryHourLocal = Math.Clamp(messaging.GetValue("WeeklySummaryHourLocal", 8), 0, 23)
         };
-        string? configuredServiceApiKey = svc["ApiKey"];
-        string? serviceApiKey = servicesEnabled
-            ? !string.IsNullOrWhiteSpace(configuredServiceApiKey)
+
+        string? serviceApiKey = null;
+        if (allowRemoteSecrets && servicesEnabled)
+        {
+            string? configuredServiceApiKey = svc["ApiKey"];
+            serviceApiKey = !string.IsNullOrWhiteSpace(configuredServiceApiKey)
                 ? configuredServiceApiKey.Trim()
-                : await secrets.GetSecretAsync(ApplicationSecretNames.CafeteriaServicesApiKey, cancellationToken)
-            : null;
+                : secrets is null
+                    ? null
+                    : await secrets.GetSecretAsync(ApplicationSecretNames.CafeteriaServicesApiKey, cancellationToken);
+        }
+
         CafeteriaServicesOptions servicesOptions = new()
         {
             Enabled = servicesEnabled,
