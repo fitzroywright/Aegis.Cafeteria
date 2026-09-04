@@ -265,6 +265,24 @@ internal static class Program
             , host.Services.GetRequiredService<ICafeteriaReportService>()
         );
 
+        mainForm.Shown += (_, _) =>
+        {
+            mainForm.BeginInvoke
+            (
+                () =>
+                {
+                    if (mainForm.WindowState == FormWindowState.Minimized)
+                    {
+                        mainForm.WindowState = FormWindowState.Maximized;
+                    }
+
+                    mainForm.BringToFront();
+                    mainForm.Activate();
+                    mainForm.Focus();
+                }
+            );
+        };
+
         EventHandler applyFormatting = (_, _) => UiDisplayFormattingPolicy.ApplyToOpenForms();
         System.Windows.Forms.Application.Idle += applyFormatting;
         try
