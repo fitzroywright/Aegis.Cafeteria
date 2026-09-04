@@ -79,10 +79,9 @@ public sealed class CustomerDisplayForm : Form
             this.available.Text = Money(account.FinancialStatus.TotalAvailableToSpend);
             this.subsidyRemaining.Text = Money(account.FinancialStatus.SubsidyAmountRemaining);
             decimal amountToDeductFromPayroll = Math.Max(0m, account.Period.EmployeeFundedAllocation - account.FinancialStatus.NonSubsidyAmountRemaining);
-            decimal outstandingBalance = Math.Max(0m, account.FinancialStatus.EmployeeAmountDue - amountToDeductFromPayroll);
             this.payrollDeduction.Text = Money(amountToDeductFromPayroll);
             this.carriedDebt.Text = Money(account.FinancialStatus.CarriedForwardDebt);
-            this.employeeAmountDue.Text = Money(outstandingBalance);
+            this.employeeAmountDue.Text = Money(account.FinancialStatus.EmployeeAmountDue);
         }
         else
         {
