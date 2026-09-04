@@ -9,6 +9,7 @@ public sealed class CafeteriaFundingPolicyStore : ICafeteriaFundingPolicySource
     private const int CurrentPolicyId = 1;
 
     private readonly IDbContextFactory<ServiceDbContext> factory;
+    private readonly AuditTrailService auditTrail;
 
     public CafeteriaFundingPolicyStore
     (
@@ -16,6 +17,7 @@ public sealed class CafeteriaFundingPolicyStore : ICafeteriaFundingPolicySource
     )
     {
         this.factory = factory;
+        this.auditTrail = new AuditTrailService(factory);
     }
 
     public async Task<CafeteriaFundingPolicySnapshot> GetFundingPolicyAsync
@@ -77,6 +79,16 @@ public sealed class CafeteriaFundingPolicyStore : ICafeteriaFundingPolicySource
             , cancellationToken
         );
 
+        object? before = row is null
+            ? null
+            : new
+            {
+                  row.DailyCreditLimitRate
+                , row.DailyCompanySubsidyRate
+                , row.UpdatedBy
+                , row.UpdatedAt
+            };
+
         if (row is null)
         {
             row = new CafeteriaFundingPolicyRow
@@ -110,6 +122,30 @@ public sealed class CafeteriaFundingPolicyStore : ICafeteriaFundingPolicySource
         );
 
         await database.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await this.auditTrail.RecordAsync
+            (
+                  row.UpdatedBy
+                , "SetFundingPolicy"
+                , "CafeteriaFundingPolicy"
+                , CurrentPolicyId.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                , before: before
+                , after: new
+                {
+                      row.DailyCreditLimitRate
+                    , row.DailyCompanySubsidyRate
+                    , row.UpdatedBy
+                    , row.UpdatedAt
+                }
+                , cancellationToken: cancellationToken
+            );
+        }
+        catch
+        {
+        }
+
         return ToSnapshot(row);
     }
 
