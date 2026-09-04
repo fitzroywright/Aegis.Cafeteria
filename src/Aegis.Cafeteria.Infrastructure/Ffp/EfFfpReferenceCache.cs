@@ -44,7 +44,10 @@ public sealed class EfFfpReferenceCache(
             row.Manager = employee.Manager?.Trim() ?? string.Empty;
             row.EmailAddress = employee.EmailAddress?.Trim() ?? string.Empty;
             row.Extension = employee.Extension?.Trim() ?? string.Empty;
-            row.Photo = employee.Photo;
+            if (employee.Photo is not null)
+            {
+                row.Photo = employee.Photo;
+            }
             row.IsEligibleForCredit = employee.IsEligibleForCafeteriaCredit;
             row.AdditionalCreditLimit = employee.AdditionalCreditLimit;
             row.Revision = now.UtcDateTime.Ticks;
