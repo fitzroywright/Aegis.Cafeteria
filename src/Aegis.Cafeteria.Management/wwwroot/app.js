@@ -96,6 +96,21 @@ function selectTab(tabName) {
     });
 }
 
+async function selectEmployee(employee) {
+    selectedCustomerId = employee.customerId;
+    selectedCustomerName = employee.name;
+    selectedEmployee.textContent = `${employee.name} (#${employee.customerId})`;
+    document.getElementById('employeeSearch').value = employee.name;
+    document.getElementById('employeeResults').innerHTML = '';
+
+    const policy = await api(`/api/management/customers/${employee.customerId}/credit-policy`);
+    document.getElementById('creditLimit').value = policy.additionalCreditLimit ?? 0;
+    showResult('Employee selected', {
+        ...employee,
+        additionalCreditLimit: policy.additionalCreditLimit ?? 0
+    });
+}
+
 async function searchEmployees() {
     const search = document.getElementById('employeeSearch').value.trim();
     if (search.length < 2) {
@@ -114,17 +129,36 @@ async function searchEmployees() {
     employees.forEach(employee => {
         const row = document.createElement('div');
         row.className = 'result-row';
+        row.tabIndex = 0;
+        row.setAttribute('role', 'button');
+        row.setAttribute('aria-label', `Select ${employee.name}`);
+
         const info = document.createElement('div');
         const identity = [employee.code, employee.trn].filter(Boolean).join(' • ');
         info.innerHTML = `<strong>${employee.name}</strong><small>${identity || `Employee ${employee.customerId}`}</small>`;
+
         const select = document.createElement('button');
+        select.type = 'button';
         select.textContent = 'Select';
-        select.addEventListener('click', () => {
-            selectedCustomerId = employee.customerId;
-            selectedCustomerName = employee.name;
-            selectedEmployee.textContent = `${employee.name} (#${employee.customerId})`;
-            showResult('Employee selected', employee);
+
+        const choose = async event => {
+            event?.stopPropagation();
+            try {
+                await selectEmployee(employee);
+            } catch (error) {
+                showResult('Error selecting employee', error.message || String(error));
+            }
+        };
+
+        select.addEventListener('click', choose);
+        row.addEventListener('click', choose);
+        row.addEventListener('keydown', event => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                choose(event);
+            }
         });
+
         row.append(info, select);
         host.appendChild(row);
     });
