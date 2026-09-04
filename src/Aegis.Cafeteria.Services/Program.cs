@@ -6,6 +6,7 @@ using Aegis.Cafeteria.Domain.Customers;
 using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Infrastructure.Ffp;
+using Aegis.Cafeteria.Infrastructure.Logging;
 using Aegis.Cafeteria.Services;
 using Aegis.Cafeteria.Services.Email;
 using Aegis.Cafeteria.Services.Development;
@@ -19,6 +20,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseWindowsService(options => options.ServiceName = "Aegis.Cafeteria.Services");
@@ -153,6 +155,11 @@ builder.Services.AddSingleton<ScheduledEmailWorker>();
 builder.Services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<ScheduledEmailWorker>());
 
 var app = builder.Build();
+CafeteriaLoggingOptions loggingOptions = app.Configuration.GetSection("Logging").Get<CafeteriaLoggingOptions>()
+    ?? new CafeteriaLoggingOptions();
+ILoggerFactory loggerFactory = app.Services.GetRequiredService<ILoggerFactory>();
+loggerFactory.AddCafeteriaProviders(loggingOptions);
+
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var factory=scope.ServiceProvider.GetRequiredService<IDbContextFactory<ServiceDbContext>>();
@@ -237,6 +244,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseCafeteriaAuditTrail();
+AuditTrailEndpoints.Map(app);
 
 app.MapGet("/health", () => Results.Ok(new { status="running", application="Aegis.Cafeteria.Services", timeUtc=DateTimeOffset.UtcNow }));
 
