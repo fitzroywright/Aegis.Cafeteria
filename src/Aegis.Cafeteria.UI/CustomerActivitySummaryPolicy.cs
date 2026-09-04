@@ -44,16 +44,12 @@ internal static class CustomerActivitySummaryPolicy
             return;
         }
 
-        fundingStatus.Padding = Padding.Empty;
-        fundingStatus.Margin = new Padding(0, 7, 0, 0);
-        fundingStatus.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
-        fundingStatus.ForeColor = SummaryForeground;
-        fundingStatus.BackColor = Color.Transparent;
-        fundingStatus.AutoSize = true;
-        fundingStatus.Visible = true;
+        EnsureSummaryStyle(fundingStatus);
 
         customerName.TextChanged += (_, _) => Refresh(mainForm, fundingStatus);
         fundingStatus.TextChanged += (_, _) => Refresh(mainForm, fundingStatus);
+        fundingStatus.ForeColorChanged += (_, _) => EnsureSummaryStyle(fundingStatus);
+        fundingStatus.BackColorChanged += (_, _) => EnsureSummaryStyle(fundingStatus);
         Refresh(mainForm, fundingStatus);
     }
 
@@ -67,6 +63,7 @@ internal static class CustomerActivitySummaryPolicy
         try
         {
             updating = true;
+            EnsureSummaryStyle(summary);
 
             CustomerAccountView? account = GetField<CustomerAccountView>(mainForm, "currentCustomer");
             if (account is null)
@@ -91,6 +88,29 @@ internal static class CustomerActivitySummaryPolicy
             string noun = purchases.Length == 1 ? "purchase" : "purchases";
             DateTimeOffset lastPurchase = purchases[0].OccurredAt;
             summary.Text = $"This month: {purchases.Length} {noun}  •  Last purchase: {lastPurchase.LocalDateTime:MMM d, h:mm tt}";
+        }
+        finally
+        {
+            updating = false;
+        }
+    }
+
+    private static void EnsureSummaryStyle(Label summary)
+    {
+        if (updating)
+        {
+            return;
+        }
+
+        try
+        {
+            updating = true;
+            summary.Padding = Padding.Empty;
+            summary.Margin = new Padding(0, 7, 0, 0);
+            summary.Font = new Font("Segoe UI", 11F, FontStyle.Bold);
+            summary.ForeColor = SummaryForeground;
+            summary.BackColor = Color.Transparent;
+            summary.AutoSize = true;
         }
         finally
         {
