@@ -37,24 +37,28 @@ public sealed class CustomerPaymentWorkflow(
         if (string.IsNullOrWhiteSpace(receivedByUserId))
             throw new ArgumentException("Receiving operator is required.", nameof(receivedByUserId));
 
-        var at = receivedAt ?? DateTimeOffset.Now;
-        var payment = new CustomerPayment(
+        DateTimeOffset at = receivedAt ?? DateTimeOffset.Now;
+        decimal outstandingBalanceBefore = account.FinancialStatus.EmployeeAmountDue;
+        decimal outstandingBalanceAfter = outstandingBalanceBefore - amount;
+        CustomerPayment payment = new(
             Guid.NewGuid(),
             account.Customer.Id,
             amount,
             at,
             reference,
             paymentMethod,
-            receivedByUserId);
+            receivedByUserId,
+            outstandingBalanceBefore,
+            outstandingBalanceAfter);
 
         await persistenceStore.SaveCustomerPaymentAsync(payment, cancellationToken);
 
         if (ledgerProjection is not null)
         {
-            var postBalance = Math.Min(
+            decimal postBalance = Math.Min(
                 account.FinancialStatus.TotalCreditLimit,
                 account.FinancialStatus.TotalAvailableToSpend + amount);
-            var description = string.IsNullOrWhiteSpace(reference)
+            string description = string.IsNullOrWhiteSpace(reference)
                 ? $"Customer payment - {payment.PaymentMethod}"
                 : $"Customer payment - {payment.PaymentMethod} - {reference.Trim()}";
 
