@@ -22,6 +22,8 @@ internal static class PosCashierUiPolicy
         ArgumentNullException.ThrowIfNull(orderQuery);
         ArgumentNullException.ThrowIfNull(identification);
 
+        RemoveVoidAvailabilityHelper(mainForm);
+
         foreach (Control control in Descendants(mainForm))
         {
             if (control is Button button)
@@ -47,6 +49,7 @@ internal static class PosCashierUiPolicy
                 if (label.Text.StartsWith("VOID CURRENT SALE", StringComparison.OrdinalIgnoreCase)
                     || label.Text.StartsWith("VOID AVAILABLE", StringComparison.OrdinalIgnoreCase))
                 {
+                    label.Text = string.Empty;
                     label.Visible = false;
                     continue;
                 }
@@ -99,6 +102,28 @@ internal static class PosCashierUiPolicy
         SimplifyCustomerFunding(mainForm);
         MoveReadyCustomerInstructions(mainForm);
         ConfigureRecentTransactionNavigation(mainForm, orderQuery, identification);
+    }
+
+    private static void RemoveVoidAvailabilityHelper(Form mainForm)
+    {
+        FieldInfo? field = typeof(MainForm).GetField("voidAvailability", BindingFlags.Instance | BindingFlags.NonPublic);
+        if (field?.GetValue(mainForm) is not Label helper)
+        {
+            return;
+        }
+
+        helper.Text = string.Empty;
+        helper.Visible = false;
+        helper.AutoSize = false;
+        helper.Height = 0;
+        helper.Margin = Padding.Empty;
+        helper.Padding = Padding.Empty;
+
+        if (helper.Parent is TableLayoutPanel host && host.RowStyles.Count > 0)
+        {
+            host.RowStyles[0].SizeType = SizeType.Absolute;
+            host.RowStyles[0].Height = 0F;
+        }
     }
 
     private static void StyleProductHeading(Form mainForm)
