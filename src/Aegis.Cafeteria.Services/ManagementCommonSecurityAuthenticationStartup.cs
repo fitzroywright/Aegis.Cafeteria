@@ -16,14 +16,14 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 
 /// <summary>
-/// Authenticates Management Console credentials through Common.Security once, then exchanges the
-/// password for a short-lived opaque Services token. The AD password is never retained for later
-/// management API calls.
+/// Exchanges Common.Security credentials for short-lived opaque Cafeteria Services sessions.
+/// Passwords are used only for the authentication request and are never retained.
 /// </summary>
 public sealed class ManagementCommonSecurityStartupFilter
 (
       ManagementCommonSecurityAuthenticator authentication
     , ManagementServiceTokenStore tokens
+    , ManagementApiOptions management
 ) : IStartupFilter
 {
     public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
@@ -36,28 +36,28 @@ public sealed class ManagementCommonSecurityStartupFilter
                 {
                     if (context.Request.Path.Equals("/api/management/authenticate", StringComparison.OrdinalIgnoreCase))
                     {
-                        await AuthenticateAsync(context);
+                        await AuthenticateManagementAsync(context);
                         return;
                     }
 
-                    if (context.Request.Headers.TryGetValue("X-Aegis-Management-Token", out var supplied)
-                        && supplied.Count == 1
-                        && tokens.TryGet(supplied[0]!, out ManagementServiceTokenSession? session))
+                    if (context.Request.Path.Equals("/api/pos/authenticate", StringComparison.OrdinalIgnoreCase))
                     {
-                        List<Claim> claims =
-                        [
-                              new Claim(ClaimTypes.Name, session.UserName)
-                            , new Claim("aegis_display_name", session.DisplayName)
-                            , new Claim("aegis_authentication_source", "Common.Security")
-                        ];
+                        await AuthenticatePosAsync(context);
+                        return;
+                    }
 
-                        foreach (string group in authentication.AuthorizedGroups)
+                    if (TryApplySession(context, "X-Aegis-Management-Token", requireManager: true))
+                    {
+                        await nextMiddleware();
+                        return;
+                    }
+
+                    if (TryApplySession(context, "X-Aegis-POS-Token", requireManager: false))
+                    {
+                        if (!string.IsNullOrWhiteSpace(management.ApiKey))
                         {
-                            claims.Add(new Claim(ClaimTypes.Role, group));
+                            context.Request.Headers["X-Cafeteria-Api-Key"] = management.ApiKey;
                         }
-
-                        ClaimsIdentity identity = new(claims, "Common.Security");
-                        context.User = new ClaimsPrincipal(identity);
                     }
 
                     await nextMiddleware();
@@ -68,14 +68,38 @@ public sealed class ManagementCommonSecurityStartupFilter
         };
     }
 
-    private async Task AuthenticateAsync(HttpContext context)
+    private bool TryApplySession(HttpContext context, string headerName, bool requireManager)
     {
-        if (!HttpMethods.IsPost(context.Request.Method))
+        if (!context.Request.Headers.TryGetValue(headerName, out var supplied)
+            || supplied.Count != 1
+            || !tokens.TryGet(supplied[0]!, out ManagementServiceTokenSession? session)
+            || (requireManager && !session.IsManager))
         {
-            context.Response.StatusCode = StatusCodes.Status405MethodNotAllowed;
-            return;
+            return false;
         }
 
+        List<Claim> claims =
+        [
+              new Claim(ClaimTypes.Name, session.UserName)
+            , new Claim("aegis_display_name", session.DisplayName)
+            , new Claim("aegis_authentication_source", "Common.Security")
+        ];
+
+        if (session.IsManager)
+        {
+            foreach (string group in authentication.AuthorizedGroups)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, group));
+            }
+        }
+
+        ClaimsIdentity identity = new(claims, "Common.Security");
+        context.User = new ClaimsPrincipal(identity);
+        return true;
+    }
+
+    private async Task AuthenticateManagementAsync(HttpContext context)
+    {
         IPAddress? remoteAddress = context.Connection.RemoteIpAddress;
         if (remoteAddress is null || !IPAddress.IsLoopback(remoteAddress))
         {
@@ -86,6 +110,72 @@ public sealed class ManagementCommonSecurityStartupFilter
                 , context.RequestAborted
             );
             return;
+        }
+
+        AuthenticationExchange? exchange = await AuthenticateAsync(context);
+        if (exchange is null)
+        {
+            return;
+        }
+
+        if (!exchange.Result.IsAdministrative)
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            await context.Response.WriteAsJsonAsync
+            (
+                  new { error = "The account is valid but is not authorized for Cafeteria Management." }
+                , context.RequestAborted
+            );
+            return;
+        }
+
+        ManagementServiceTokenSession session = tokens.Create
+        (
+              exchange.UserName
+            , exchange.DisplayName
+            , isManager: true
+        );
+
+        await WriteSessionAsync(context, session, includeManagerFlag: false);
+    }
+
+    private async Task AuthenticatePosAsync(HttpContext context)
+    {
+        IPAddress? remoteAddress = context.Connection.RemoteIpAddress;
+        bool isLoopback = remoteAddress is not null && IPAddress.IsLoopback(remoteAddress);
+        if (!isLoopback && !context.Request.IsHttps)
+        {
+            context.Response.StatusCode = StatusCodes.Status426UpgradeRequired;
+            await context.Response.WriteAsJsonAsync
+            (
+                  new { error = "POS credential exchange requires HTTPS when Cafeteria Services is remote." }
+                , context.RequestAborted
+            );
+            return;
+        }
+
+        AuthenticationExchange? exchange = await AuthenticateAsync(context);
+        if (exchange is null)
+        {
+            return;
+        }
+
+        ManagementServiceTokenSession session = tokens.Create
+        (
+              exchange.UserName
+            , exchange.DisplayName
+            , exchange.Result.IsAdministrative
+        );
+
+        await WriteSessionAsync(context, session, includeManagerFlag: true);
+    }
+
+    private async Task<AuthenticationExchange?> AuthenticateAsync(HttpContext context)
+    {
+        if (!HttpMethods.IsPost(context.Request.Method))
+        {
+            context.Response.StatusCode = StatusCodes.Status405MethodNotAllowed;
+            return null;
         }
 
         ManagementCommonSecurityLoginRequest? request;
@@ -100,7 +190,7 @@ public sealed class ManagementCommonSecurityStartupFilter
         {
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
             await context.Response.WriteAsJsonAsync(new { error = "Invalid login request." }, context.RequestAborted);
-            return;
+            return null;
         }
 
         if (request is null
@@ -109,7 +199,7 @@ public sealed class ManagementCommonSecurityStartupFilter
         {
             context.Response.StatusCode = StatusCodes.Status400BadRequest;
             await context.Response.WriteAsJsonAsync(new { error = "Username and password are required." }, context.RequestAborted);
-            return;
+            return null;
         }
 
         AuthenticationResult result = authentication.Authenticate(request.UserName, request.Password);
@@ -121,38 +211,43 @@ public sealed class ManagementCommonSecurityStartupFilter
                   new { error = "The username or password was not accepted by Common.Security." }
                 , context.RequestAborted
             );
-            return;
-        }
-
-        if (!result.IsAdministrative)
-        {
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            await context.Response.WriteAsJsonAsync
-            (
-                  new { error = "The account is valid but is not authorized for Cafeteria Management." }
-                , context.RequestAborted
-            );
-            return;
+            return null;
         }
 
         string userName = NormalizeUserName(request.UserName);
         string displayName = string.IsNullOrWhiteSpace(result.UserInfo.DisplayName)
             ? userName
             : result.UserInfo.DisplayName.Trim();
-        ManagementServiceTokenSession session = tokens.Create(userName, displayName);
+        return new AuthenticationExchange(result, userName, displayName);
+    }
 
-        await context.Response.WriteAsJsonAsync
-        (
-            new
+    private static Task WriteSessionAsync
+    (
+          HttpContext context
+        , ManagementServiceTokenSession session
+        , bool includeManagerFlag
+    )
+    {
+        object response = includeManagerFlag
+            ? new
+            {
+                  token = session.Token
+                , userName = session.UserName
+                , displayName = session.DisplayName
+                , isManager = session.IsManager
+                , expiresAt = session.ExpiresAt
+                , authenticationSource = "Common.Security"
+            }
+            : new
             {
                   token = session.Token
                 , userName = session.UserName
                 , displayName = session.DisplayName
                 , expiresAt = session.ExpiresAt
                 , authenticationSource = "Common.Security"
-            }
-            , context.RequestAborted
-        );
+            };
+
+        return context.Response.WriteAsJsonAsync(response, context.RequestAborted);
     }
 
     private static string NormalizeUserName(string loginName)
@@ -172,6 +267,13 @@ public sealed class ManagementCommonSecurityStartupFilter
 
         return value.ToLowerInvariant();
     }
+
+    private sealed record AuthenticationExchange
+    (
+          AuthenticationResult Result
+        , string UserName
+        , string DisplayName
+    );
 }
 
 public sealed class ManagementCommonSecurityAuthenticator
@@ -237,7 +339,7 @@ public sealed class ManagementServiceTokenStore
         lifetime = TimeSpan.FromMinutes(Math.Clamp(configuredMinutes, 5, 480));
     }
 
-    public ManagementServiceTokenSession Create(string userName, string displayName)
+    public ManagementServiceTokenSession Create(string userName, string displayName, bool isManager)
     {
         string token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         ManagementServiceTokenSession session = new
@@ -245,6 +347,7 @@ public sealed class ManagementServiceTokenStore
               token
             , userName
             , displayName
+            , isManager
             , DateTimeOffset.UtcNow.Add(lifetime)
         );
 
@@ -276,12 +379,14 @@ public sealed class ManagementServiceTokenSession
       string token
     , string userName
     , string displayName
+    , bool isManager
     , DateTimeOffset expiresAt
 )
 {
     public string Token { get; } = token;
     public string UserName { get; } = userName;
     public string DisplayName { get; } = displayName;
+    public bool IsManager { get; } = isManager;
     public DateTimeOffset ExpiresAt { get; set; } = expiresAt;
 }
 
