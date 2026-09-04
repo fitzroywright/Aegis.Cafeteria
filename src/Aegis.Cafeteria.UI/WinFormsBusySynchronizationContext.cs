@@ -23,9 +23,6 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
     {
         SynchronizationContext? previousContext = SynchronizationContext.Current;
 
-        // Create a dedicated WinForms handle on the UI thread before any async POS work starts.
-        // Every continuation posted through this context is marshalled through this handle, so
-        // there is no worker-thread fallback that can later touch WinForms controls directly.
         Control uiDispatcher = new();
         _ = uiDispatcher.Handle;
 
@@ -86,7 +83,7 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
 
         if (Interlocked.Increment(ref this.pendingOperations) == 1)
         {
-            SetBusyState(true);
+            QueueBusyState(true);
         }
     }
 
@@ -101,7 +98,7 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
         if (remaining <= 0)
         {
             Interlocked.Exchange(ref this.pendingOperations, 0);
-            SetBusyState(false);
+            QueueBusyState(false);
         }
     }
 
@@ -118,12 +115,70 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
         }
 
         Interlocked.Exchange(ref this.pendingOperations, 0);
-        SetBusyState(false);
+
+        try
+        {
+            if (!this.uiDispatcher.IsDisposed)
+            {
+                if (this.uiDispatcher.InvokeRequired)
+                {
+                    this.uiDispatcher.Invoke(() => ApplyBusyState(false));
+                }
+                else
+                {
+                    ApplyBusyState(false);
+                }
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
         SynchronizationContext.SetSynchronizationContext(this.previousContext);
         this.uiDispatcher.Dispose();
     }
 
     private bool IsDisposed => Volatile.Read(ref this.disposed) != 0;
+
+    private void QueueBusyState(bool isBusy)
+    {
+        if (IsDisposed || this.uiDispatcher.IsDisposed)
+        {
+            return;
+        }
+
+        try
+        {
+            if (this.uiDispatcher.InvokeRequired)
+            {
+                this.uiDispatcher.BeginInvoke(() => ApplyBusyState(isBusy));
+            }
+            else
+            {
+                ApplyBusyState(isBusy);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    private static void ApplyBusyState(bool isBusy)
+    {
+        Form[] forms = System.Windows.Forms.Application.OpenForms
+            .Cast<Form>()
+            .Where(form => !form.IsDisposed)
+            .ToArray();
+
+        foreach (Form form in forms)
+        {
+            form.UseWaitCursor = isBusy;
+        }
+
+        Cursor.Current = isBusy
+            ? Cursors.WaitCursor
+            : Cursors.Default;
+    }
 
     private void PostAfterDispose(SendOrPostCallback callback, object? state)
     {
@@ -147,38 +202,5 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
         }
 
         callback(state);
-    }
-
-    private static void SetBusyState(bool isBusy)
-    {
-        Form[] forms = System.Windows.Forms.Application.OpenForms
-            .Cast<Form>()
-            .Where(form => !form.IsDisposed)
-            .ToArray();
-
-        foreach (Form form in forms)
-        {
-            if (form.InvokeRequired)
-            {
-                try
-                {
-                    form.BeginInvoke(() => form.UseWaitCursor = isBusy);
-                }
-                catch (InvalidOperationException)
-                {
-                }
-            }
-            else
-            {
-                form.UseWaitCursor = isBusy;
-            }
-        }
-
-        if (forms.Any(form => !form.InvokeRequired))
-        {
-            Cursor.Current = isBusy
-                ? Cursors.WaitCursor
-                : Cursors.Default;
-        }
     }
 }
