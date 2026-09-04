@@ -24,6 +24,8 @@ public static class EmailEndpoints
 {
     public static void Map(WebApplication app)
     {
+        app.UseCafeteriaAuditTrail();
+
         app.MapGet
         (
               "/api/pos/customers/{customerId:int}/notification-preference"
