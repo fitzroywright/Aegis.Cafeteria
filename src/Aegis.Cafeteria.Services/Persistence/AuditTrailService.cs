@@ -8,8 +8,16 @@ using Microsoft.EntityFrameworkCore;
 
 public sealed class AuditTrailService
 {
+    private static readonly SemaphoreSlim initializationLock = new(1, 1);
+    private static bool initialized;
+
     private readonly IDbContextFactory<ServiceDbContext> factory;
     private readonly CafeteriaLoggingOptions loggingOptions;
+
+    public AuditTrailService(IDbContextFactory<ServiceDbContext> factory)
+        : this(factory, new CafeteriaLoggingOptions())
+    {
+    }
 
     public AuditTrailService
     (
@@ -40,6 +48,8 @@ public sealed class AuditTrailService
         , CancellationToken cancellationToken = default
     )
     {
+        await EnsureTableAsync(cancellationToken);
+
         AuditTrailRow row = new()
         {
               OccurredAt = DateTimeOffset.UtcNow
@@ -69,6 +79,58 @@ public sealed class AuditTrailService
         }
 
         return row;
+    }
+
+    private async Task EnsureTableAsync(CancellationToken cancellationToken)
+    {
+        if (initialized)
+        {
+            return;
+        }
+
+        await initializationLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (initialized)
+            {
+                return;
+            }
+
+            await using ServiceDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
+            await database.Database.ExecuteSqlRawAsync
+            (
+                @"CREATE TABLE IF NOT EXISTS AuditTrail (
+                      Id INTEGER NOT NULL CONSTRAINT PK_AuditTrail PRIMARY KEY AUTOINCREMENT
+                    , OccurredAt TEXT NOT NULL
+                    , Actor TEXT NOT NULL
+                    , Action TEXT NOT NULL
+                    , EntityType TEXT NOT NULL
+                    , EntityId TEXT NULL
+                    , CustomerId INTEGER NULL
+                    , OperationId TEXT NULL
+                    , Source TEXT NOT NULL
+                    , TerminalId TEXT NULL
+                    , CorrelationId TEXT NULL
+                    , Succeeded INTEGER NOT NULL
+                    , StatusCode INTEGER NULL
+                    , BeforeJson TEXT NULL
+                    , AfterJson TEXT NULL
+                    , Detail TEXT NULL
+                );
+                CREATE INDEX IF NOT EXISTS IX_AuditTrail_OccurredAt ON AuditTrail (OccurredAt);
+                CREATE INDEX IF NOT EXISTS IX_AuditTrail_Actor ON AuditTrail (Actor);
+                CREATE INDEX IF NOT EXISTS IX_AuditTrail_EntityType_EntityId ON AuditTrail (EntityType, EntityId);
+                CREATE INDEX IF NOT EXISTS IX_AuditTrail_CustomerId ON AuditTrail (CustomerId);
+                CREATE INDEX IF NOT EXISTS IX_AuditTrail_OperationId ON AuditTrail (OperationId);",
+                cancellationToken
+            );
+
+            initialized = true;
+        }
+        finally
+        {
+            initializationLock.Release();
+        }
     }
 
     private async Task SendToGraylogAsync(AuditTrailRow row)
