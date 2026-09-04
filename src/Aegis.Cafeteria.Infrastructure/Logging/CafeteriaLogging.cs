@@ -20,10 +20,7 @@ public static class CafeteriaLogging
         logging.AddFilter("Microsoft", LogLevel.Warning);
         logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
 
-        CafeteriaLogContext context = new(
-            options.ApplicationName,
-            terminalId ?? Environment.MachineName,
-            Environment.MachineName);
+        CafeteriaLogContext context = CreateContext(options, terminalId);
 
         if (!string.IsNullOrWhiteSpace(options.LocalLogPath))
             logging.AddProvider(new RollingFileLoggerProvider(options, context));
@@ -35,6 +32,38 @@ public static class CafeteriaLogging
             logging.AddProvider(new SyslogUdpLoggerProvider(options.SyslogHost, options.SyslogPort, context));
 
         return logging;
+    }
+
+    public static ILoggerFactory AddCafeteriaProviders(
+        this ILoggerFactory loggerFactory,
+        CafeteriaLoggingOptions options,
+        string? terminalId = null)
+    {
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+        ArgumentNullException.ThrowIfNull(options);
+
+        CafeteriaLogContext context = CreateContext(options, terminalId);
+
+        if (!string.IsNullOrWhiteSpace(options.LocalLogPath))
+            loggerFactory.AddProvider(new RollingFileLoggerProvider(options, context));
+
+        if (options.GraylogEnabled)
+            loggerFactory.AddProvider(new GelfUdpLoggerProvider(options, context));
+
+        if (options.SyslogEnabled && !string.IsNullOrWhiteSpace(options.SyslogHost) && options.SyslogPort > 0)
+            loggerFactory.AddProvider(new SyslogUdpLoggerProvider(options.SyslogHost, options.SyslogPort, context));
+
+        return loggerFactory;
+    }
+
+    private static CafeteriaLogContext CreateContext(CafeteriaLoggingOptions options, string? terminalId)
+    {
+        return new CafeteriaLogContext
+        (
+              options.ApplicationName
+            , terminalId ?? Environment.MachineName
+            , Environment.MachineName
+        );
     }
 }
 
