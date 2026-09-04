@@ -11,6 +11,7 @@ using Aegis.Cafeteria.Infrastructure.Ffp;
 using Aegis.Cafeteria.Infrastructure.Health;
 using Aegis.Cafeteria.Infrastructure.Messaging;
 using Aegis.Cafeteria.Infrastructure.Persistence;
+using Aegis.Cafeteria.Infrastructure.Security;
 using Aegis.Cafeteria.Infrastructure.Services;
 
 using Microsoft.EntityFrameworkCore;
@@ -31,6 +32,8 @@ public static class CafeteriaInfrastructure
         services.AddSingleton(runtime.Health);
         services.AddSingleton(runtime.Messaging);
         services.AddSingleton(runtime.Services);
+        services.AddSingleton<PosServicesSession>();
+        services.AddTransient<PosServicesTokenHandler>();
 
         services.AddSingleton
         (
@@ -154,7 +157,8 @@ public static class CafeteriaInfrastructure
         services.AddHttpClient<ServicesIntegrationGateway>
         (
             client => ConfigureServicesHttpClient(client, runtime.Services)
-        );
+        )
+        .AddHttpMessageHandler<PosServicesTokenHandler>();
 
         services.AddSingleton<IExternalAccountingGateway>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
         services.AddSingleton<IWorkforceReferenceSource>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
@@ -173,26 +177,22 @@ public static class CafeteriaInfrastructure
         , CafeteriaServicesOptions options
     )
     {
-        services.AddHttpClient<CafeteriaServicesClient>
+        services.AddHttpClient<ServicesOperatorAuthenticator>
         (
             client => ConfigureServicesHttpClient(client, options)
         );
 
+        services.AddHttpClient<CafeteriaServicesClient>
+        (
+            client => ConfigureServicesHttpClient(client, options)
+        )
+        .AddHttpMessageHandler<PosServicesTokenHandler>();
+
         services.AddHttpClient<CafeteriaManagementClient>
         (
-            client =>
-            {
-                client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
-                client.Timeout = TimeSpan.FromSeconds(options.RequestTimeoutSeconds);
-            }
+            client => ConfigureServicesHttpClient(client, options)
         )
-        .ConfigurePrimaryHttpMessageHandler
-        (
-            () => new HttpClientHandler
-            {
-                UseDefaultCredentials = true
-            }
-        );
+        .AddHttpMessageHandler<PosServicesTokenHandler>();
 
         services.AddSingleton<ManagementEventWakeSignal>();
         services.AddHostedService<ManagementEventSyncWorker>();
@@ -211,10 +211,5 @@ public static class CafeteriaInfrastructure
     {
         client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
         client.Timeout = TimeSpan.FromSeconds(options.RequestTimeoutSeconds);
-
-        if (!string.IsNullOrWhiteSpace(options.ApiKey))
-        {
-            client.DefaultRequestHeaders.Add("X-Cafeteria-Api-Key", options.ApiKey);
-        }
     }
 }
