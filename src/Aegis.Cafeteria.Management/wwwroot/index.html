@@ -41,6 +41,8 @@
       <button class="tab" data-tab="rates">Rates</button>
       <button class="tab" data-tab="month-opening">Month Opening</button>
       <button class="tab" data-tab="amount-due">Employee Amount Due</button>
+      <button class="tab" data-tab="email">Email & Reports</button>
+      <button class="tab" data-tab="audit">Audit Trail</button>
     </nav>
 
     <section class="tab-panel active" data-panel="additional-credit">
@@ -90,7 +92,7 @@
           <label>Month<input id="monthNumber" type="number" min="1" max="12" /></label>
         </div>
         <div class="actions"><button id="runMonthOpening">Run Month Opening</button><button id="recalculateMonth" class="secondary">Recalculate</button></div>
-        <p class="hint">Month closing is not exposed here because Cafeteria Services does not currently provide a management close-period operation.</p>
+        <p class="hint">Month closing is not exposed because Cafeteria Services does not currently provide a management close-period operation.</p>
       </div>
     </section>
 
@@ -101,8 +103,51 @@
           <label>Year<input id="reportYear" type="number" /></label>
           <label>Month<input id="reportMonth" type="number" min="1" max="12" /></label>
         </div>
-        <button id="loadPayrollReport">Load Report</button>
+        <div class="actions">
+          <button id="loadPayrollReport">Load Report</button>
+          <button id="sendPayrollReport" class="secondary">Send Report</button>
+          <label class="inline-check"><input id="forcePayrollReport" type="checkbox" /> Force resend</label>
+        </div>
         <pre id="payrollReport" class="output">No report loaded.</pre>
+      </div>
+    </section>
+
+    <section class="tab-panel" data-panel="email">
+      <div class="card">
+        <div class="section-title"><div><h2>Email & Weekly Reports</h2></div></div>
+        <div class="form-grid">
+          <label class="inline-check">Weekly manager summary<input id="managerWeeklyEnabled" type="checkbox" /></label>
+          <label>Manager email<input id="managerEmail" type="email" autocomplete="email" /></label>
+          <label>Weekly summary day
+            <select id="managerWeeklyDay">
+              <option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option>
+              <option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option>
+            </select>
+          </label>
+          <label>Hour (0-23)<input id="managerWeeklyHour" type="number" min="0" max="23" /></label>
+        </div>
+        <div class="actions">
+          <button id="loadReportSettings" class="secondary">Load Settings</button>
+          <button id="saveReportSettings">Save Settings</button>
+          <button id="sendTestEmail" class="secondary">Send Test Email</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="tab-panel" data-panel="audit">
+      <div class="card">
+        <div class="section-title"><div><h2>Audit Trail</h2></div></div>
+        <div class="audit-filters">
+          <label>Actor<input id="auditActor" /></label>
+          <label>Action<input id="auditAction" /></label>
+          <label>Customer ID<input id="auditCustomerId" type="number" min="1" /></label>
+          <label>Result<select id="auditSucceeded"><option value="">All</option><option value="true">Succeeded</option><option value="false">Failed</option></select></label>
+          <label>From<input id="auditFrom" type="datetime-local" /></label>
+          <label>To<input id="auditTo" type="datetime-local" /></label>
+          <label>Rows<input id="auditTake" type="number" min="1" max="500" value="100" /></label>
+        </div>
+        <div class="actions"><button id="loadAudit">Load Audit</button><button id="clearAuditFilters" class="secondary">Clear Filters</button></div>
+        <div id="auditTable" class="table-wrap"><div class="hint">No audit records loaded.</div></div>
       </div>
     </section>
 
