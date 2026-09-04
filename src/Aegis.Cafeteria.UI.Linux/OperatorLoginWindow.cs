@@ -43,7 +43,6 @@ public sealed class OperatorLoginWindow : Window
         Grid.SetRow(form, 1); root.Children.Add(form); Content = root;
         signIn.Click += async (_, _) => await SignInAsync();
         password.KeyDown += async (_, e) => { if (e.Key == Avalonia.Input.Key.Enter) { e.Handled = true; await SignInAsync(); } };
-        Closing += (_, e) => { if (!session.IsAuthenticated) { } };
     }
 
     private async Task SignInAsync()
@@ -55,7 +54,7 @@ public sealed class OperatorLoginWindow : Window
             password.Text = string.Empty;
             if (identity is null) { status.Text = "Sign-in failed."; return; }
             session.SignIn(identity);
-            Close(true);
+            Close();
         }
         catch (Exception ex) { status.Text = ex.GetBaseException().Message; }
         finally { signIn.IsEnabled = true; }
