@@ -32,7 +32,7 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
     {
         if (IsDisposed)
         {
-            ThreadPool.QueueUserWorkItem(_ => callback(state));
+            PostToUiOrThreadPool(callback, state);
             return;
         }
 
@@ -42,7 +42,7 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
         }
         catch (InvalidAsynchronousStateException)
         {
-            ThreadPool.QueueUserWorkItem(_ => callback(state));
+            PostToUiOrThreadPool(callback, state);
         }
     }
 
@@ -50,7 +50,7 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
     {
         if (IsDisposed)
         {
-            callback(state);
+            SendToUiOrCurrentThread(callback, state);
             return;
         }
 
@@ -60,7 +60,7 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
         }
         catch (InvalidAsynchronousStateException)
         {
-            callback(state);
+            SendToUiOrCurrentThread(callback, state);
         }
     }
 
@@ -120,18 +120,92 @@ internal sealed class WinFormsBusySynchronizationContext : SynchronizationContex
 
     private bool IsDisposed => Volatile.Read(ref this.disposed) != 0;
 
-    private static void SetBusyState(bool isBusy)
+    private static void PostToUiOrThreadPool(SendOrPostCallback callback, object? state)
+    {
+        Form? form = FindUiForm();
+        if (form is not null && form.IsHandleCreated && !form.IsDisposed)
+        {
+            try
+            {
+                form.BeginInvoke(() => callback(state));
+                return;
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        ThreadPool.QueueUserWorkItem(_ => callback(state));
+    }
+
+    private static void SendToUiOrCurrentThread(SendOrPostCallback callback, object? state)
+    {
+        Form? form = FindUiForm();
+        if (form is not null && form.IsHandleCreated && !form.IsDisposed)
+        {
+            try
+            {
+                if (form.InvokeRequired)
+                {
+                    form.Invoke(() => callback(state));
+                }
+                else
+                {
+                    callback(state);
+                }
+                return;
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        callback(state);
+    }
+
+    private static Form? FindUiForm()
     {
         foreach (Form form in System.Windows.Forms.Application.OpenForms)
         {
-            if (!form.IsDisposed)
+            if (!form.IsDisposed && form.IsHandleCreated)
+            {
+                return form;
+            }
+        }
+
+        return null;
+    }
+
+    private static void SetBusyState(bool isBusy)
+    {
+        Form[] forms = System.Windows.Forms.Application.OpenForms
+            .Cast<Form>()
+            .Where(form => !form.IsDisposed)
+            .ToArray();
+
+        foreach (Form form in forms)
+        {
+            if (form.InvokeRequired)
+            {
+                try
+                {
+                    form.BeginInvoke(() => form.UseWaitCursor = isBusy);
+                }
+                catch (InvalidOperationException)
+                {
+                }
+            }
+            else
             {
                 form.UseWaitCursor = isBusy;
             }
         }
 
-        Cursor.Current = isBusy
-            ? Cursors.WaitCursor
-            : Cursors.Default;
+        if (forms.Any(form => !form.InvokeRequired))
+        {
+            Cursor.Current = isBusy
+                ? Cursors.WaitCursor
+                : Cursors.Default;
+        }
     }
 }
