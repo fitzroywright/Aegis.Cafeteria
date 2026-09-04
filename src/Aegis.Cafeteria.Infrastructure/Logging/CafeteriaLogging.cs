@@ -28,9 +28,6 @@ public static class CafeteriaLogging
         if (options.GraylogEnabled)
             logging.AddProvider(new GelfUdpLoggerProvider(options, context));
 
-        if (options.SyslogEnabled && !string.IsNullOrWhiteSpace(options.SyslogHost) && options.SyslogPort > 0)
-            logging.AddProvider(new SyslogUdpLoggerProvider(options.SyslogHost, options.SyslogPort, context));
-
         return logging;
     }
 
@@ -49,9 +46,6 @@ public static class CafeteriaLogging
 
         if (options.GraylogEnabled)
             loggerFactory.AddProvider(new GelfUdpLoggerProvider(options, context));
-
-        if (options.SyslogEnabled && !string.IsNullOrWhiteSpace(options.SyslogHost) && options.SyslogPort > 0)
-            loggerFactory.AddProvider(new SyslogUdpLoggerProvider(options.SyslogHost, options.SyslogPort, context));
 
         return loggerFactory;
     }
