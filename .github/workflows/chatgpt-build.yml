@@ -7,6 +7,10 @@ on:
       - chatgpt/enable-messaging-and-tests
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   build-and-test:
     runs-on: windows-latest
@@ -19,8 +23,12 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
+      - name: Authenticate GitHub Packages
+        shell: pwsh
+        run: dotnet nuget update source github-common --username fitzroywright --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text --configfile NuGet.config
+
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore --configfile NuGet.config
 
       - name: Build
         run: dotnet build --no-restore --configuration Debug
