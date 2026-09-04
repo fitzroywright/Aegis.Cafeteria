@@ -18,6 +18,26 @@ public sealed class ServiceEventRow
     public string? FfpLastError { get; set; }
 }
 
+public sealed class AuditTrailRow
+{
+    public long Id { get; set; }
+    public DateTimeOffset OccurredAt { get; set; }
+    public string Actor { get; set; } = string.Empty;
+    public string Action { get; set; } = string.Empty;
+    public string EntityType { get; set; } = string.Empty;
+    public string? EntityId { get; set; }
+    public int? CustomerId { get; set; }
+    public Guid? OperationId { get; set; }
+    public string Source { get; set; } = string.Empty;
+    public string? TerminalId { get; set; }
+    public string? CorrelationId { get; set; }
+    public bool Succeeded { get; set; }
+    public int? StatusCode { get; set; }
+    public string? BeforeJson { get; set; }
+    public string? AfterJson { get; set; }
+    public string? Detail { get; set; }
+}
+
 /// <summary>
 /// Management-owned per-employee financial policy. Additional Credit is intentionally not governed
 /// by one global application cap: the employee-specific limit is the domain rule enforced by
