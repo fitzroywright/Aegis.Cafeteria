@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - chatgpt/cafeteria-recovery
+      - chatgpt/enable-messaging-and-tests
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-test:
     runs-on: windows-latest
     steps:
       - name: Checkout
@@ -23,3 +24,6 @@ jobs:
 
       - name: Build
         run: dotnet build --no-restore --configuration Debug
+
+      - name: Test
+        run: dotnet test --no-build --configuration Debug
