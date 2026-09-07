@@ -1,63 +1,21 @@
-# FFP Integration — v6
+# FFP Integration
 
 ## Read model
 
-Aegis.Cafeteria reads:
+The cafeteria platform reads FFP employee eligibility and holiday data for customer setup and monthly allocation. Eligible employees are synchronized into the active cafeteria customer set.
 
-- `dbo.Employees`: ID, Code, TRN, NFCID, FirstName, LastName, Photo, DepartmentID, EligibleForLunchTicket, CreditLimit, AvailableBalance;
-- `dbo.Departments`: Name;
-- `dbo.Holidays`: CalendarDate;
-- `dbo.EmployeeIDScans`: ledger/history/idempotency checks and email reporting.
+## Write model
 
-## Employee identifiers
+Completed cafeteria financial activity is published through the service layer to FFP ledger and balance projection data. The POS terminals do not write directly to the central FFP database.
 
-Universal POS search order:
+## Product ownership
 
-1. NFC/Card
-2. Employee Code
-3. TRN
-4. Name candidates
-
-Management API uses the integer FFP `Employees.ID` as `CustomerId`.
+Saleable cafeteria products and current prices are owned by POS administration. Completed order lines snapshot description, unit price and quantity so historical reports remain stable.
 
 ## Funding policy
 
-Default:
+Funding-policy rates are stored as management policy values. Monthly credit and subsidy allocations snapshot the policy used at opening time.
 
-- `CreditLimitLunchItemCode = FFP00`; use `Price`.
-- `SubsidyLunchItemCode = FFP00`; use `Cost`.
+## Table impact
 
-The policy row(s) are excluded from the saleable catalog.
-
-## FFP ledger write
-
-Each financial projection inserts one `EmployeeIDScans` row if the `TransmissionID` has not already been seen, then updates `Employees.CreditLimit` and `Employees.AvailableBalance` in the same SQL transaction.
-
-Important IDName values include:
-
-- `Tickets Assigned`
-- `Cafeteria Purchase`
-- `Cafeteria Refund`
-- `Additional Credit`
-- `Stipend Card Reduction`
-- customer-payment/adjustment entries as defined by the POS projection
-
-## Production topology
-
-Recommended: only `Aegis.Cafeteria.Services` has the FFP SQL connection string. POS terminals use `/api/ffp/*` through Services.
-
-See `PRODUCTION-DEPLOYMENT.md` for SQL permissions and Bitwarden configuration.
-
-## Funding-policy and product boundary
-
-The Services SQLite database is authoritative for the cafeteria funding policy. The `FFP00` row in FFP `dbo.LunchItems` is a compatibility mirror only: `Price` mirrors the Daily Credit Limit Rate and `Cost` mirrors the Daily Company Subsidy Rate. It is never a saleable POS product.
-
-Saleable cafeteria products are owned by each POS SQLite database and are maintained through the POS Administration / Price Maintenance UI. Services and FFP `dbo.LunchItems` are not product-catalog sources.
-
-## v98 product and workforce boundary
-
-Only employees with `FFP.Employees.EligibleForLunchTicket = 1` are active Cafeteria employees. The POS does not load ineligible employees for browse, name search or identifier matching. Historical customer rows may remain locally only to support old transaction history.
-
-Saleable cafeteria products are owned by the POS SQLite database. FFP `dbo.LunchItems` and Cafeteria Services are not product-catalog sources. Product administration changes the current POS catalog only; completed order lines preserve ProductName, UnitPrice and Quantity as immutable transaction snapshots. Reports use those transaction/ledger values rather than looking up today's product price.
-
-`FFP00` is retained solely as a compatibility mirror for the Services-owned funding policy and must not be treated as a saleable product or catalog source.
+The current integration does not require a new FFP table.
