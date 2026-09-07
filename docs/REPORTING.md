@@ -1,47 +1,23 @@
-# Reporting — v88
+# Reporting
 
-The reporting layer uses one `ReportDocument` model for Preview, Excel, PDF, CSV and HTML so calculations reconcile across formats.
+## Report inventory
 
-## Key reports
+- Daily close-out.
+- Weekly close-out.
+- Itemized purchases by period.
+- Summary by person.
+- Cash versus cafeteria account activity.
+- Totals by person, department and date.
+- Dashboard item quantity and value views.
 
-The report catalog includes executive/daily operational views, product sales, employee/account reports, refund/void audits, Additional Credit audit, FFP reconciliation and the v77 purchase reports.
+## Export formats
 
-### Itemized Purchases by Customer
+Reports support preview, spreadsheet, PDF, CSV and HTML output. The reporting layer uses consistent report models so totals reconcile across output formats.
 
-Shows purchase date/time, customer, department, item, unit price, quantity, total, Cash portion and Card/Account portion for the selected period.
+## Historical accuracy
 
-### Purchases Summarized by Person
+Completed order lines snapshot description, unit price and quantity. Historical reports use the transaction snapshot rather than recalculating old sales from the current product catalog.
 
-Shows period, employee, department, Cash spend, Card/Account spend and Total spend.
+## Management use
 
-Both support Day/Week/Month grouping with totals by person, department and period.
-
-## Split tender
-
-For item-level reporting, a split-tender order allocates cash/account value proportionally across the order's item value so the detailed report reconciles to the recorded tender.
-
-## Zero-only rows
-
-Rows whose measurable numeric values are all zero are suppressed centrally. Text/audit-only rows are retained.
-
-## Exports
-
-- XLSX — standards-compliant workbook, no Excel automation required.
-- PDF — dependency-free printable report.
-- CSV
-- HTML
-
-Report rendering is performed off the UI thread to avoid freezing the POS during large exports.
-
-## Daily dashboard
-
-Idle dashboard includes product pie charts for Items Sold — Quantity and Items Sold — Value, using top-five slices plus Other.
-
-
-## v98 product and workforce boundary
-
-Only employees with `FFP.Employees.EligibleForLunchTicket = 1` are active Cafeteria employees. The POS does not load ineligible employees for browse, name search or identifier matching. Historical customer rows may remain locally only to support old transaction history.
-
-Saleable cafeteria products are owned by the POS SQLite database. `FFP.dbo.LunchItems` and Cafeteria Services are not product-catalog sources. Product administration changes the current POS catalog only; completed order lines preserve ProductName, UnitPrice and Quantity as immutable transaction snapshots. Reports use those transaction/ledger values rather than looking up today's product price.
-
-`FFP00` is retained solely as a compatibility mirror for the Services-owned funding policy and must not be treated as a saleable product or catalog source.
+Management can use reports for daily close-out, usage review, employee amount-due review, department-level analysis and period reporting.
