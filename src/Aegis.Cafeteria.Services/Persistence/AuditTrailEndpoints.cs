@@ -1,11 +1,24 @@
 namespace Aegis.Cafeteria.Services.Persistence;
 
+using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 
 public static class AuditTrailEndpoints
 {
+    private const string MappingKey = "Aegis.Cafeteria.Services.Persistence.AuditTrailEndpoints.Mapped";
+
     public static void Map(WebApplication application)
     {
+        ArgumentNullException.ThrowIfNull(application);
+
+        IApplicationBuilder applicationBuilder = application;
+        if (applicationBuilder.Properties.ContainsKey(MappingKey))
+        {
+            return;
+        }
+
+        applicationBuilder.Properties[MappingKey] = true;
+
         application.MapGet
         (
               "/api/management/audit"
