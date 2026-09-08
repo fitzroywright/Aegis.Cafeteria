@@ -11,22 +11,13 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 jobs:
   build-and-test:
     runs-on: windows-latest
     steps:
-      - name: Checkout Aegis.Cafeteria
-        uses: actions/checkout@v4
-
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Select Common.Security token
-        id: common_security_token
+      - name: Select Common repository token
+        id: common_repo_token
         shell: pwsh
         env:
           DEDICATED_TOKEN: ${{ secrets.COMMON_SECURITY_TOKEN }}
@@ -38,23 +29,42 @@ jobs:
             "token=$env:REPOSITORY_TOKEN" >> $env:GITHUB_OUTPUT
           }
 
-      - name: Verify Common.Security repository access
+      - name: Checkout Aegis.Cafeteria
+        uses: actions/checkout@v4
+        with:
+          path: Aegis.Cafeteria
+
+      - name: Checkout Common.Security
         uses: actions/checkout@v4
         with:
           repository: fitzroywright/Common.Security
-          path: _common-security-access-check
-          token: ${{ steps.common_security_token.outputs.token }}
+          ref: main
+          path: Common/Common.Security
+          token: ${{ steps.common_repo_token.outputs.token }}
           fetch-depth: 1
 
-      - name: Authenticate GitHub Packages
-        shell: pwsh
-        run: dotnet nuget update source github-common --username fitzroywright --password "${{ steps.common_security_token.outputs.token }}" --store-password-in-clear-text --configfile NuGet.config
+      - name: Checkout Common.Diagnostics
+        uses: actions/checkout@v4
+        with:
+          repository: fitzroywright/Common.Diagnostics
+          ref: main
+          path: Common/Common.Diagnostics
+          token: ${{ steps.common_repo_token.outputs.token }}
+          fetch-depth: 1
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
 
       - name: Restore
+        working-directory: Aegis.Cafeteria
         run: dotnet restore --configfile NuGet.config
 
       - name: Build
+        working-directory: Aegis.Cafeteria
         run: dotnet build --no-restore --configuration Debug
 
       - name: Test
+        working-directory: Aegis.Cafeteria
         run: dotnet test --no-build --configuration Debug
