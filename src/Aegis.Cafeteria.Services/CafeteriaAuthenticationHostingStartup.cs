@@ -1,4 +1,6 @@
 using Aegis.Cafeteria.Services;
+using Aegis.Cafeteria.Services.Engineering.Diagnostics;
+using Common.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -19,6 +21,14 @@ public sealed class CafeteriaAuthenticationHostingStartup : IHostingStartup
                 services.AddSingleton<CafeteriaRoleResolver>();
                 services.AddSingleton<IStartupFilter, ManagementCommonSecurityStartupFilter>();
                 services.AddSingleton<IStartupFilter, CafeteriaRuntimeStartupFilter>();
+
+                services.AddCommonDiagnostics();
+                services.AddDiagnosticCheck<CafeteriaDatabaseDiagnostic>();
+                services.AddDiagnosticCheck<CafeteriaSecretsDiagnostic>();
+                services.AddDiagnosticCheck<CafeteriaStorageDiagnostic>();
+                services.AddDiagnosticCheck<CafeteriaMessagingDiagnostic>();
+                services.AddDiagnosticCheck<CafeteriaActiveDirectoryDiagnostic>();
+                services.AddHostedService<CafeteriaDependencyDiagnosticHostedService>();
             }
         );
     }
