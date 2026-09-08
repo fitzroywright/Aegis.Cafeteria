@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - development/current
       - development/post-rc1
       - chatgpt/enable-messaging-and-tests
   workflow_dispatch:
