@@ -30,6 +30,7 @@ public static class CafeteriaPermissions
     public const string ManageUsers = "users.manage";
     public const string ManageCatalog = "catalog.manage";
     public const string ManageNotifications = "notifications.manage";
+    public const string ManageOperations = "operations.manage";
     public const string RunDiagnostics = "diagnostics.run";
     public const string ManageBackups = "backups.manage";
 
@@ -38,7 +39,7 @@ public static class CafeteriaPermissions
         UsePos, CompleteSale, PayrollDeduction, Refund, VoidTransaction,
         ViewReports, ClosePeriod, AdditionalCredit, Stipend, ViewAudit,
         ChangeSettings, ManageUsers, ManageCatalog, ManageNotifications,
-        RunDiagnostics, ManageBackups
+        ManageOperations, RunDiagnostics, ManageBackups
     ];
 
     public static IReadOnlyList<string> ForRole(string role)
@@ -50,7 +51,8 @@ public static class CafeteriaPermissions
             [
                 UsePos, CompleteSale, PayrollDeduction, Refund, VoidTransaction,
                 ViewReports, ClosePeriod, AdditionalCredit, Stipend, ViewAudit,
-                ManageCatalog, ManageNotifications, RunDiagnostics, ManageBackups
+                ManageCatalog, ManageNotifications, ManageOperations, RunDiagnostics,
+                ManageBackups
             ],
             CafeteriaRoles.Supervisor =>
             [
@@ -107,9 +109,6 @@ public sealed class CafeteriaRoleResolver
         if (managers.Contains(normalized)) return CafeteriaRoles.Manager;
         if (supervisors.Contains(normalized)) return CafeteriaRoles.Supervisor;
 
-        // A user who is merely a member of the broad management authorization group is no longer
-        // silently promoted to Manager. The safe compatibility default is Supervisor and can be
-        // explicitly overridden in configuration while named assignments remain authoritative.
         return isManagementAuthorized ? defaultManagementRole : CafeteriaRoles.Cashier;
     }
 
