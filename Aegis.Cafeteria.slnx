@@ -3,19 +3,15 @@
     <Project Path="../Common/Common.Security/Common.Security.csproj" />
     <Project Path="../Common/Common.Diagnostics/Common.Diagnostics.csproj" />
   </Folder>
-  <Folder Name="/src/">
-    <Project Path="src/Aegis.Cafeteria.Domain/Aegis.Cafeteria.Domain.csproj" />
-    <Project Path="src/Aegis.Cafeteria.Application/Aegis.Cafeteria.Application.csproj" />
-    <Project Path="src/Aegis.Cafeteria.Infrastructure/Aegis.Cafeteria.Infrastructure.csproj" />
-    <Project Path="src/Aegis.Cafeteria.Reporting/Aegis.Cafeteria.Reporting.csproj" />
-    <Project Path="src/Aegis.Cafeteria.UI/Aegis.Cafeteria.UI.csproj" />
-    <Project Path="src/Aegis.Cafeteria.UI.Linux/Aegis.Cafeteria.UI.Linux.csproj" />
-    <Project Path="src/Aegis.Cafeteria.Services/Aegis.Cafeteria.Services.csproj" />
-    <Project Path="src/Aegis.Cafeteria.Management/Aegis.Cafeteria.Management.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/Aegis.Cafeteria.UnitTests/Aegis.Cafeteria.UnitTests.csproj" />
-    <Project Path="tests/Aegis.Cafeteria.PersistenceTests/Aegis.Cafeteria.PersistenceTests.csproj" />
-    <Project Path="tests/Aegis.Cafeteria.ReportingTests/Aegis.Cafeteria.ReportingTests.csproj" />
-  </Folder>
+  <Project Path="Aegis.Cafeteria.Domain/Aegis.Cafeteria.Domain.csproj" />
+  <Project Path="Aegis.Cafeteria.Application/Aegis.Cafeteria.Application.csproj" />
+  <Project Path="Aegis.Cafeteria.Infrastructure/Aegis.Cafeteria.Infrastructure.csproj" />
+  <Project Path="Aegis.Cafeteria.Reporting/Aegis.Cafeteria.Reporting.csproj" />
+  <Project Path="Aegis.Cafeteria.UI/Aegis.Cafeteria.UI.csproj" />
+  <Project Path="Aegis.Cafeteria.UI.Linux/Aegis.Cafeteria.UI.Linux.csproj" />
+  <Project Path="Aegis.Cafeteria.Services/Aegis.Cafeteria.Services.csproj" />
+  <Project Path="Aegis.Cafeteria.Management/Aegis.Cafeteria.Management.csproj" />
+  <Project Path="Aegis.Cafeteria.UnitTests/Aegis.Cafeteria.UnitTests.csproj" />
+  <Project Path="Aegis.Cafeteria.PersistenceTests/Aegis.Cafeteria.PersistenceTests.csproj" />
+  <Project Path="Aegis.Cafeteria.ReportingTests/Aegis.Cafeteria.ReportingTests.csproj" />
 </Solution>
