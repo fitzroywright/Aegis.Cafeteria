@@ -86,7 +86,7 @@ public sealed class CafeteriaPermissionStartupFilter : IStartupFilter
             return CafeteriaPermissions.ViewReports;
 
         if (path.StartsWith("/api/management/", StringComparison.OrdinalIgnoreCase))
-            return HttpMethods.IsGet(method) ? CafeteriaPermissions.ViewReports : CafeteriaPermissions.AdditionalCredit;
+            return HttpMethods.IsGet(method) ? CafeteriaPermissions.ViewReports : CafeteriaPermissions.ManageOperations;
 
         return null;
     }
