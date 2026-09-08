@@ -3,15 +3,15 @@
     "Name": "Development - Services + Management + Windows POS",
     "Projects": [
       {
-        "Path": "src\\Aegis.Cafeteria.Services\\Aegis.Cafeteria.Services.csproj",
+        "Path": "Aegis.Cafeteria.Services\\Aegis.Cafeteria.Services.csproj",
         "Action": "Start"
       },
       {
-        "Path": "src\\Aegis.Cafeteria.Management\\Aegis.Cafeteria.Management.csproj",
+        "Path": "Aegis.Cafeteria.Management\\Aegis.Cafeteria.Management.csproj",
         "Action": "Start"
       },
       {
-        "Path": "src\\Aegis.Cafeteria.UI\\Aegis.Cafeteria.UI.csproj",
+        "Path": "Aegis.Cafeteria.UI\\Aegis.Cafeteria.UI.csproj",
         "Action": "Start"
       }
     ]
@@ -20,11 +20,11 @@
     "Name": "Development - Services + Windows POS",
     "Projects": [
       {
-        "Path": "src\\Aegis.Cafeteria.Services\\Aegis.Cafeteria.Services.csproj",
+        "Path": "Aegis.Cafeteria.Services\\Aegis.Cafeteria.Services.csproj",
         "Action": "Start"
       },
       {
-        "Path": "src\\Aegis.Cafeteria.UI\\Aegis.Cafeteria.UI.csproj",
+        "Path": "Aegis.Cafeteria.UI\\Aegis.Cafeteria.UI.csproj",
         "Action": "Start"
       }
     ]
@@ -33,7 +33,7 @@
     "Name": "Development - Services Only",
     "Projects": [
       {
-        "Path": "src\\Aegis.Cafeteria.Services\\Aegis.Cafeteria.Services.csproj",
+        "Path": "Aegis.Cafeteria.Services\\Aegis.Cafeteria.Services.csproj",
         "Action": "Start"
       }
     ]
@@ -42,7 +42,7 @@
     "Name": "Development - Management Only",
     "Projects": [
       {
-        "Path": "src\\Aegis.Cafeteria.Management\\Aegis.Cafeteria.Management.csproj",
+        "Path": "Aegis.Cafeteria.Management\\Aegis.Cafeteria.Management.csproj",
         "Action": "Start"
       }
     ]
@@ -51,7 +51,7 @@
     "Name": "Development - Windows POS Only",
     "Projects": [
       {
-        "Path": "src\\Aegis.Cafeteria.UI\\Aegis.Cafeteria.UI.csproj",
+        "Path": "Aegis.Cafeteria.UI\\Aegis.Cafeteria.UI.csproj",
         "Action": "Start"
       }
     ]
