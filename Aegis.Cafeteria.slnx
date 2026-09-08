@@ -1,4 +1,8 @@
 <Solution>
+  <Folder Name="/Common/">
+    <Project Path="../Common/Common.Security/Common.Security.csproj" />
+    <Project Path="../Common/Common.Diagnostics/Common.Diagnostics.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Aegis.Cafeteria.Domain/Aegis.Cafeteria.Domain.csproj" />
     <Project Path="src/Aegis.Cafeteria.Application/Aegis.Cafeteria.Application.csproj" />
