@@ -9,6 +9,7 @@ public static class CafeteriaRoles
     public const string Manager = "Manager";
     public const string Administrator = "Administrator";
 
+    public static readonly string[] All = [Cashier, Supervisor, Manager, Administrator];
     public static readonly string[] ManagementRoles = [Supervisor, Manager, Administrator];
     public static readonly string[] ManagerRoles = [Manager, Administrator];
 }
@@ -27,29 +28,44 @@ public static class CafeteriaPermissions
     public const string ViewAudit = "audit.view";
     public const string ChangeSettings = "settings.manage";
     public const string ManageUsers = "users.manage";
+    public const string ManageCatalog = "catalog.manage";
+    public const string ManageNotifications = "notifications.manage";
+    public const string RunDiagnostics = "diagnostics.run";
+    public const string ManageBackups = "backups.manage";
+
+    public static readonly string[] All =
+    [
+        UsePos, CompleteSale, PayrollDeduction, Refund, VoidTransaction,
+        ViewReports, ClosePeriod, AdditionalCredit, Stipend, ViewAudit,
+        ChangeSettings, ManageUsers, ManageCatalog, ManageNotifications,
+        RunDiagnostics, ManageBackups
+    ];
 
     public static IReadOnlyList<string> ForRole(string role)
     {
         return role switch
         {
-            CafeteriaRoles.Administrator =>
-            [
-                  UsePos, CompleteSale, PayrollDeduction, Refund, VoidTransaction
-                , ViewReports, ClosePeriod, AdditionalCredit, Stipend, ViewAudit
-                , ChangeSettings, ManageUsers
-            ],
+            CafeteriaRoles.Administrator => All,
             CafeteriaRoles.Manager =>
             [
-                  UsePos, CompleteSale, PayrollDeduction, Refund, VoidTransaction
-                , ViewReports, ClosePeriod, AdditionalCredit, Stipend, ViewAudit
+                UsePos, CompleteSale, PayrollDeduction, Refund, VoidTransaction,
+                ViewReports, ClosePeriod, AdditionalCredit, Stipend, ViewAudit,
+                ManageCatalog, ManageNotifications, RunDiagnostics, ManageBackups
             ],
             CafeteriaRoles.Supervisor =>
             [
-                  UsePos, CompleteSale, PayrollDeduction, Refund, VoidTransaction
-                , ViewReports, ClosePeriod
+                UsePos, CompleteSale, PayrollDeduction, Refund, VoidTransaction,
+                ViewReports, ClosePeriod, RunDiagnostics
             ],
-            _ => [UsePos, CompleteSale, PayrollDeduction]
+            CafeteriaRoles.Cashier => [UsePos, CompleteSale, PayrollDeduction],
+            _ => []
         };
+    }
+
+    public static bool HasPermission(ClaimsPrincipal principal, string permission)
+    {
+        string? role = principal.FindFirst(ClaimTypes.Role)?.Value;
+        return role is not null && ForRole(role).Contains(permission, StringComparer.OrdinalIgnoreCase);
     }
 }
 
@@ -61,6 +77,8 @@ public static class CafeteriaPolicies
     public const string Manager = "CafeteriaManager";
     public const string Administrator = "CafeteriaAdministrator";
     public const string Audit = "CafeteriaAudit";
+
+    public static string ForPermission(string permission) => $"CafeteriaPermission:{permission}";
 }
 
 public sealed class CafeteriaRoleResolver
@@ -68,12 +86,18 @@ public sealed class CafeteriaRoleResolver
     private readonly HashSet<string> administrators;
     private readonly HashSet<string> managers;
     private readonly HashSet<string> supervisors;
+    private readonly string defaultManagementRole;
 
     public CafeteriaRoleResolver(IConfiguration configuration)
     {
         administrators = ReadUsers(configuration, "ManagementApi:RoleAssignments:Administrators");
         managers = ReadUsers(configuration, "ManagementApi:RoleAssignments:Managers");
         supervisors = ReadUsers(configuration, "ManagementApi:RoleAssignments:Supervisors");
+
+        string configuredDefault = configuration["ManagementApi:DefaultManagementRole"] ?? CafeteriaRoles.Supervisor;
+        defaultManagementRole = CafeteriaRoles.ManagementRoles.Contains(configuredDefault, StringComparer.OrdinalIgnoreCase)
+            ? configuredDefault
+            : CafeteriaRoles.Supervisor;
     }
 
     public string Resolve(string userName, bool isManagementAuthorized)
@@ -83,9 +107,10 @@ public sealed class CafeteriaRoleResolver
         if (managers.Contains(normalized)) return CafeteriaRoles.Manager;
         if (supervisors.Contains(normalized)) return CafeteriaRoles.Supervisor;
 
-        // Preserve existing management access while role assignments are introduced. Explicit
-        // assignments can then narrow or elevate individual users without locking out the demo.
-        return isManagementAuthorized ? CafeteriaRoles.Manager : CafeteriaRoles.Cashier;
+        // A user who is merely a member of the broad management authorization group is no longer
+        // silently promoted to Manager. The safe compatibility default is Supervisor and can be
+        // explicitly overridden in configuration while named assignments remain authoritative.
+        return isManagementAuthorized ? defaultManagementRole : CafeteriaRoles.Cashier;
     }
 
     public static bool HasRole(ClaimsPrincipal principal, params string[] roles)
