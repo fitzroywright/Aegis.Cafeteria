@@ -20,6 +20,7 @@ public sealed class CafeteriaAuthenticationHostingStartup : IHostingStartup
                 services.AddSingleton<ManagementServiceTokenStore>();
                 services.AddSingleton<CafeteriaRoleResolver>();
                 services.AddSingleton<IStartupFilter, ManagementCommonSecurityStartupFilter>();
+                services.AddSingleton<IStartupFilter, CafeteriaPermissionStartupFilter>();
                 services.AddSingleton<IStartupFilter, CafeteriaRuntimeStartupFilter>();
 
                 services.AddAuthorization(options =>
