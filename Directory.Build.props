@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <!--
+      Common projects are checked out as sibling repositories under ..\Common.
+      Override CommonRoot on the command line or in the environment if a
+      developer uses a different workspace layout.
+    -->
+    <CommonRoot Condition="'$(CommonRoot)' == ''">$(MSBuildThisFileDirectory)..\Common</CommonRoot>
+  </PropertyGroup>
+</Project>
