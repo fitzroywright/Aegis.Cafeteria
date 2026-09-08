@@ -1,8 +1,9 @@
 namespace Aegis.Cafeteria.Services;
 
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 
 public sealed class CafeteriaPermissionStartupFilter : IStartupFilter
 {
@@ -12,11 +13,22 @@ public sealed class CafeteriaPermissionStartupFilter : IStartupFilter
         {
             app.Use(async (context, proceed) =>
             {
-                if (context.User.Identity?.IsAuthenticated == true)
+                string path = context.Request.Path.Value ?? string.Empty;
+                string? permission = RequiredPermission(context.Request.Method, path);
+
+                if (permission is not null)
                 {
-                    string path = context.Request.Path.Value ?? string.Empty;
-                    string? permission = RequiredPermission(context.Request.Method, path);
-                    if (permission is not null && !CafeteriaPermissions.HasPermission(context.User, permission))
+                    if (context.User.Identity?.IsAuthenticated != true)
+                    {
+                        AuthenticateResult result = await context.AuthenticateAsync();
+                        if (result.Succeeded && result.Principal is not null)
+                        {
+                            context.User = result.Principal;
+                        }
+                    }
+
+                    if (context.User.Identity?.IsAuthenticated == true
+                        && !CafeteriaPermissions.HasPermission(context.User, permission))
                     {
                         context.Response.StatusCode = StatusCodes.Status403Forbidden;
                         return;
