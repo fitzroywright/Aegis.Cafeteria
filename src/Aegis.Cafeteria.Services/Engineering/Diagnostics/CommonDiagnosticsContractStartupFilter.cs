@@ -1,8 +1,10 @@
 using System.Security.Cryptography;
 using System.Text;
 using Common.Diagnostics;
+using LocalDiagnosticService = Aegis.Engineering.Diagnostics.CafeteriaEngineeringDiagnosticService;
 using LocalLevel = Aegis.Engineering.Diagnostics.EngineeringDiagnosticLevel;
 using LocalRun = Aegis.Engineering.Diagnostics.EngineeringDiagnosticRun;
+using LocalRunStore = Aegis.Engineering.Diagnostics.EngineeringDiagnosticRunStore;
 using LocalStatus = Aegis.Engineering.Diagnostics.EngineeringDiagnosticStatus;
 
 namespace Aegis.Cafeteria.Services.Engineering.Diagnostics;
@@ -35,7 +37,7 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
     {
         string path = context.Request.Path.Value ?? string.Empty;
         IServiceProvider services = context.RequestServices;
-        EngineeringDiagnosticRunStore store = services.GetRequiredService<EngineeringDiagnosticRunStore>();
+        LocalRunStore store = services.GetRequiredService<LocalRunStore>();
 
         if (HttpMethods.IsGet(context.Request.Method) && path.Equals("/api/engineering/diagnostics/runs", StringComparison.OrdinalIgnoreCase))
         {
@@ -93,7 +95,7 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
 
             try
             {
-                CafeteriaEngineeringDiagnosticService diagnostics = services.GetRequiredService<CafeteriaEngineeringDiagnosticService>();
+                LocalDiagnosticService diagnostics = services.GetRequiredService<LocalDiagnosticService>();
                 LocalRun run = await diagnostics.RunAsync(ToLocal(request.Level), "Aegis.Diagnostics", request.Reason, context.RequestAborted);
                 await context.Response.WriteAsJsonAsync(ToCommon(run), context.RequestAborted);
             }
