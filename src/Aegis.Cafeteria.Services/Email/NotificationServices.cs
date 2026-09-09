@@ -3,6 +3,7 @@ namespace Aegis.Cafeteria.Services.Email;
 using Aegis.Cafeteria.Services.Persistence;
 using Microsoft.EntityFrameworkCore;
 using System.Net.Mail;
+using System.Text.Json;
 
 public sealed record CustomerNotificationPreference(int CustomerId, bool PreferenceAsked, bool WeeklySummaryEnabled, string? EmailAddress);
 public sealed record ManagerReportSettings(bool WeeklySummaryEnabled, string? EmailAddress, DayOfWeek WeeklySummaryDay, int WeeklySummaryHourLocal);
@@ -79,7 +80,7 @@ public sealed class NotificationPreferenceStore(IDbContextFactory<ServiceDbConte
             throw new ArgumentOutOfRangeException(nameof(hourLocal), "Report hour must be between 0 and 23.");
         }
 
-        string? normalizedEmail = enabled ? EmailAddressValidator.Normalize(emailAddress) : EmailAddressValidator.Normalize(emailAddress);
+        string? normalizedEmail = EmailAddressValidator.Normalize(emailAddress);
         if (enabled && normalizedEmail is null)
         {
             throw new ArgumentException("An email address is required when manager summaries are enabled.", nameof(emailAddress));
@@ -105,8 +106,22 @@ public sealed class NotificationPreferenceStore(IDbContextFactory<ServiceDbConte
 
 public sealed class OutboundEmailQueue(IDbContextFactory<ServiceDbContext> factory)
 {
-    public async Task EnqueueAsync(string dispatchKey, string recipient, string subject, string body, CancellationToken cancellationToken = default)
+    public Task EnqueueAsync(string dispatchKey, string recipient, string subject, string body, CancellationToken cancellationToken = default)
     {
+        return EnqueueAsync(dispatchKey, recipient, subject, body, [], cancellationToken);
+    }
+
+    public async Task EnqueueAsync(
+        string dispatchKey,
+        string recipient,
+        string subject,
+        string body,
+        IReadOnlyCollection<EmailAttachment> attachments,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(dispatchKey);
+        ArgumentNullException.ThrowIfNull(attachments);
+
         string normalizedRecipient = EmailAddressValidator.Normalize(recipient)
             ?? throw new ArgumentException("A recipient is required.", nameof(recipient));
         await using ServiceDbContext database = await factory.CreateDbContextAsync(cancellationToken);
@@ -122,7 +137,7 @@ public sealed class OutboundEmailQueue(IDbContextFactory<ServiceDbContext> facto
             DispatchKey = dispatchKey,
             Recipient = normalizedRecipient,
             Subject = subject,
-            Body = body,
+            Body = DurableEmailPayloadCodec.Encode(body, attachments),
             CreatedAt = now,
             NextAttemptAt = now
         });
@@ -160,11 +175,17 @@ public sealed class OutboundEmailWorker(
     {
         await using ServiceDbContext database = await factory.CreateDbContextAsync(cancellationToken);
         DateTimeOffset now = DateTimeOffset.UtcNow;
-        OutboundEmailRow[] pending = await database.OutboundEmails
-            .Where(row => row.SentAt == null && row.NextAttemptAt <= now)
+
+        // SQLite cannot reliably translate every DateTimeOffset comparison used here.
+        // Keep the durable filtering server-side where possible and evaluate due-time ordering in memory.
+        OutboundEmailRow[] unsent = await database.OutboundEmails
+            .Where(row => row.SentAt == null)
+            .ToArrayAsync(cancellationToken);
+        OutboundEmailRow[] pending = unsent
+            .Where(row => row.NextAttemptAt <= now)
             .OrderBy(row => row.CreatedAt)
             .Take(25)
-            .ToArrayAsync(cancellationToken);
+            .ToArray();
 
         foreach (OutboundEmailRow row in pending)
         {
@@ -172,7 +193,13 @@ public sealed class OutboundEmailWorker(
             row.LastAttemptAt = now;
             try
             {
-                string messageId = await sender.SendAsync([row.Recipient], row.Subject, row.Body, cancellationToken);
+                DurableEmailPayload payload = DurableEmailPayloadCodec.Decode(row.Body);
+                string messageId = await sender.SendAsync(
+                    [row.Recipient],
+                    row.Subject,
+                    payload.Body,
+                    payload.Attachments,
+                    cancellationToken);
                 if (!string.IsNullOrWhiteSpace(messageId))
                 {
                     row.SentAt = DateTimeOffset.UtcNow;
@@ -194,5 +221,37 @@ public sealed class OutboundEmailWorker(
 
             await database.SaveChangesAsync(cancellationToken);
         }
+    }
+}
+
+internal sealed record DurableEmailPayload(string Body, EmailAttachment[] Attachments);
+
+internal static class DurableEmailPayloadCodec
+{
+    private const string Prefix = "AEGIS-EMAIL-ENVELOPE-V1:";
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    public static string Encode(string body, IReadOnlyCollection<EmailAttachment> attachments)
+    {
+        if (attachments.Count == 0)
+        {
+            return body;
+        }
+
+        DurableEmailPayload payload = new(body, attachments.ToArray());
+        return Prefix + JsonSerializer.Serialize(payload, JsonOptions);
+    }
+
+    public static DurableEmailPayload Decode(string persistedBody)
+    {
+        if (!persistedBody.StartsWith(Prefix, StringComparison.Ordinal))
+        {
+            return new DurableEmailPayload(persistedBody, []);
+        }
+
+        DurableEmailPayload? payload = JsonSerializer.Deserialize<DurableEmailPayload>(
+            persistedBody[Prefix.Length..],
+            JsonOptions);
+        return payload ?? throw new InvalidOperationException("Durable email payload could not be decoded.");
     }
 }
