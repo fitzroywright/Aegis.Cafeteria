@@ -136,7 +136,7 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
 
     private static EngineeringDiagnosticRun ToCommon(LocalRun run)
     {
-        EngineeringDiagnosticCheckResult[] results = run.Checks.Select(check => new EngineeringDiagnosticCheckResult(
+        EngineeringDiagnosticCheckResult[] checks = run.Checks.Select(check => new EngineeringDiagnosticCheckResult(
             check.CheckId,
             check.Name,
             ToCommon(check.Status),
@@ -145,14 +145,15 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
 
         return new EngineeringDiagnosticRun(
             run.RunId,
-            run.StartedAt,
-            run.CompletedAt,
             ToCommon(run.Level),
             run.Application,
             run.Environment,
             run.RequestedBy,
             run.Reason,
-            results,
+            run.StartedAt,
+            run.CompletedAt,
+            ToCommon(run.Status),
+            checks,
             run.ResolvedAt,
             run.ResolvedBy,
             run.Resolution);
@@ -173,7 +174,7 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
         LocalStatus.Passed => EngineeringDiagnosticStatus.Passed,
         LocalStatus.Warning => EngineeringDiagnosticStatus.Warning,
         LocalStatus.Failed => EngineeringDiagnosticStatus.Failed,
-        LocalStatus.InterventionRequired => EngineeringDiagnosticStatus.Warning,
-        _ => EngineeringDiagnosticStatus.Skipped
+        LocalStatus.InterventionRequired => EngineeringDiagnosticStatus.InterventionRequired,
+        _ => throw new ArgumentOutOfRangeException(nameof(status))
     };
 }
