@@ -1,4 +1,6 @@
+using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Integration;
+using Aegis.Cafeteria.Application.Reporting;
 using Aegis.Cafeteria.Services.Persistence;
 
 using Microsoft.EntityFrameworkCore;
@@ -50,6 +52,7 @@ public sealed class CafeteriaEngineeringDiagnosticService
         checks.Add(await CheckServiceDatabaseAsync(cancellationToken));
         checks.Add(await CheckFundingPolicyAsync(cancellationToken));
         checks.Add(await CheckEligibleEmployeesAsync(cancellationToken));
+        checks.Add(await CheckReportStatusAsync(cancellationToken));
 
         if ((int)level <= (int)EngineeringDiagnosticLevel.Level4Analysis)
         {
@@ -153,6 +156,47 @@ public sealed class CafeteriaEngineeringDiagnosticService
         catch (Exception exception)
         {
             return Failed("eligible-employees", "Eligible employee source", exception.Message);
+        }
+    }
+
+    private async Task<EngineeringDiagnosticCheckResult> CheckReportStatusAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using ServiceDbContext database = await this.databaseFactory.CreateDbContextAsync(cancellationToken);
+            int pending = await database.Events.CountAsync(row => row.FfpPublishedAt == null, cancellationToken);
+            int failed = await database.Events.CountAsync(row => row.FfpLastError != null, cancellationToken);
+            DateTimeOffset? lastSuccessfulSync = await database.Events
+                .Where(row => row.FfpPublishedAt != null)
+                .OrderByDescending(row => row.FfpPublishedAt)
+                .Select(row => row.FfpPublishedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+            string? lastError = await database.Events
+                .Where(row => row.FfpLastError != null)
+                .OrderByDescending(row => row.FfpLastAttemptAt)
+                .Select(row => row.FfpLastError)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            CafeteriaReportStatus status = CafeteriaReportStatus.FromPublicationStatus(
+                new FfpPublicationStatus(true, pending, failed, lastSuccessfulSync, lastError));
+
+            string lastSync = status.LastSuccessfulSync.HasValue
+                ? status.LastSuccessfulSync.Value.ToLocalTime().ToString("yyyy-MM-dd h:mm tt")
+                : "Not Available";
+            string evidence = $"Report Status: {status.DisplayStatus}; Last Successful Sync: {lastSync}; Pending Sync Items={status.PendingSyncItems}; Failed Sync Items={status.FailedSyncItems}";
+
+            return status.State == CafeteriaReportState.Complete
+                ? Passed("report-status", "Cafeteria report status", "Report Status: Complete", evidence)
+                : new EngineeringDiagnosticCheckResult(
+                    "report-status",
+                    "Cafeteria report status",
+                    EngineeringDiagnosticStatus.Warning,
+                    "Report Status: Data Incomplete",
+                    evidence);
+        }
+        catch (Exception exception)
+        {
+            return Failed("report-status", "Cafeteria report status", exception.Message);
         }
     }
 
