@@ -37,14 +37,12 @@ public sealed class ScheduledEmailWorker : BackgroundService
         {
             try
             {
-                await DeliverQueuedAsync(stoppingToken);
-
                 if (this.options.Enabled)
                 {
                     DateTime now = DateTime.Now;
                     DateOnly today = DateOnly.FromDateTime(now.Date);
-                    await SendDailyOnceAsync(today.AddDays(-1), stoppingToken);
-                    if (now.Hour >= this.options.DailySummaryHourLocal) await SendDailyOnceAsync(today, stoppingToken);
+                    await QueueDailyOnceAsync(today.AddDays(-1), stoppingToken);
+                    if (now.Hour >= this.options.DailySummaryHourLocal) await QueueDailyOnceAsync(today, stoppingToken);
                     int daysSinceMonday = ((int)now.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
                     int employeeOffset = ((int)this.options.WeeklyEmployeeDay - (int)DayOfWeek.Monday + 7) % 7;
                     if (daysSinceMonday > employeeOffset || (daysSinceMonday == employeeOffset && now.Hour >= this.options.WeeklyEmployeeHourLocal)) await QueuePreviousWeekAsync(today, stoppingToken);
@@ -56,11 +54,10 @@ public sealed class ScheduledEmailWorker : BackgroundService
                         DateOnly previousMonth = today.AddDays(1 - today.Day).AddMonths(-1);
                         await SendPayrollReportAsync(previousMonth.Year, previousMonth.Month, false, stoppingToken);
                     }
-                    await DeliverQueuedAsync(stoppingToken);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { break; }
-            catch (Exception exception) { this.logger.LogError(exception, "Cafeteria email worker failed; queued mail remains durable and will retry"); }
+            catch (Exception exception) { this.logger.LogError(exception, "Cafeteria scheduled report coordinator failed; the always-on service will retry scheduling on the next cycle"); }
             await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
         }
     }
@@ -83,14 +80,20 @@ public sealed class ScheduledEmailWorker : BackgroundService
         return report;
     }
 
-    private async Task SendDailyOnceAsync(DateOnly date, CancellationToken cancellationToken)
+    private async Task QueueDailyOnceAsync(DateOnly date, CancellationToken cancellationToken)
     {
-        string key = $"daily:{date:yyyy-MM-dd}";
-        if (await WasSentAsync(key, cancellationToken)) return;
+        if (this.options.DailySummaryRecipients.Length == 0) return;
+
         DailyLedgerSummary summary = await this.source.GetDailySummaryAsync(date, cancellationToken);
         string body = $"Cafeteria Daily Summary - {date:dddd, MMMM d, yyyy}\n\nTransactions: {summary.Transactions}\nPurchases: {summary.Purchases:N2}\nRefunds: {summary.Refunds:N2}\nAdditional Credit: {summary.AdditionalCredit:N2}\nStipend Card Reductions: {summary.StipendReductions:N2}\n";
-        string messageId = await this.sender.SendAsync(this.options.DailySummaryRecipients, $"Cafeteria Daily Summary - {date:yyyy-MM-dd}", body, cancellationToken);
-        if (!string.IsNullOrWhiteSpace(messageId)) await MarkSentAsync(key, messageId, cancellationToken);
+
+        foreach (string configuredRecipient in this.options.DailySummaryRecipients)
+        {
+            string? recipient = EmailAddressValidator.Normalize(configuredRecipient);
+            if (recipient is null) continue;
+            string key = $"daily:{date:yyyy-MM-dd}:{recipient.ToLowerInvariant()}";
+            await this.queue.EnqueueAsync(key, recipient, $"Cafeteria Daily Summary - {date:yyyy-MM-dd}", body, cancellationToken);
+        }
     }
 
     private async Task QueuePreviousWeekAsync(DateOnly today, CancellationToken cancellationToken)
@@ -114,45 +117,6 @@ public sealed class ScheduledEmailWorker : BackgroundService
         decimal netValue = ledgers.Sum(employee => employee.Lines.Sum(line => line.ScanValue));
         string body = $"Cafeteria weekly management summary - {start:MMM d} - {end:MMM d, yyyy}\n\nEmployees with activity: {ledgers.Count:N0}\nLedger entries: {transactionCount:N0}\nNet ledger value: {netValue:N2}\n";
         await this.queue.EnqueueAsync($"manager-weekly:{start:yyyy-MM-dd}", manager.EmailAddress, $"Cafeteria Weekly Summary - Week ending {end:yyyy-MM-dd}", body, cancellationToken);
-    }
-
-    private async Task DeliverQueuedAsync(CancellationToken cancellationToken)
-    {
-        await using ServiceDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
-        DateTimeOffset now = DateTimeOffset.UtcNow;
-
-        // SQLite cannot translate relational comparisons over DateTimeOffset values.
-        // SentAt == null is translated server-side; due-time filtering and ordering are
-        // deliberately performed in memory over the normally small durable mail queue.
-        OutboundEmailRow[] unsent = await database.OutboundEmails
-            .Where(row => row.SentAt == null)
-            .ToArrayAsync(cancellationToken);
-        OutboundEmailRow[] pending = unsent
-            .Where(row => row.NextAttemptAt <= now)
-            .OrderBy(row => row.CreatedAt)
-            .Take(25)
-            .ToArray();
-
-        foreach (OutboundEmailRow row in pending)
-        {
-            row.AttemptCount++;
-            row.LastAttemptAt = now;
-            try
-            {
-                string messageId = await this.sender.SendAsync([row.Recipient], row.Subject, row.Body, cancellationToken);
-                if (string.IsNullOrWhiteSpace(messageId)) throw new InvalidOperationException("SMTP sender did not return a message identifier.");
-                row.SentAt = DateTimeOffset.UtcNow;
-                row.MessageId = messageId;
-                row.LastError = null;
-            }
-            catch (Exception exception)
-            {
-                row.LastError = exception.Message.Length <= 2000 ? exception.Message : exception.Message[..2000];
-                row.NextAttemptAt = DateTimeOffset.UtcNow.AddMinutes(Math.Min(60, Math.Max(1, row.AttemptCount * 5)));
-                this.logger.LogWarning(exception, "Cafeteria email delivery failed for {DispatchKey}; retry scheduled", row.DispatchKey);
-            }
-            await database.SaveChangesAsync(cancellationToken);
-        }
     }
 
     private static string BuildEmployeeBody(EmployeeWeeklyLedger employee, DateOnly start, DateOnly end)
