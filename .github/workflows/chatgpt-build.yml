@@ -6,6 +6,8 @@ on:
       - master
       - development/post-rc1
       - chatgpt/enable-messaging-and-tests
+      - integration/common-security-platform
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -37,12 +39,19 @@ jobs:
             "token=$env:REPOSITORY_TOKEN" >> $env:GITHUB_OUTPUT
           }
 
-      - name: Verify Common.Security repository access
+      - name: Checkout Common.Security
         uses: actions/checkout@v4
         with:
           repository: fitzroywright/Common.Security
-          path: _common-security-access-check
+          path: Common/Common.Security
           token: ${{ steps.common_security_token.outputs.token }}
+          fetch-depth: 1
+
+      - name: Checkout Common.Diagnostics for Common.Security
+        uses: actions/checkout@v4
+        with:
+          repository: fitzroywright/Common.Diagnostics
+          path: Common/Common.Security/Common.Diagnostics
           fetch-depth: 1
 
       - name: Authenticate GitHub Packages
