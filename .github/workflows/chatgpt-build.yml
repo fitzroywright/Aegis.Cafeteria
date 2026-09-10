@@ -18,7 +18,7 @@ jobs:
   build-and-test:
     runs-on: windows-latest
     env:
-      CommonRoot: ${{ github.workspace }}
+      CommonRoot: ${{ github.workspace }}\Common
     steps:
       - name: Checkout Aegis.Cafeteria
         uses: actions/checkout@v4
@@ -45,7 +45,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: fitzroywright/Common.Security
-          path: Common.Security
+          path: Common/Common.Security
           token: ${{ steps.common_security_token.outputs.token }}
           fetch-depth: 1
 
@@ -53,7 +53,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: fitzroywright/Common.Diagnostics
-          path: Common.Diagnostics
+          path: Common/Common.Diagnostics
           fetch-depth: 1
 
       - name: Authenticate GitHub Packages
