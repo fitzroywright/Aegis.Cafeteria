@@ -19,4 +19,7 @@
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.0" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Aegis.Cafeteria.PersistenceTests" />
+  </ItemGroup>
 </Project>
