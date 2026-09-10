@@ -99,7 +99,12 @@ public sealed class PosCheckoutService
             throw new InvalidOperationException("The Employee Card portion exceeds the customer's Available to Spend.");
 
         DateTimeOffset now = DateTimeOffset.Now;
-        Order order = new(Guid.NewGuid(), account.Customer.Id, now);
+        Order order = new(
+            Guid.NewGuid(),
+            account.Customer.Id,
+            now,
+            account.Identification?.Method,
+            account.Identification?.Code);
         foreach (PosOrderLine line in lines)
         {
             if (line.Quantity <= 0)
