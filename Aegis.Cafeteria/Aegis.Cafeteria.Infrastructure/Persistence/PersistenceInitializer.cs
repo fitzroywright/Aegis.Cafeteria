@@ -81,24 +81,22 @@ public sealed class PersistenceInitializer(
         HashSet<string> customerColumns = await ReadColumnsAsync(db, "Customers", ct);
 
         if (!customerColumns.Contains("LoginName"))
-        {
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Customers\" ADD COLUMN \"LoginName\" TEXT NOT NULL DEFAULT '';", ct);
-        }
 
         if (!customerColumns.Contains("Manager"))
-        {
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Customers\" ADD COLUMN \"Manager\" TEXT NOT NULL DEFAULT '';", ct);
-        }
 
         if (!customerColumns.Contains("EmailAddress"))
-        {
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Customers\" ADD COLUMN \"EmailAddress\" TEXT NOT NULL DEFAULT '';", ct);
-        }
 
         if (!customerColumns.Contains("Extension"))
-        {
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Customers\" ADD COLUMN \"Extension\" TEXT NOT NULL DEFAULT '';", ct);
-        }
+
+        if (!customerColumns.Contains("IsActive"))
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Customers\" ADD COLUMN \"IsActive\" INTEGER NOT NULL DEFAULT 1;", ct);
+
+        if (!customerColumns.Contains("EmploymentStartDate"))
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Customers\" ADD COLUMN \"EmploymentStartDate\" TEXT NULL;", ct);
     }
 
     private static async Task EnsureOrderIdentificationColumnsAsync(LocalCafeteriaDbContext db, CancellationToken ct)
@@ -106,19 +104,13 @@ public sealed class PersistenceInitializer(
         HashSet<string> orderColumns = await ReadColumnsAsync(db, "Orders", ct);
 
         if (!orderColumns.Contains("IDMethod"))
-        {
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Orders\" ADD COLUMN \"IDMethod\" INTEGER NULL;", ct);
-        }
 
         if (!orderColumns.Contains("IdentificationCode"))
-        {
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Orders\" ADD COLUMN \"IdentificationCode\" TEXT NULL;", ct);
-        }
 
         if (!orderColumns.Contains("CashierName"))
-        {
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Orders\" ADD COLUMN \"CashierName\" TEXT NULL;", ct);
-        }
 
         await db.Database.ExecuteSqlRawAsync(
             "CREATE INDEX IF NOT EXISTS \"IX_Orders_IDMethod_CompletedAt\" ON \"Orders\" (\"IDMethod\", \"CompletedAt\");",
@@ -131,24 +123,17 @@ public sealed class PersistenceInitializer(
 
         HashSet<string> columns = await ReadColumnsAsync(db, "FfpLedgerOutbox", ct);
         if (!columns.Contains("Code"))
-        {
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FfpLedgerOutbox\" ADD COLUMN \"Code\" TEXT NULL;", ct);
-        }
 
         if (!columns.Contains("CreatedBy"))
-        {
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FfpLedgerOutbox\" ADD COLUMN \"CreatedBy\" TEXT NOT NULL DEFAULT 'SYSTEM';", ct);
-        }
     }
 
-    private static async Task<bool> DatabaseContainsAnyUserTableAsync(
-        LocalCafeteriaDbContext db,
-        CancellationToken ct)
+    private static async Task<bool> DatabaseContainsAnyUserTableAsync(LocalCafeteriaDbContext db, CancellationToken ct)
     {
         System.Data.Common.DbConnection connection = db.Database.GetDbConnection();
         bool closeWhenDone = connection.State != System.Data.ConnectionState.Open;
         if (closeWhenDone) await connection.OpenAsync(ct);
-
         try
         {
             await using System.Data.Common.DbCommand command = connection.CreateCommand();
@@ -162,13 +147,10 @@ public sealed class PersistenceInitializer(
         }
     }
 
-    private static async Task ValidateExistingDatabaseIsCurrentAsync(
-        LocalCafeteriaDbContext db,
-        CancellationToken ct)
+    private static async Task ValidateExistingDatabaseIsCurrentAsync(LocalCafeteriaDbContext db, CancellationToken ct)
     {
         bool hasSchemaTable = await TableExistsAsync(db, "LocalSchemaInfo", ct);
-        if (!hasSchemaTable)
-            throw LegacyDatabaseException();
+        if (!hasSchemaTable) throw LegacyDatabaseException();
 
         LocalSchemaInfoRow? schema = await db.LocalSchemaInfo.AsNoTracking().SingleOrDefaultAsync(x => x.Id == 1, ct);
         if (schema is null || schema.SchemaVersion != CurrentLocalSchemaVersion)
@@ -191,9 +173,7 @@ public sealed class PersistenceInitializer(
                 "Delete/archive the database and restart to create a clean database.");
 
         HashSet<string> orderColumns = await ReadColumnsAsync(db, "Orders", ct);
-        if (!orderColumns.Contains("CashierUserId") ||
-            !orderColumns.Contains("TerminalId") ||
-            !orderColumns.Contains("CompletedAt"))
+        if (!orderColumns.Contains("CashierUserId") || !orderColumns.Contains("TerminalId") || !orderColumns.Contains("CompletedAt"))
             throw new InvalidOperationException(
                 "The local cafeteria database claims to be current but its Orders table is incomplete. " +
                 "Do not continue using this file. Back it up and create a fresh database using the documented manual procedure.");
