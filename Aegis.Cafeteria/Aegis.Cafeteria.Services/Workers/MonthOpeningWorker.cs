@@ -24,17 +24,15 @@ public sealed class MonthOpeningWorker : BackgroundService
     private readonly MonthOpeningOptions options;
     private readonly ILogger<MonthOpeningWorker> logger;
 
-    public MonthOpeningWorker
-    (
-          IWorkforceReferenceSource workforce
-        , ICafeteriaFundingPolicySource fundingPolicy
-        , MonthlyAllocationCalculator calculator
-        , ServiceEventStore events
-        , IExternalAccountingGateway accounting
-        , IMonthRecalculationGuard recalculationGuard
-        , MonthOpeningOptions options
-        , ILogger<MonthOpeningWorker> logger
-    )
+    public MonthOpeningWorker(
+        IWorkforceReferenceSource workforce,
+        ICafeteriaFundingPolicySource fundingPolicy,
+        MonthlyAllocationCalculator calculator,
+        ServiceEventStore events,
+        IExternalAccountingGateway accounting,
+        IMonthRecalculationGuard recalculationGuard,
+        MonthOpeningOptions options,
+        ILogger<MonthOpeningWorker> logger)
     {
         this.workforce = workforce;
         this.fundingPolicy = fundingPolicy;
@@ -46,31 +44,18 @@ public sealed class MonthOpeningWorker : BackgroundService
         this.logger = logger;
     }
 
-    protected override async Task ExecuteAsync
-    (
-        CancellationToken stoppingToken
-    )
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!this.options.Enabled)
-        {
             return;
-        }
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 DateTime now = DateTime.Now;
-
                 if (now.Hour >= this.options.RunHourLocal)
-                {
-                    await EnsureMonthAsync
-                    (
-                          now.Year
-                        , now.Month
-                        , stoppingToken
-                    );
-                }
+                    await EnsureMonthAsync(now.Year, now.Month, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -78,134 +63,90 @@ public sealed class MonthOpeningWorker : BackgroundService
             }
             catch (Exception exception)
             {
-                this.logger.LogError
-                (
-                      exception
-                    , "Cafeteria month-opening allocation job failed; it will retry"
-                );
+                this.logger.LogError(exception, "Cafeteria month-opening allocation job failed; it will retry");
             }
 
-            await Task.Delay
-            (
-                  TimeSpan.FromMinutes(30)
-                , stoppingToken
-            );
+            await Task.Delay(TimeSpan.FromMinutes(30), stoppingToken);
         }
     }
 
-    internal async Task<int> EnsureMonthAsync
-    (
-          int year
-        , int month
-        , CancellationToken cancellationToken
-    )
+    internal async Task<int> EnsureMonthAsync(int year, int month, CancellationToken cancellationToken)
     {
         IReadOnlyList<ExternalCustomerSnapshot> employees = await this.workforce.GetCustomersAsync(cancellationToken);
         IReadOnlyCollection<DateOnly> holidays = await this.workforce.GetHolidaysAsync(year, month, cancellationToken);
         CafeteriaFundingPolicySnapshot policy = await this.fundingPolicy.GetFundingPolicyAsync(cancellationToken);
-        int workingDays = this.calculator.CountWorkingDays(year, month, holidays);
         int created = 0;
 
-        foreach (ExternalCustomerSnapshot employee in employees.Where(employee => employee.IsEligibleForCafeteriaCredit))
+        foreach (ExternalCustomerSnapshot employee in employees.Where(employee => employee.IsActive && employee.IsEligibleForCafeteriaCredit))
         {
             Guid operationId = DeterministicOperationId(employee.CustomerId, year, month);
-
             if (await this.events.HasOperationAsync(operationId, cancellationToken))
-            {
                 continue;
-            }
 
-            MonthlyCreditAllocation allocation = this.calculator.Calculate
-            (
-                  employee.CustomerId
-                , year
-                , month
-                , workingDays
-                , true
-                , policy.DailyCreditLimitRate
-                , policy.DailyCompanySubsidyRate
-                , DateTimeOffset.UtcNow
-            );
+            int employeeWorkingDays = this.calculator.CountWorkingDays(year, month, holidays, employee.EmploymentStartDate);
+            if (employeeWorkingDays <= 0)
+                continue;
 
-            MonthlyAllocationServiceEvent payload = ToServiceEvent
-            (
-                  operationId
-                , employee.Name
-                , allocation
-            );
+            MonthlyCreditAllocation allocation = this.calculator.Calculate(
+                employee.CustomerId,
+                year,
+                month,
+                employeeWorkingDays,
+                true,
+                policy.DailyCreditLimitRate,
+                policy.DailyCompanySubsidyRate,
+                DateTimeOffset.UtcNow);
 
-            await this.events.AppendAsync
-            (
-                  operationId
-                , CafeteriaServiceEventKind.MonthlyAllocation
-                , employee.CustomerId
-                , allocation.CalculatedAt
-                , payload
-                , cancellationToken
-            );
+            MonthlyAllocationServiceEvent payload = ToServiceEvent(operationId, employee.Name, allocation);
+            await this.events.AppendAsync(
+                operationId,
+                CafeteriaServiceEventKind.MonthlyAllocation,
+                employee.CustomerId,
+                allocation.CalculatedAt,
+                payload,
+                cancellationToken);
 
             created++;
         }
 
         if (created > 0)
         {
-            this.logger.LogInformation
-            (
-                  "Created {Count} Cafeteria month-opening allocation events for {Year}-{Month:D2}"
-                , created
-                , year
-                , month
-            );
+            this.logger.LogInformation(
+                "Created {Count} Cafeteria month-opening allocation events for {Year}-{Month:D2}",
+                created,
+                year,
+                month);
         }
 
         return created;
     }
 
-    internal async Task<MonthRecalculationResult> RecalculateMonthAsync
-    (
-          int year
-        , int month
-        , string recalculatedBy
-        , CancellationToken cancellationToken
-    )
+    internal async Task<MonthRecalculationResult> RecalculateMonthAsync(
+        int year,
+        int month,
+        string recalculatedBy,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(recalculatedBy))
-        {
             throw new ArgumentException("A management identity is required.", nameof(recalculatedBy));
-        }
 
-        MonthRecalculationGuardResult guard = await this.recalculationGuard.CheckAsync
-        (
-              year
-            , month
-            , cancellationToken
-        );
-
+        MonthRecalculationGuardResult guard = await this.recalculationGuard.CheckAsync(year, month, cancellationToken);
         if (!guard.IsSafe)
         {
-            throw new InvalidOperationException
-            (
-                guard.Reason ?? $"Month {year:D4}-{month:D2} cannot be recalculated because cafeteria financial activity exists."
-            );
+            throw new InvalidOperationException(
+                guard.Reason ?? $"Month {year:D4}-{month:D2} cannot be recalculated because cafeteria financial activity exists.");
         }
 
-        IReadOnlyDictionary<int, MonthlyAllocationServiceEvent> existingAllocations = await this.events.GetCurrentMonthlyAllocationsAsync
-        (
-              year
-            , month
-            , cancellationToken
-        );
+        IReadOnlyDictionary<int, MonthlyAllocationServiceEvent> existingAllocations = await this.events.GetCurrentMonthlyAllocationsAsync(
+            year,
+            month,
+            cancellationToken);
 
         if (existingAllocations.Count == 0)
-        {
-            throw new InvalidOperationException
-            (
-                $"Month {year:D4}-{month:D2} has not been opened. Run Month Opening instead of Recalculate Month."
-            );
-        }
+            throw new InvalidOperationException($"Month {year:D4}-{month:D2} has not been opened. Run Month Opening instead of Recalculate Month.");
 
         IReadOnlyList<ExternalCustomerSnapshot> employees = (await this.workforce.GetCustomersAsync(cancellationToken))
-            .Where(employee => employee.IsEligibleForCafeteriaCredit)
+            .Where(employee => employee.IsActive && employee.IsEligibleForCafeteriaCredit)
             .OrderBy(employee => employee.CustomerId)
             .ToArray();
 
@@ -214,10 +155,8 @@ public sealed class MonthOpeningWorker : BackgroundService
 
         if (!existingEmployeeIds.SequenceEqual(currentEmployeeIds))
         {
-            throw new InvalidOperationException
-            (
-                "The eligible employee set has changed since Month Opening. Recalculation is blocked because it would add or remove employee entitlements."
-            );
+            throw new InvalidOperationException(
+                "The eligible employee set has changed since Month Opening. Recalculation is blocked because it would add or remove employee entitlements.");
         }
 
         IReadOnlyDictionary<int, ExternalAccountSummary> accounts = (await this.accounting.GetAccountSummariesAsync(cancellationToken))
@@ -226,29 +165,21 @@ public sealed class MonthOpeningWorker : BackgroundService
         foreach (KeyValuePair<int, MonthlyAllocationServiceEvent> entry in existingAllocations)
         {
             MonthlyCreditAllocation currentAllocation = ToAllocation(entry.Value);
-
             if (!accounts.TryGetValue(entry.Key, out ExternalAccountSummary account))
-            {
-                throw new InvalidOperationException
-                (
-                    $"FFP account summary was not found for employee {entry.Key}. Recalculation was not performed."
-                );
-            }
+                throw new InvalidOperationException($"FFP account summary was not found for employee {entry.Key}. Recalculation was not performed.");
 
             if (account.CreditLimit != currentAllocation.TotalCreditLimit || account.AvailableBalance != currentAllocation.TotalCreditLimit)
             {
-                throw new InvalidOperationException
-                (
-                    $"Employee {entry.Key} no longer has the untouched Month Opening balance. "
-                    + $"Expected CreditLimit/AvailableBalance {currentAllocation.TotalCreditLimit:N2}/{currentAllocation.TotalCreditLimit:N2}, "
-                    + $"but FFP contains {account.CreditLimit:N2}/{account.AvailableBalance:N2}. Recalculation is blocked."
-                );
+                throw new InvalidOperationException(
+                    $"Employee {entry.Key} no longer has the untouched Month Opening balance. " +
+                    $"Expected CreditLimit/AvailableBalance {currentAllocation.TotalCreditLimit:N2}/{currentAllocation.TotalCreditLimit:N2}, " +
+                    $"but FFP contains {account.CreditLimit:N2}/{account.AvailableBalance:N2}. Recalculation is blocked.");
             }
         }
 
         IReadOnlyCollection<DateOnly> holidays = await this.workforce.GetHolidaysAsync(year, month, cancellationToken);
         CafeteriaFundingPolicySnapshot policy = await this.fundingPolicy.GetFundingPolicyAsync(cancellationToken);
-        int workingDays = this.calculator.CountWorkingDays(year, month, holidays);
+        int fullMonthWorkingDays = this.calculator.CountWorkingDays(year, month, holidays);
         int updated = 0;
         int unchanged = 0;
 
@@ -256,32 +187,28 @@ public sealed class MonthOpeningWorker : BackgroundService
         {
             MonthlyAllocationServiceEvent previous = existingAllocations[employee.CustomerId];
             DateTimeOffset calculatedAt = DateTimeOffset.UtcNow;
-            MonthlyCreditAllocation replacementAllocation = this.calculator.Calculate
-            (
-                  employee.CustomerId
-                , year
-                , month
-                , workingDays
-                , true
-                , policy.DailyCreditLimitRate
-                , policy.DailyCompanySubsidyRate
-                , calculatedAt
-            );
+            int employeeWorkingDays = this.calculator.CountWorkingDays(year, month, holidays, employee.EmploymentStartDate);
 
-            MonthlyAllocationServiceEvent replacement = ToServiceEvent
-            (
-                  DeterministicRecalculationOperationId
-                  (
-                        employee.CustomerId
-                      , year
-                      , month
-                      , workingDays
-                      , policy.DailyCreditLimitRate
-                      , policy.DailyCompanySubsidyRate
-                  )
-                , employee.Name
-                , replacementAllocation
-            );
+            MonthlyCreditAllocation replacementAllocation = this.calculator.Calculate(
+                employee.CustomerId,
+                year,
+                month,
+                employeeWorkingDays,
+                true,
+                policy.DailyCreditLimitRate,
+                policy.DailyCompanySubsidyRate,
+                calculatedAt);
+
+            MonthlyAllocationServiceEvent replacement = ToServiceEvent(
+                DeterministicRecalculationOperationId(
+                    employee.CustomerId,
+                    year,
+                    month,
+                    employeeWorkingDays,
+                    policy.DailyCreditLimitRate,
+                    policy.DailyCompanySubsidyRate),
+                employee.Name,
+                replacementAllocation);
 
             if (Equivalent(previous, replacement))
             {
@@ -295,157 +222,112 @@ public sealed class MonthOpeningWorker : BackgroundService
                 continue;
             }
 
-            MonthlyAllocationRecalculationServiceEvent payload = new
-            (
-                  replacement.OperationId
-                , previous
-                , replacement
-                , recalculatedBy.Trim()
-                , calculatedAt
-            );
+            MonthlyAllocationRecalculationServiceEvent payload = new(
+                replacement.OperationId,
+                previous,
+                replacement,
+                recalculatedBy.Trim(),
+                calculatedAt);
 
-            await this.events.AppendAsync
-            (
-                  replacement.OperationId
-                , CafeteriaServiceEventKind.MonthlyAllocationRecalculation
-                , employee.CustomerId
-                , calculatedAt
-                , payload
-                , cancellationToken
-            );
+            await this.events.AppendAsync(
+                replacement.OperationId,
+                CafeteriaServiceEventKind.MonthlyAllocationRecalculation,
+                employee.CustomerId,
+                calculatedAt,
+                payload,
+                cancellationToken);
 
             updated++;
         }
 
-        this.logger.LogWarning
-        (
-              "Recalculated Cafeteria month {Year}-{Month:D2}: {Updated} employee allocations replaced, {Unchanged} unchanged, actor {Actor}"
-            , year
-            , month
-            , updated
-            , unchanged
-            , recalculatedBy
-        );
+        this.logger.LogWarning(
+            "Recalculated Cafeteria month {Year}-{Month:D2}: {Updated} employee allocations replaced, {Unchanged} unchanged, actor {Actor}",
+            year,
+            month,
+            updated,
+            unchanged,
+            recalculatedBy);
 
-        return new MonthRecalculationResult
-        (
-              year
-            , month
-            , employees.Count
-            , updated
-            , unchanged
-            , workingDays
-            , policy.DailyCreditLimitRate
-            , policy.DailyCompanySubsidyRate
-            , recalculatedBy.Trim()
-        );
+        return new MonthRecalculationResult(
+            year,
+            month,
+            employees.Count,
+            updated,
+            unchanged,
+            fullMonthWorkingDays,
+            policy.DailyCreditLimitRate,
+            policy.DailyCompanySubsidyRate,
+            recalculatedBy.Trim());
     }
 
-    private static MonthlyAllocationServiceEvent ToServiceEvent
-    (
-          Guid operationId
-        , string employeeName
-        , MonthlyCreditAllocation allocation
-    )
-    {
-        return new MonthlyAllocationServiceEvent
-        (
-              operationId
-            , allocation.CustomerId
-            , allocation.Year
-            , allocation.Month
-            , allocation.EligibleWorkingDays
-            , allocation.IsEligibleForCredit
-            , allocation.CreditLimitPrice
-            , allocation.SubsidyCost
-            , allocation.CalculatedAt
-            , employeeName
-        );
-    }
+    private static MonthlyAllocationServiceEvent ToServiceEvent(Guid operationId, string employeeName, MonthlyCreditAllocation allocation)
+        => new(
+            operationId,
+            allocation.CustomerId,
+            allocation.Year,
+            allocation.Month,
+            allocation.EligibleWorkingDays,
+            allocation.IsEligibleForCredit,
+            allocation.CreditLimitPrice,
+            allocation.SubsidyCost,
+            allocation.CalculatedAt,
+            employeeName);
 
-    private static MonthlyCreditAllocation ToAllocation
-    (
-        MonthlyAllocationServiceEvent allocation
-    )
-    {
-        return new MonthlyCreditAllocation
-        (
-              allocation.CustomerId
-            , allocation.Year
-            , allocation.Month
-            , allocation.EligibleWorkingDays
-            , allocation.IsEligibleForCredit
-            , allocation.CreditLimitPrice
-            , allocation.SubsidyCost
-            , allocation.CalculatedAt
-        );
-    }
+    private static MonthlyCreditAllocation ToAllocation(MonthlyAllocationServiceEvent allocation)
+        => new(
+            allocation.CustomerId,
+            allocation.Year,
+            allocation.Month,
+            allocation.EligibleWorkingDays,
+            allocation.IsEligibleForCredit,
+            allocation.CreditLimitPrice,
+            allocation.SubsidyCost,
+            allocation.CalculatedAt);
 
-    private static bool Equivalent
-    (
-          MonthlyAllocationServiceEvent left
-        , MonthlyAllocationServiceEvent right
-    )
-    {
-        return left.CustomerId == right.CustomerId
+    private static bool Equivalent(MonthlyAllocationServiceEvent left, MonthlyAllocationServiceEvent right)
+        => left.CustomerId == right.CustomerId
             && left.Year == right.Year
             && left.Month == right.Month
             && left.EligibleWorkingDays == right.EligibleWorkingDays
             && left.IsEligibleForCredit == right.IsEligibleForCredit
             && left.CreditLimitPrice == right.CreditLimitPrice
             && left.SubsidyCost == right.SubsidyCost;
-    }
 
-    private static Guid DeterministicOperationId
-    (
-          int customerId
-        , int year
-        , int month
-    )
+    private static Guid DeterministicOperationId(int customerId, int year, int month)
     {
-        byte[] bytes = SHA256.HashData
-        (
-            Encoding.UTF8.GetBytes($"{customerId}:{year:D4}-{month:D2}:monthly-allocation")
-        );
-
+        byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes($"{customerId}:{year:D4}-{month:D2}:monthly-allocation"));
         return new Guid(bytes.AsSpan(0, 16));
     }
 
-    private static Guid DeterministicRecalculationOperationId
-    (
-          int customerId
-        , int year
-        , int month
-        , int workingDays
-        , decimal dailyCreditLimitRate
-        , decimal dailyCompanySubsidyRate
-    )
+    private static Guid DeterministicRecalculationOperationId(
+        int customerId,
+        int year,
+        int month,
+        int workingDays,
+        decimal dailyCreditLimitRate,
+        decimal dailyCompanySubsidyRate)
     {
-        string key = string.Join
-        (
-              ":"
-            , customerId.ToString(CultureInfo.InvariantCulture)
-            , $"{year:D4}-{month:D2}"
-            , workingDays.ToString(CultureInfo.InvariantCulture)
-            , dailyCreditLimitRate.ToString("0.00####", CultureInfo.InvariantCulture)
-            , dailyCompanySubsidyRate.ToString("0.00####", CultureInfo.InvariantCulture)
-            , "monthly-allocation-recalculation"
-        );
+        string key = string.Join(
+            ":",
+            customerId.ToString(CultureInfo.InvariantCulture),
+            $"{year:D4}-{month:D2}",
+            workingDays.ToString(CultureInfo.InvariantCulture),
+            dailyCreditLimitRate.ToString("0.00####", CultureInfo.InvariantCulture),
+            dailyCompanySubsidyRate.ToString("0.00####", CultureInfo.InvariantCulture),
+            "monthly-allocation-recalculation");
 
         byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(key));
         return new Guid(bytes.AsSpan(0, 16));
     }
 }
 
-public sealed record MonthRecalculationResult
-(
-      int Year
-    , int Month
-    , int Examined
-    , int Updated
-    , int Unchanged
-    , int EligibleWorkingDays
-    , decimal DailyCreditLimitRate
-    , decimal DailyCompanySubsidyRate
-    , string RecalculatedBy
-);
+public sealed record MonthRecalculationResult(
+    int Year,
+    int Month,
+    int Examined,
+    int Updated,
+    int Unchanged,
+    int EligibleWorkingDays,
+    decimal DailyCreditLimitRate,
+    decimal DailyCompanySubsidyRate,
+    string RecalculatedBy);
