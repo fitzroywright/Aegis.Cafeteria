@@ -12,6 +12,8 @@ public sealed record ExternalCustomerSnapshot
     public int CustomerId { get; init; }
     public string Name { get; init; } = string.Empty;
     public bool IsEligibleForCafeteriaCredit { get; init; }
+    public bool IsActive { get; init; } = true;
+    public DateOnly? EmploymentStartDate { get; init; }
     public string? Nfc { get; init; }
     public string? Code { get; init; }
     public string? Trn { get; init; }
