@@ -114,6 +114,11 @@ public sealed class PersistenceInitializer(
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Orders\" ADD COLUMN \"IdentificationCode\" TEXT NULL;", ct);
         }
 
+        if (!orderColumns.Contains("CashierName"))
+        {
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Orders\" ADD COLUMN \"CashierName\" TEXT NULL;", ct);
+        }
+
         await db.Database.ExecuteSqlRawAsync(
             "CREATE INDEX IF NOT EXISTS \"IX_Orders_IDMethod_CompletedAt\" ON \"Orders\" (\"IDMethod\", \"CompletedAt\");",
             ct);
