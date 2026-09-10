@@ -11,7 +11,9 @@ public sealed class Stipend
         string processedByUserId,
         DateTimeOffset processedAt,
         string? expenseReportReference = null,
-        string? notes = null)
+        string? notes = null,
+        int? fundingYear = null,
+        int? fundingMonth = null)
     {
         if (id == Guid.Empty)
             throw new ArgumentException("Stipend ID is required.", nameof(id));
@@ -26,6 +28,13 @@ public sealed class Stipend
         if (string.IsNullOrWhiteSpace(processedByUserId))
             throw new ArgumentException("The Accounts user is required.", nameof(processedByUserId));
 
+        int resolvedYear = fundingYear ?? processedAt.Year;
+        int resolvedMonth = fundingMonth ?? processedAt.Month;
+        if (resolvedYear < 2000 || resolvedYear > 9999)
+            throw new ArgumentOutOfRangeException(nameof(fundingYear));
+        if (resolvedMonth < 1 || resolvedMonth > 12)
+            throw new ArgumentOutOfRangeException(nameof(fundingMonth));
+
         Id = id;
         CustomerId = customerId;
         CashAmount = cashAmount;
@@ -37,6 +46,8 @@ public sealed class Stipend
             ? null
             : expenseReportReference.Trim();
         Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        FundingYear = resolvedYear;
+        FundingMonth = resolvedMonth;
     }
 
     public Guid Id { get; }
@@ -48,4 +59,7 @@ public sealed class Stipend
     public DateTimeOffset ProcessedAt { get; }
     public string? ExpenseReportReference { get; }
     public string? Notes { get; }
+    public int FundingYear { get; }
+    public int FundingMonth { get; }
+    public bool IsPriorPeriodAdjustment => FundingYear != ProcessedAt.Year || FundingMonth != ProcessedAt.Month;
 }
