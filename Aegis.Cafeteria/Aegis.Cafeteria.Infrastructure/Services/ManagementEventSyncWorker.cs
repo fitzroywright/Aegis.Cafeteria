@@ -176,18 +176,10 @@ public sealed class ManagementEventSyncWorker : BackgroundService
         {
             case CafeteriaServiceEventKind.AdditionalCredit:
             {
-                AdditionalCreditServiceEvent additionalCredit = JsonSerializer.Deserialize<AdditionalCreditServiceEvent>
-                (
-                    envelope.PayloadJson
-                )
+                AdditionalCreditServiceEvent additionalCredit = JsonSerializer.Deserialize<AdditionalCreditServiceEvent>(envelope.PayloadJson)
                     ?? throw new InvalidOperationException("Invalid Additional Credit event payload.");
 
-                await UpdateAdditionalCreditLimitAsync
-                (
-                      additionalCredit.CustomerId
-                    , additionalCredit.AdditionalCreditLimit
-                    , cancellationToken
-                );
+                await UpdateAdditionalCreditLimitAsync(additionalCredit.CustomerId, additionalCredit.AdditionalCreditLimit, cancellationToken);
 
                 AdditionalCreditApproval approval = new
                 (
@@ -199,17 +191,9 @@ public sealed class ManagementEventSyncWorker : BackgroundService
                     , additionalCredit.Reason
                 );
 
-                await this.persistence.SaveAdditionalCreditApprovalAsync
-                (
-                      approval
-                    , cancellationToken
-                );
+                await this.persistence.SaveAdditionalCreditApprovalAsync(approval, cancellationToken);
 
-                _ = await this.accountQuery.GetCurrentAsync
-                (
-                      additionalCredit.CustomerId
-                    , cancellationToken
-                )
+                _ = await this.accountQuery.GetCurrentAsync(additionalCredit.CustomerId, cancellationToken)
                     ?? throw new InvalidOperationException("Employee is not available in the local Cafeteria cache.");
 
                 break;
@@ -217,10 +201,7 @@ public sealed class ManagementEventSyncWorker : BackgroundService
 
             case CafeteriaServiceEventKind.Stipend:
             {
-                StipendServiceEvent stipendEvent = JsonSerializer.Deserialize<StipendServiceEvent>
-                (
-                    envelope.PayloadJson
-                )
+                StipendServiceEvent stipendEvent = JsonSerializer.Deserialize<StipendServiceEvent>(envelope.PayloadJson)
                     ?? throw new InvalidOperationException("Invalid Stipend event payload.");
 
                 Stipend stipend = new
@@ -234,19 +215,13 @@ public sealed class ManagementEventSyncWorker : BackgroundService
                     , stipendEvent.ProcessedAt
                     , stipendEvent.ExpenseReportReference
                     , stipendEvent.Notes
+                    , stipendEvent.FundingYear
+                    , stipendEvent.FundingMonth
                 );
 
-                await this.persistence.SaveStipendAsync
-                (
-                      stipend
-                    , cancellationToken
-                );
+                await this.persistence.SaveStipendAsync(stipend, cancellationToken);
 
-                _ = await this.accountQuery.GetCurrentAsync
-                (
-                      stipendEvent.CustomerId
-                    , cancellationToken
-                )
+                _ = await this.accountQuery.GetCurrentAsync(stipendEvent.CustomerId, cancellationToken)
                     ?? throw new InvalidOperationException("Employee is not available in the local Cafeteria cache.");
 
                 break;
@@ -254,10 +229,7 @@ public sealed class ManagementEventSyncWorker : BackgroundService
 
             case CafeteriaServiceEventKind.MonthlyAllocation:
             {
-                MonthlyAllocationServiceEvent monthlyAllocation = JsonSerializer.Deserialize<MonthlyAllocationServiceEvent>
-                (
-                    envelope.PayloadJson
-                )
+                MonthlyAllocationServiceEvent monthlyAllocation = JsonSerializer.Deserialize<MonthlyAllocationServiceEvent>(envelope.PayloadJson)
                     ?? throw new InvalidOperationException("Invalid Monthly Allocation event payload.");
 
                 MonthlyCreditAllocation allocation = new
@@ -272,29 +244,15 @@ public sealed class ManagementEventSyncWorker : BackgroundService
                     , monthlyAllocation.CalculatedAt
                 );
 
-                await this.persistence.SaveMonthlyCreditAllocationAsync
-                (
-                      allocation
-                    , cancellationToken
-                );
+                await this.persistence.SaveMonthlyCreditAllocationAsync(allocation, cancellationToken);
 
-                _ = await this.accountQuery.GetAsync
-                (
-                      monthlyAllocation.CustomerId
-                    , monthlyAllocation.Year
-                    , monthlyAllocation.Month
-                    , cancellationToken
-                );
-
+                _ = await this.accountQuery.GetAsync(monthlyAllocation.CustomerId, monthlyAllocation.Year, monthlyAllocation.Month, cancellationToken);
                 break;
             }
 
             case CafeteriaServiceEventKind.MonthlyAllocationRecalculation:
             {
-                MonthlyAllocationRecalculationServiceEvent recalculation = JsonSerializer.Deserialize<MonthlyAllocationRecalculationServiceEvent>
-                (
-                    envelope.PayloadJson
-                )
+                MonthlyAllocationRecalculationServiceEvent recalculation = JsonSerializer.Deserialize<MonthlyAllocationRecalculationServiceEvent>(envelope.PayloadJson)
                     ?? throw new InvalidOperationException("Invalid Monthly Allocation Recalculation event payload.");
 
                 MonthlyAllocationServiceEvent replacement = recalculation.ReplacementAllocation;
@@ -310,37 +268,37 @@ public sealed class ManagementEventSyncWorker : BackgroundService
                     , replacement.CalculatedAt
                 );
 
-                await ReplaceMonthlyCreditAllocationAsync
-                (
-                      allocation
-                    , cancellationToken
-                );
-
-                _ = await this.accountQuery.GetAsync
-                (
-                      replacement.CustomerId
-                    , replacement.Year
-                    , replacement.Month
-                    , cancellationToken
-                );
-
+                await ReplaceMonthlyCreditAllocationAsync(allocation, cancellationToken);
+                _ = await this.accountQuery.GetAsync(replacement.CustomerId, replacement.Year, replacement.Month, cancellationToken);
                 break;
             }
 
+            case CafeteriaServiceEventKind.AccountPeriodClose:
+            {
+                AccountPeriodCloseServiceEvent closeEvent = JsonSerializer.Deserialize<AccountPeriodCloseServiceEvent>(envelope.PayloadJson)
+                    ?? throw new InvalidOperationException("Invalid Account Period Close event payload.");
+
+                AccountPeriod period = new(closeEvent.Year, closeEvent.Month, closeEvent.WorkingDays);
+                AccountPeriodClose close = new
+                (
+                      closeEvent.OperationId
+                    , closeEvent.CustomerId
+                    , period
+                    , closeEvent.EmployeeAmountDue
+                    , closeEvent.ClosedBy
+                    , closeEvent.ClosedAt
+                );
+
+                await this.persistence.SaveAccountPeriodCloseAsync(close, cancellationToken);
+                break;
+            }
 
             case CafeteriaServiceEventKind.DevelopmentReset:
             {
-                DevelopmentResetServiceEvent developmentReset = JsonSerializer.Deserialize<DevelopmentResetServiceEvent>
-                (
-                    envelope.PayloadJson
-                )
+                DevelopmentResetServiceEvent developmentReset = JsonSerializer.Deserialize<DevelopmentResetServiceEvent>(envelope.PayloadJson)
                     ?? throw new InvalidOperationException("Invalid Development Reset event payload.");
 
-                await ResetLocalDevelopmentDataAsync
-                (
-                      developmentReset.PreserveProducts
-                    , cancellationToken
-                );
+                await ResetLocalDevelopmentDataAsync(developmentReset.PreserveProducts, cancellationToken);
 
                 this.logger.LogWarning
                 (
@@ -349,20 +307,15 @@ public sealed class ManagementEventSyncWorker : BackgroundService
                     , developmentReset.ResetAt
                     , developmentReset.PreserveProducts
                 );
-
                 break;
             }
 
             default:
             {
-                throw new InvalidOperationException
-                (
-                    $"Unsupported Cafeteria Services event kind {envelope.Kind}."
-                );
+                throw new InvalidOperationException($"Unsupported Cafeteria Services event kind {envelope.Kind}.");
             }
         }
     }
-
 
     private async Task ResetLocalDevelopmentDataAsync
     (
