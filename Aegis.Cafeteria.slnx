@@ -14,4 +14,11 @@
     <Project Path="Aegis.Cafeteria.Tests/Aegis.Cafeteria.PersistenceTests/Aegis.Cafeteria.PersistenceTests.csproj" />
     <Project Path="Aegis.Cafeteria.Tests/Aegis.Cafeteria.ReportingTests/Aegis.Cafeteria.ReportingTests.csproj" />
   </Folder>
+  <Folder Name="/Common/">
+    <Project Path="../Common/Common.Security/Common.Security.csproj" />
+    <Project Path="../Common/Common.Diagnostics/Common.Diagnostics.csproj" />
+    <Project Path="../Common/Common.Secrets/Common.Secrets.csproj" />
+    <Project Path="../Common/Common.Messaging/Common.Messaging.csproj" />
+    <Project Path="../Common/Common.Storage/Common.Storage.csproj" />
+  </Folder>
 </Solution>
