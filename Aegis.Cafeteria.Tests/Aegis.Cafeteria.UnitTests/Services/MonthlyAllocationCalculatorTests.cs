@@ -24,4 +24,25 @@ public sealed class MonthlyAllocationCalculatorTests
             .Count(d=>d.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday && !holidays.Contains(d));
         Assert.Equal(expected, sut.CountWorkingDays(2026, 8, holidays));
     }
+
+    [Fact]
+    public void CountWorkingDays_CurrentMonthStarter_CountsOnlyRemainingEligibleDays()
+    {
+        var sut = new MonthlyAllocationCalculator();
+        var startDate = new DateOnly(2026, 9, 14);
+        var holidays = new[] { new DateOnly(2026, 9, 21) };
+
+        var expected = Enumerable.Range(startDate.Day, DateTime.DaysInMonth(2026, 9) - startDate.Day + 1)
+            .Select(day => new DateOnly(2026, 9, day))
+            .Count(date => date.DayOfWeek is not DayOfWeek.Saturday and not DayOfWeek.Sunday && !holidays.Contains(date));
+
+        Assert.Equal(expected, sut.CountWorkingDays(2026, 9, holidays, startDate));
+    }
+
+    [Fact]
+    public void CountWorkingDays_EmployeeStartingAfterMonth_ReturnsZero()
+    {
+        var sut = new MonthlyAllocationCalculator();
+        Assert.Equal(0, sut.CountWorkingDays(2026, 9, Array.Empty<DateOnly>(), new DateOnly(2026, 10, 1)));
+    }
 }
