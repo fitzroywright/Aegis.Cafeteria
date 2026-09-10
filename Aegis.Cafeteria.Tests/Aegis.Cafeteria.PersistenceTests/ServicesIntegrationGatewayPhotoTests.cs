@@ -16,9 +16,9 @@ public sealed class ServicesIntegrationGatewayPhotoTests
         (
             new StubHandler
             (
-                async (request, cancellationToken) =>
+                (request, cancellationToken) =>
                 {
-                    Assert.EndsWith("api/ffp/customers", request.RequestUri?.AbsoluteUri, StringComparison.OrdinalIgnoreCase);
+                    Assert.True(request.RequestUri?.AbsoluteUri.EndsWith("api/ffp/customers", StringComparison.OrdinalIgnoreCase) == true);
                     requests++;
                     ExternalCustomerSnapshot[] response =
                     [
@@ -30,10 +30,13 @@ public sealed class ServicesIntegrationGatewayPhotoTests
                             , Photo = requests == 1 ? null : expectedPhoto
                         }
                     ];
-                    return new HttpResponseMessage(HttpStatusCode.OK)
-                    {
-                        Content = JsonContent.Create(response)
-                    };
+                    return Task.FromResult
+                    (
+                        new HttpResponseMessage(HttpStatusCode.OK)
+                        {
+                            Content = JsonContent.Create(response)
+                        }
+                    );
                 }
             )
         )
@@ -57,7 +60,7 @@ public sealed class ServicesIntegrationGatewayPhotoTests
         (
             new StubHandler
             (
-                async (request, cancellationToken) =>
+                (request, cancellationToken) =>
                 {
                     requests++;
                     ExternalCustomerSnapshot[] response =
@@ -70,10 +73,13 @@ public sealed class ServicesIntegrationGatewayPhotoTests
                             , Photo = [1, 2, 3]
                         }
                     ];
-                    return new HttpResponseMessage(HttpStatusCode.OK)
-                    {
-                        Content = JsonContent.Create(response)
-                    };
+                    return Task.FromResult
+                    (
+                        new HttpResponseMessage(HttpStatusCode.OK)
+                        {
+                            Content = JsonContent.Create(response)
+                        }
+                    );
                 }
             )
         )
