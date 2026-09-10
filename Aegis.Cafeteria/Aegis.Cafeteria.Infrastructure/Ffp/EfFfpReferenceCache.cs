@@ -21,6 +21,7 @@ public sealed class EfFfpReferenceCache(
         HashSet<int> sourceIds = employees.Select(employee => employee.CustomerId).ToHashSet();
         foreach (CustomerRow stale in allCustomers.Where(customer => !sourceIds.Contains(customer.Id)))
         {
+            stale.IsActive = false;
             stale.IsEligibleForCredit = false;
             stale.Revision = now.UtcDateTime.Ticks;
             stale.UpdatedAt = now;
@@ -48,6 +49,8 @@ public sealed class EfFfpReferenceCache(
             {
                 row.Photo = employee.Photo;
             }
+            row.IsActive = employee.IsActive;
+            row.EmploymentStartDate = employee.EmploymentStartDate;
             row.IsEligibleForCredit = employee.IsActive && employee.IsEligibleForCafeteriaCredit;
             row.AdditionalCreditLimit = employee.AdditionalCreditLimit;
             row.Revision = now.UtcDateTime.Ticks;
