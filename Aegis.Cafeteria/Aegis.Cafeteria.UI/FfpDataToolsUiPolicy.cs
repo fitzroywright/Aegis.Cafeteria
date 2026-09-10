@@ -63,6 +63,24 @@ internal static class FfpDataToolsUiPolicy
         IProductCatalogMaintenance maintenance = services.GetRequiredService<IProductCatalogMaintenance>();
         using FfpDataToolsDialog dialog = new(maintenance);
         dialog.ShowDialog(mainForm);
+        await RefreshMainProductGridAsync(mainForm);
+    }
+
+    private static async Task RefreshMainProductGridAsync(MainForm mainForm)
+    {
+        MethodInfo? loadProducts = typeof(MainForm).GetMethod
+        (
+              "LoadProductsAsync"
+            , BindingFlags.Instance | BindingFlags.NonPublic
+            , binder: null
+            , types: [typeof(string)]
+            , modifiers: null
+        );
+
+        if (loadProducts?.Invoke(mainForm, [null]) is Task task)
+        {
+            await task;
+        }
     }
 
     private static void HideDataTools(CafeteriaAdministrationDialog dialog)
