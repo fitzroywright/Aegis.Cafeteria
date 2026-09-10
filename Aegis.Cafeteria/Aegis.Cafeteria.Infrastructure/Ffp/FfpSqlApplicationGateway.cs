@@ -213,7 +213,8 @@ SELECT @DeletedLedgerEntries, @@ROWCOUNT;";
         EnsureEnabled();
         EnsureWritesEnabled();
 
-        using CancellationTokenSource publicationTimeout = new(TimeSpan.FromSeconds(30));
+        int timeoutSeconds = Math.Clamp(options.PublicationTimeoutSeconds, 15, 600);
+        using CancellationTokenSource publicationTimeout = new(TimeSpan.FromSeconds(timeoutSeconds));
         CancellationToken durableToken = publicationTimeout.Token;
 
         await using SqlConnection connection = new(options.ConnectionString);
@@ -222,6 +223,7 @@ SELECT @DeletedLedgerEntries, @@ROWCOUNT;";
         try
         {
             await using SqlCommand command = new(@"
+SET XACT_ABORT ON;
 IF NOT EXISTS (SELECT 1 FROM EmployeeIDScans WITH (UPDLOCK, HOLDLOCK) WHERE TransmissionID = @TransmissionID)
 BEGIN
     INSERT INTO EmployeeIDScans
@@ -237,7 +239,10 @@ BEGIN
        SET CreditLimit = @CreditLimit,
            AvailableBalance = @AvailableBalance
      WHERE ID = @EmployeeID;
-END", connection, transaction);
+END", connection, transaction)
+            {
+                CommandTimeout = timeoutSeconds
+            };
             command.Parameters.AddWithValue("@TransmissionID", entry.OperationId.ToString());
             command.Parameters.AddWithValue("@EmployeeID", entry.CustomerId);
             command.Parameters.AddWithValue("@Description", entry.Description);
@@ -264,6 +269,60 @@ END", connection, transaction);
                 , entry.ScanValue
                 , entry.AvailableBalance
             );
+        }
+        catch (SqlException exception) when (publicationTimeout.IsCancellationRequested)
+        {
+            try
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+            }
+            catch (Exception rollbackException)
+            {
+                logger.LogError(rollbackException, "Rollback failed for timed-out FFP ledger entry {OperationId}", entry.OperationId);
+            }
+
+            logger.LogError
+            (
+                  exception
+                , "FFP ledger publication {OperationId} for employee {EmployeeId} exceeded {TimeoutSeconds}s. SQL Number={SqlNumber}; State={SqlState}; Procedure={SqlProcedure}; Line={SqlLine}"
+                , entry.OperationId
+                , entry.CustomerId
+                , timeoutSeconds
+                , exception.Number
+                , exception.State
+                , exception.Procedure
+                , exception.LineNumber
+            );
+
+            throw new TimeoutException
+            (
+                $"FFP ledger publication exceeded {timeoutSeconds} seconds. Check SQL Server blocking/locks and the EmployeeIDScans TransmissionID lookup.",
+                exception
+            );
+        }
+        catch (SqlException exception)
+        {
+            try
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+            }
+            catch (Exception rollbackException)
+            {
+                logger.LogError(rollbackException, "Rollback failed for FFP ledger entry {OperationId}", entry.OperationId);
+            }
+
+            logger.LogError
+            (
+                  exception
+                , "FFP SQL error publishing ledger entry {OperationId} for employee {EmployeeId}. SQL Number={SqlNumber}; State={SqlState}; Procedure={SqlProcedure}; Line={SqlLine}"
+                , entry.OperationId
+                , entry.CustomerId
+                , exception.Number
+                , exception.State
+                , exception.Procedure
+                , exception.LineNumber
+            );
+            throw;
         }
         catch
         {
