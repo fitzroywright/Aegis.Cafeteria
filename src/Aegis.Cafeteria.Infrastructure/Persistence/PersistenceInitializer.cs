@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 /// <summary>
 /// Initializes only the local POS SQLite database. Financial schema mismatches are rejected.
-/// Additive FFP customer-directory cache fields and imported legacy history may be added in place
+/// Additive FFP customer-directory cache fields, transaction identification metadata and imported legacy history may be added in place
 /// because they do not rewrite native Aegis financial transactions.
 /// </summary>
 public sealed class PersistenceInitializer(
@@ -37,6 +37,7 @@ public sealed class PersistenceInitializer(
         {
             await ValidateExistingDatabaseIsCurrentAsync(db, ct);
             await EnsureCustomerDirectoryColumnsAsync(db, ct);
+            await EnsureOrderIdentificationColumnsAsync(db, ct);
             await EnsureFfpImportedTransactionsTableAsync(db, ct);
         }
 
@@ -97,6 +98,25 @@ public sealed class PersistenceInitializer(
         {
             await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Customers\" ADD COLUMN \"Extension\" TEXT NOT NULL DEFAULT '';", ct);
         }
+    }
+
+    private static async Task EnsureOrderIdentificationColumnsAsync(LocalCafeteriaDbContext db, CancellationToken ct)
+    {
+        HashSet<string> orderColumns = await ReadColumnsAsync(db, "Orders", ct);
+
+        if (!orderColumns.Contains("IDMethod"))
+        {
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Orders\" ADD COLUMN \"IDMethod\" INTEGER NULL;", ct);
+        }
+
+        if (!orderColumns.Contains("IdentificationCode"))
+        {
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Orders\" ADD COLUMN \"IdentificationCode\" TEXT NULL;", ct);
+        }
+
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE INDEX IF NOT EXISTS \"IX_Orders_IDMethod_CompletedAt\" ON \"Orders\" (\"IDMethod\", \"CompletedAt\");",
+            ct);
     }
 
     private static async Task<bool> DatabaseContainsAnyUserTableAsync(
