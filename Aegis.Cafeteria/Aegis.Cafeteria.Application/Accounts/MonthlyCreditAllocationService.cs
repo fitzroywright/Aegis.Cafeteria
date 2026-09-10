@@ -9,6 +9,7 @@ using Aegis.Cafeteria.Domain.Customers;
 /// Creates immutable monthly funding once per month.
 /// Credit limit = eligible working days x configured credit-limit LunchItem.Price (default FFP00).
 /// Subsidy = eligible working days x configured subsidy LunchItem.Cost (default FFP00), capped at the credit limit.
+/// Current-month starters are prorated from their employment start date and inactive employees receive no credit.
 /// </summary>
 public sealed class MonthlyCreditAllocationService(
     IWorkingDayProvider workingDayProvider,
@@ -22,11 +23,11 @@ public sealed class MonthlyCreditAllocationService(
     {
         ArgumentNullException.ThrowIfNull(customer);
 
-        if (!customer.IsEligibleForCredit)
+        if (!customer.IsActive || !customer.IsEligibleForCredit)
             return new MonthlyCreditAllocation(customer.Id, year, month, 0, false, 0m, 0m, DateTimeOffset.UtcNow);
 
-        var allowLocalExecution = executionPolicy?.AllowLocalCalculation ?? true;
-        var existing = await allocationStore.GetAsync(customer.Id, year, month, cancellationToken);
+        bool allowLocalExecution = executionPolicy?.AllowLocalCalculation ?? true;
+        MonthlyCreditAllocation? existing = await allocationStore.GetAsync(customer.Id, year, month, cancellationToken);
         if (existing is not null)
         {
             if (allowLocalExecution && externalProjection is not null)
@@ -37,14 +38,28 @@ public sealed class MonthlyCreditAllocationService(
         if (!allowLocalExecution)
             return new MonthlyCreditAllocation(customer.Id, year, month, 0, true, 0m, 0m, DateTimeOffset.UtcNow);
 
-        var workingDays = await workingDayProvider.GetWorkingDaysAsync(year, month, cancellationToken);
-        var policy = await policyProvider.GetAsync(cancellationToken);
+        int workingDays = await workingDayProvider.GetWorkingDaysAsync(
+            year,
+            month,
+            customer.EmploymentStartDate,
+            cancellationToken);
+
+        if (workingDays <= 0)
+            return new MonthlyCreditAllocation(customer.Id, year, month, 0, false, 0m, 0m, DateTimeOffset.UtcNow);
+
+        CafeteriaRatePolicy? policy = await policyProvider.GetAsync(cancellationToken);
         if (policy is null)
             return new MonthlyCreditAllocation(customer.Id, year, month, workingDays, false, 0m, 0m, DateTimeOffset.UtcNow);
 
-        var allocation = (calculator ?? new MonthlyAllocationCalculator()).Calculate(
-            customer.Id, year, month, workingDays, true,
-            policy.CreditLimitPrice, policy.SubsidyCost, DateTimeOffset.UtcNow);
+        MonthlyCreditAllocation allocation = (calculator ?? new MonthlyAllocationCalculator()).Calculate(
+            customer.Id,
+            year,
+            month,
+            workingDays,
+            true,
+            policy.CreditLimitPrice,
+            policy.SubsidyCost,
+            DateTimeOffset.UtcNow);
 
         await allocationStore.SaveAsync(allocation, cancellationToken);
         if (externalProjection is not null)
