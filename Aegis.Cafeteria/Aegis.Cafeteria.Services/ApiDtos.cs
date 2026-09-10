@@ -22,6 +22,8 @@ public sealed record StipendRequest(
     string? ExpenseReportReference = null,
     string? Notes = null,
     DateTimeOffset? ProcessedAt = null,
-    Guid? OperationId = null);
+    Guid? OperationId = null,
+    int? FundingYear = null,
+    int? FundingMonth = null);
 
 public sealed record CustomerCreditPolicyRequest(decimal AdditionalCreditLimit);
