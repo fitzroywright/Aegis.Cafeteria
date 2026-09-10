@@ -15,6 +15,8 @@ public sealed class FfpLedgerOutboxRow
     public string ScanCode { get; set; } = "AEGIS";
     public string UserName { get; set; } = "SYSTEM";
     public string? IdName { get; set; }
+    public string? Code { get; set; }
+    public string CreatedBy { get; set; } = "SYSTEM";
     public FfpOutboxState State { get; set; }
     public int AttemptCount { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
