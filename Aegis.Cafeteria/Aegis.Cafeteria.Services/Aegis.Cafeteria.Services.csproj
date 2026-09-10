@@ -3,14 +3,15 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <CommonRoot Condition="'$(CommonRoot)' == ''">$(MSBuildThisFileDirectory)..\..\..\Common</CommonRoot>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Aegis.Cafeteria.Domain\Aegis.Cafeteria.Domain.csproj" />
     <ProjectReference Include="..\Aegis.Cafeteria.Application\Aegis.Cafeteria.Application.csproj" />
     <ProjectReference Include="..\Aegis.Cafeteria.Infrastructure\Aegis.Cafeteria.Infrastructure.csproj" />
+    <ProjectReference Include="$(CommonRoot)\Common.Diagnostics\Common.Diagnostics.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Common.Diagnostics" Version="1.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
