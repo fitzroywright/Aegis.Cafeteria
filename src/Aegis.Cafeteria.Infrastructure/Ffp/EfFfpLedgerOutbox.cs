@@ -16,7 +16,7 @@ public sealed class EfFfpLedgerOutbox(IDbContextFactory<LocalCafeteriaDbContext>
             OperationId=entry.OperationId, EmployeeId=entry.CustomerId, Kind=(int)entry.Kind,
             OccurredAt=entry.OccurredAt, Description=entry.Description, ScanValue=entry.ScanValue,
             CreditLimit=entry.CreditLimit, AvailableBalance=entry.AvailableBalance, ScanCode=entry.ScanCode,
-            UserName=entry.UserName, IdName=entry.IdName,
+            UserName=entry.UserName, IdName=entry.IdName, Code=entry.Code, CreatedBy=entry.CreatedBy,
             State=FfpOutboxState.Pending, CreatedAt=DateTimeOffset.UtcNow
         });
         await db.SaveChangesAsync(cancellationToken);
