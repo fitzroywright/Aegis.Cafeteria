@@ -70,10 +70,20 @@ public sealed class ManagementCommonSecurityStartupFilter
 
     private bool TryApplySession(HttpContext context, string headerName, bool requireManager)
     {
-        if (!context.Request.Headers.TryGetValue(headerName, out var supplied)
-            || supplied.Count != 1
-            || !tokens.TryGet(supplied[0]!, out ManagementServiceTokenSession? session)
-            || (requireManager && !session.IsManager))
+        if (!context.Request.Headers.TryGetValue(headerName, out var supplied) || supplied.Count != 1)
+        {
+            return false;
+        }
+
+        string? token = supplied[0];
+        if (string.IsNullOrWhiteSpace(token)
+            || !tokens.TryGet(token, out ManagementServiceTokenSession? session)
+            || session is null)
+        {
+            return false;
+        }
+
+        if (requireManager && !session.IsManager)
         {
             return false;
         }
