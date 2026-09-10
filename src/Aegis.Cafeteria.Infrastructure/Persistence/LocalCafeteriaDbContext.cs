@@ -17,6 +17,8 @@ public sealed class LocalCafeteriaDbContext(DbContextOptions<LocalCafeteriaDbCon
         b.Entity<FfpLedgerOutboxRow>().Property(x => x.ScanCode).HasMaxLength(50);
         b.Entity<FfpLedgerOutboxRow>().Property(x => x.UserName).HasMaxLength(128);
         b.Entity<FfpLedgerOutboxRow>().Property(x => x.IdName).HasMaxLength(128);
+        b.Entity<FfpLedgerOutboxRow>().Property(x => x.Code).HasMaxLength(256);
+        b.Entity<FfpLedgerOutboxRow>().Property(x => x.CreatedBy).HasMaxLength(128);
         b.Entity<FfpLedgerOutboxRow>().Property(x => x.LastError).HasMaxLength(2000);
 
         b.Entity<FfpImportedTransactionRow>().ToTable("FfpImportedTransactions");
