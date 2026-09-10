@@ -29,6 +29,7 @@ public sealed class FfpEmployeeRefreshIntegrationTests
                     {
                           CustomerId = 101
                         , Name = "Jane Doe"
+                        , IsActive = true
                         , IsEligibleForCafeteriaCredit = true
                         , Nfc = "nfc"
                         , Code = "code"
@@ -47,6 +48,44 @@ public sealed class FfpEmployeeRefreshIntegrationTests
             Assert.Equal("Jane Doe", customer.Name);
             Assert.Equal(photo, customer.Photo);
             Assert.Null(verify.Model.FindEntityType("Aegis.Cafeteria.Infrastructure.Persistence.Models.CustomerFundingProfileRow"));
+        }
+        finally
+        {
+            SqliteTestDatabase.Delete(file);
+        }
+    }
+
+    [Fact]
+    public async Task Refresh_InactiveEmployee_IsNotEligibleForCredit()
+    {
+        string file = SqliteTestDatabase.CreatePath("ffp-inactive-refresh");
+        try
+        {
+            CafeteriaPersistenceOptions options = new() { LocalSqliteConnectionString = $"Data Source={file}" };
+            LocalDbContextFactory factory = new(DbContextOptionsFactory.CreateLocal(options));
+            await using (LocalCafeteriaDbContext db = factory.CreateDbContext()) await db.Database.EnsureCreatedAsync();
+
+            EfFfpReferenceCache cache = new(factory);
+            EfCustomerReferenceCacheStatus health = new(factory);
+            StubSource source = new
+            (
+                [
+                    new ExternalCustomerSnapshot
+                    {
+                          CustomerId = 202
+                        , Name = "Inactive Employee"
+                        , IsActive = false
+                        , IsEligibleForCafeteriaCredit = true
+                    }
+                ]
+            );
+            ReferenceDataRefreshService service = new(source, cache, health, NullLogger<ReferenceDataRefreshService>.Instance);
+
+            await service.RefreshCustomersAsync();
+
+            await using LocalCafeteriaDbContext verify = factory.CreateDbContext();
+            var customer = Assert.Single(await verify.Customers.ToListAsync());
+            Assert.False(customer.IsEligibleForCredit);
         }
         finally
         {
