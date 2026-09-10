@@ -46,7 +46,12 @@ public static class DomainReadMapper
             .OrderBy(p => p.RecordedAt)
             .Select(p => new OrderPayment(p.Id, (PaymentMethod)p.Method, p.Amount, p.RecordedAt))
             .ToArray();
-        order.Complete(payments, x.CompletedAt.Value, x.CashierUserId ?? "legacy", x.TerminalId ?? "legacy");
+        order.Complete(
+            payments,
+            x.CompletedAt.Value,
+            x.CashierUserId ?? "legacy",
+            x.TerminalId ?? "legacy",
+            x.CashierName ?? x.CashierUserId ?? "legacy");
 
         foreach (var refundRow in x.Refunds.OrderBy(r => r.RefundedAt))
         {
