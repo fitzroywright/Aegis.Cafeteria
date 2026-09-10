@@ -1,7 +1,10 @@
 namespace Aegis.Cafeteria.Services.Persistence;
 
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +12,8 @@ using Microsoft.EntityFrameworkCore;
 public sealed class AuditTrailService
 {
     private static readonly SemaphoreSlim initializationLock = new(1, 1);
-    private static bool initialized;
+    private static readonly SemaphoreSlim appendLock = new(1, 1);
+    private static readonly ConcurrentDictionary<string, byte> initializedDatabases = new(StringComparer.Ordinal);
 
     private readonly IDbContextFactory<ServiceDbContext> factory;
     private readonly CafeteriaLoggingOptions loggingOptions;
@@ -49,41 +53,102 @@ public sealed class AuditTrailService
     )
     {
         await EnsureTableAsync(cancellationToken);
+        await appendLock.WaitAsync(cancellationToken);
 
-        AuditTrailRow row = new()
+        try
         {
-              OccurredAt = DateTimeOffset.UtcNow
-            , Actor = NormalizeActor(actor)
-            , Action = action.Trim()
-            , EntityType = entityType.Trim()
-            , EntityId = NullIfWhiteSpace(entityId)
-            , CustomerId = customerId
-            , OperationId = operationId
-            , Source = source.Trim()
-            , TerminalId = NullIfWhiteSpace(terminalId)
-            , CorrelationId = NullIfWhiteSpace(correlationId)
-            , Succeeded = succeeded
-            , StatusCode = statusCode
-            , BeforeJson = SerializeSafe(before)
-            , AfterJson = SerializeSafe(after)
-            , Detail = Truncate(detail, 2000)
-        };
+            await using ServiceDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
+            AuditTrailRow? previous = await database.AuditTrail
+                .AsNoTracking()
+                .Where(row => row.Hash != null)
+                .OrderByDescending(row => row.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            AuditTrailRow row = new()
+            {
+                  OccurredAt = DateTimeOffset.UtcNow
+                , Actor = NormalizeActor(actor)
+                , Action = action.Trim()
+                , EntityType = entityType.Trim()
+                , EntityId = NullIfWhiteSpace(entityId)
+                , CustomerId = customerId
+                , OperationId = operationId
+                , Source = source.Trim()
+                , TerminalId = NullIfWhiteSpace(terminalId)
+                , CorrelationId = NullIfWhiteSpace(correlationId)
+                , Succeeded = succeeded
+                , StatusCode = statusCode
+                , BeforeJson = SerializeSafe(before)
+                , AfterJson = SerializeSafe(after)
+                , Detail = Truncate(detail, 2000)
+                , PreviousHash = previous?.Hash
+            };
+
+            row.Hash = ComputeHash(row);
+            database.AuditTrail.Add(row);
+            await database.SaveChangesAsync(cancellationToken);
+
+            if (this.loggingOptions.GraylogEnabled)
+            {
+                _ = SendToGraylogAsync(row);
+            }
+
+            return row;
+        }
+        finally
+        {
+            appendLock.Release();
+        }
+    }
+
+    public async Task<AuditIntegrityResult> VerifyIntegrityAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureTableAsync(cancellationToken);
 
         await using ServiceDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
-        database.AuditTrail.Add(row);
-        await database.SaveChangesAsync(cancellationToken);
+        AuditTrailRow[] rows = await database.AuditTrail
+            .AsNoTracking()
+            .OrderBy(row => row.Id)
+            .ToArrayAsync(cancellationToken);
 
-        if (this.loggingOptions.GraylogEnabled)
+        string? previousHash = null;
+        int legacyRows = 0;
+        int verifiedRows = 0;
+
+        foreach (AuditTrailRow row in rows)
         {
-            _ = SendToGraylogAsync(row);
+            if (string.IsNullOrWhiteSpace(row.Hash))
+            {
+                legacyRows++;
+                continue;
+            }
+
+            if (!string.Equals(row.PreviousHash, previousHash, StringComparison.Ordinal))
+            {
+                return new AuditIntegrityResult(false, verifiedRows, legacyRows, row.Id, "Previous hash does not match the preceding chained audit row.");
+            }
+
+            string expectedHash = ComputeHash(row);
+            if (!string.Equals(row.Hash, expectedHash, StringComparison.OrdinalIgnoreCase))
+            {
+                return new AuditIntegrityResult(false, verifiedRows, legacyRows, row.Id, "Audit row hash does not match its persisted content.");
+            }
+
+            previousHash = row.Hash;
+            verifiedRows++;
         }
 
-        return row;
+        return new AuditIntegrityResult(true, verifiedRows, legacyRows, null, null);
     }
 
     private async Task EnsureTableAsync(CancellationToken cancellationToken)
     {
-        if (initialized)
+        await using ServiceDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
+        string databaseKey = database.Database.GetConnectionString()
+            ?? database.Database.GetDbConnection().DataSource
+            ?? "default";
+
+        if (initializedDatabases.ContainsKey(databaseKey))
         {
             return;
         }
@@ -91,12 +156,11 @@ public sealed class AuditTrailService
         await initializationLock.WaitAsync(cancellationToken);
         try
         {
-            if (initialized)
+            if (initializedDatabases.ContainsKey(databaseKey))
             {
                 return;
             }
 
-            await using ServiceDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
             await database.Database.ExecuteSqlRawAsync
             (
                 @"CREATE TABLE IF NOT EXISTS AuditTrail (
@@ -116,20 +180,76 @@ public sealed class AuditTrailService
                     , BeforeJson TEXT NULL
                     , AfterJson TEXT NULL
                     , Detail TEXT NULL
-                );
-                CREATE INDEX IF NOT EXISTS IX_AuditTrail_OccurredAt ON AuditTrail (OccurredAt);
-                CREATE INDEX IF NOT EXISTS IX_AuditTrail_Actor ON AuditTrail (Actor);
-                CREATE INDEX IF NOT EXISTS IX_AuditTrail_EntityType_EntityId ON AuditTrail (EntityType, EntityId);
-                CREATE INDEX IF NOT EXISTS IX_AuditTrail_CustomerId ON AuditTrail (CustomerId);
-                CREATE INDEX IF NOT EXISTS IX_AuditTrail_OperationId ON AuditTrail (OperationId);",
+                    , PreviousHash TEXT NULL
+                    , Hash TEXT NULL
+                );",
                 cancellationToken
             );
 
-            initialized = true;
+            await EnsureColumnAsync(database, "PreviousHash", "TEXT NULL", cancellationToken);
+            await EnsureColumnAsync(database, "Hash", "TEXT NULL", cancellationToken);
+
+            await database.Database.ExecuteSqlRawAsync
+            (
+                @"CREATE INDEX IF NOT EXISTS IX_AuditTrail_OccurredAt ON AuditTrail (OccurredAt);
+                CREATE INDEX IF NOT EXISTS IX_AuditTrail_Actor ON AuditTrail (Actor);
+                CREATE INDEX IF NOT EXISTS IX_AuditTrail_EntityType_EntityId ON AuditTrail (EntityType, EntityId);
+                CREATE INDEX IF NOT EXISTS IX_AuditTrail_CustomerId ON AuditTrail (CustomerId);
+                CREATE INDEX IF NOT EXISTS IX_AuditTrail_OperationId ON AuditTrail (OperationId);
+                CREATE UNIQUE INDEX IF NOT EXISTS IX_AuditTrail_Hash ON AuditTrail (Hash) WHERE Hash IS NOT NULL;",
+                cancellationToken
+            );
+
+            initializedDatabases[databaseKey] = 1;
         }
         finally
         {
             initializationLock.Release();
+        }
+    }
+
+    private static async Task EnsureColumnAsync
+    (
+          ServiceDbContext database
+        , string columnName
+        , string definition
+        , CancellationToken cancellationToken
+    )
+    {
+        System.Data.Common.DbConnection connection = database.Database.GetDbConnection();
+        bool closeWhenDone = connection.State != System.Data.ConnectionState.Open;
+        if (closeWhenDone)
+        {
+            await connection.OpenAsync(cancellationToken);
+        }
+
+        try
+        {
+            bool exists = false;
+            await using System.Data.Common.DbCommand command = connection.CreateCommand();
+            command.CommandText = "PRAGMA table_info(AuditTrail);";
+            await using System.Data.Common.DbDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                if (string.Equals(reader.GetString(1), columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    exists = true;
+                    break;
+                }
+            }
+
+            if (!exists)
+            {
+                await reader.DisposeAsync();
+                await database.Database.ExecuteSqlRawAsync($"ALTER TABLE AuditTrail ADD COLUMN {columnName} {definition};", cancellationToken);
+            }
+        }
+        finally
+        {
+            if (closeWhenDone)
+            {
+                await connection.CloseAsync();
+            }
         }
     }
 
@@ -161,6 +281,8 @@ public sealed class AuditTrailService
                 , ["_before"] = row.BeforeJson
                 , ["_after"] = row.AfterJson
                 , ["_detail"] = row.Detail
+                , ["_previous_hash"] = row.PreviousHash
+                , ["_hash"] = row.Hash
             };
 
             byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(payload);
@@ -175,6 +297,33 @@ public sealed class AuditTrailService
         {
             // The database audit row is authoritative. Graylog availability must never affect the transaction.
         }
+    }
+
+    private static string ComputeHash(AuditTrailRow row)
+    {
+        string canonical = string.Join
+        (
+            "\u001f",
+            row.PreviousHash ?? string.Empty,
+            row.OccurredAt.ToUniversalTime().ToString("O", System.Globalization.CultureInfo.InvariantCulture),
+            row.Actor,
+            row.Action,
+            row.EntityType,
+            row.EntityId ?? string.Empty,
+            row.CustomerId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+            row.OperationId?.ToString("D") ?? string.Empty,
+            row.Source,
+            row.TerminalId ?? string.Empty,
+            row.CorrelationId ?? string.Empty,
+            row.Succeeded ? "1" : "0",
+            row.StatusCode?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty,
+            row.BeforeJson ?? string.Empty,
+            row.AfterJson ?? string.Empty,
+            row.Detail ?? string.Empty
+        );
+
+        byte[] bytes = SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
+        return Convert.ToHexString(bytes);
     }
 
     private static string NormalizeActor(string actor)
@@ -208,3 +357,12 @@ public sealed class AuditTrailService
         return value[..maximumLength];
     }
 }
+
+public sealed record AuditIntegrityResult
+(
+      bool IsValid
+    , int VerifiedRows
+    , int LegacyRows
+    , long? FirstInvalidAuditId
+    , string? Error
+);
