@@ -33,8 +33,8 @@ public sealed class EfCustomerIdentificationService(
         };
         CustomerIdentificationContext context = new(method, value.Trim());
 
-        // An exact identifier hit supersedes any pending name-search selection context.
-        this.identificationContexts.TryRemove(customerId.Value, out _);
+        // An exact identifier hit supersedes the entire pending name-search candidate set.
+        this.identificationContexts.Clear();
         CustomerAccountView? account = await accountQuery.GetCurrentAsync(customerId.Value, cancellationToken);
         return account is null ? null : account with { Identification = context };
     }
@@ -78,8 +78,8 @@ public sealed class EfCustomerIdentificationService(
             .Where(x => matchedIds.Contains(x.Id))
             .ToListAsync(cancellationToken);
 
-        // A cashier must confirm a name-search candidate before LoadAsync is called. The context
-        // is consumed exactly once by LoadAsync so it cannot leak into a later transaction.
+        // A cashier must confirm one candidate before LoadAsync is called. The whole pending set
+        // is consumed by that one selection so another candidate cannot leak into a later sale.
         foreach (int customerId in matchedIds)
         {
             this.identificationContexts[customerId] = new CustomerIdentificationContext(IDMethod.Name, "NAME SEARCH");
@@ -105,7 +105,10 @@ public sealed class EfCustomerIdentificationService(
     {
         CustomerAccountView? account = await accountQuery.GetCurrentAsync(customerId, cancellationToken);
         if (account is null) return null;
-        return this.identificationContexts.TryRemove(customerId, out CustomerIdentificationContext? context)
+
+        bool identifiedByName = this.identificationContexts.TryGetValue(customerId, out CustomerIdentificationContext? context);
+        this.identificationContexts.Clear();
+        return identifiedByName
             ? account with { Identification = context }
             : account;
     }
