@@ -79,5 +79,7 @@ public static class AuditTrailEndpoints
                 return Results.Ok(query.Take(limit).ToArray());
             }
         ).RequireAuthorization("CafeteriaManagement");
+
+        AccountPeriodCloseEndpoints.Map(application);
     }
 }
