@@ -129,7 +129,11 @@ public sealed class PdfReportExporter : IReportExporter
 
     private static string FormatRow(string[] values, int[] widths)
     {
-        var cells = values.Select((value, i) => (value ?? string.Empty).Length > widths[i] ? value[..widths[i]] : (value ?? string.Empty).PadRight(widths[i]));
+        var cells = values.Select((value, i) =>
+        {
+            string text = value ?? string.Empty;
+            return text.Length > widths[i] ? text[..widths[i]] : text.PadRight(widths[i]);
+        });
         return string.Join(" ", cells).TrimEnd();
     }
 
