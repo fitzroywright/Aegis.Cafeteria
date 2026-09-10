@@ -42,6 +42,7 @@ public sealed class Order
     public string? VoidedBy { get; private set; }
     public string? VoidReason { get; private set; }
     public string? CashierUserId { get; private set; }
+    public string? CashierName { get; private set; }
     public string? TerminalId { get; private set; }
 
     public IReadOnlyCollection<OrderItem> Items => this.items.AsReadOnly();
@@ -91,9 +92,14 @@ public sealed class Order
     }
 
     public void Complete(IEnumerable<OrderPayment> payments, DateTimeOffset completedAt)
-        => Complete(payments, completedAt, "system", "unknown");
+        => Complete(payments, completedAt, "system", "unknown", "system");
 
-    public void Complete(IEnumerable<OrderPayment> payments, DateTimeOffset completedAt, string cashierUserId, string terminalId)
+    public void Complete(
+        IEnumerable<OrderPayment> payments,
+        DateTimeOffset completedAt,
+        string cashierUserId,
+        string terminalId,
+        string? cashierName = null)
     {
         if (Status != OrderStatus.Submitted)
             throw new InvalidOperationException("Only a submitted order can be completed.");
@@ -114,6 +120,7 @@ public sealed class Order
         Status = OrderStatus.Completed;
         CompletedAt = completedAt;
         CashierUserId = cashierUserId.Trim();
+        CashierName = string.IsNullOrWhiteSpace(cashierName) ? CashierUserId : cashierName.Trim();
         TerminalId = terminalId.Trim();
     }
 
