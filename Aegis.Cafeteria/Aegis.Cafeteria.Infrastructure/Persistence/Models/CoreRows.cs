@@ -11,6 +11,8 @@ public sealed class CustomerRow
     public string EmailAddress { get; set; } = string.Empty;
     public string Extension { get; set; } = string.Empty;
     public byte[]? Photo { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateOnly? EmploymentStartDate { get; set; }
     public bool IsEligibleForCredit { get; set; } = true;
     public decimal AdditionalCreditLimit { get; set; }
     public long Revision { get; set; }
