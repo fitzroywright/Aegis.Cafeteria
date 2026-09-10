@@ -96,7 +96,7 @@ public sealed class FfpLedgerPublisherWorker(
         return count;
     }
 
-    private async Task RecoverMissingProjectionRowsAsync(CancellationToken cancellationToken)
+    internal async Task RecoverMissingProjectionRowsAsync(CancellationToken cancellationToken)
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         var existing = (await db.FfpLedgerOutbox.AsNoTracking().Select(x => x.OperationId).ToListAsync(cancellationToken)).ToHashSet();
@@ -187,7 +187,7 @@ public sealed class FfpLedgerPublisherWorker(
         return new Guid(bytes.AsSpan(0,16));
     }
 
-    private async Task RecoverInterruptedAsync(CancellationToken cancellationToken)
+    internal async Task RecoverInterruptedAsync(CancellationToken cancellationToken)
     {
         await using var db=await factory.CreateDbContextAsync(cancellationToken);
         var rows=await db.FfpLedgerOutbox.Where(x=>x.State==FfpOutboxState.Processing).ToListAsync(cancellationToken);
