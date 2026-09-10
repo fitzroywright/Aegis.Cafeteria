@@ -1,6 +1,7 @@
 namespace Aegis.Cafeteria.Infrastructure.Persistence;
 
 using Aegis.Cafeteria.Domain.Customers;
+using Aegis.Cafeteria.Domain.Identification;
 using Aegis.Cafeteria.Domain.Orders;
 using Aegis.Cafeteria.Infrastructure.Persistence.Models;
 
@@ -15,7 +16,8 @@ public static class DomainReadMapper
 
     public static Order ToDomain(OrderRow x)
     {
-        var order = new Order(x.Id, x.CustomerId, x.CreatedAt);
+        IDMethod? idMethod = x.IDMethod.HasValue ? (IDMethod?)x.IDMethod.Value : null;
+        var order = new Order(x.Id, x.CustomerId, x.CreatedAt, idMethod, x.IdentificationCode);
         foreach (var item in x.Items.OrderBy(i => i.Id))
             order.AddItem(new OrderItem(item.Id, item.ProductId, item.ProductName, item.UnitPrice, item.Quantity));
 
