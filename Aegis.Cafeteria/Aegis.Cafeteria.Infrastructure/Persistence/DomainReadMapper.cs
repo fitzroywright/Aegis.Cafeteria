@@ -12,7 +12,9 @@ public static class DomainReadMapper
         x.Name,
         x.Photo,
         x.IsEligibleForCredit,
-        x.AdditionalCreditLimit);
+        x.AdditionalCreditLimit,
+        x.IsActive,
+        x.EmploymentStartDate);
 
     public static Order ToDomain(OrderRow x)
     {
