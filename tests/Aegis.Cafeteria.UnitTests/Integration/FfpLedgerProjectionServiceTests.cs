@@ -5,6 +5,7 @@ using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Application.Reporting;
 using Aegis.Cafeteria.Domain.Accounts;
 using Aegis.Cafeteria.Domain.Customers;
+using Aegis.Cafeteria.Domain.Identification;
 using Aegis.Cafeteria.Domain.Orders;
 
 public sealed class ExternalLedgerProjectionServiceTests
@@ -35,6 +36,40 @@ public sealed class ExternalLedgerProjectionServiceTests
         Assert.Equal("FWright", x.UserName);
         Assert.Equal("Lunch x1 - Order Total: 1,000.00; Cafeteria: 700.00", x.Description);
         Assert.Equal("Cafeteria Purchase", x.IdName);
+    }
+
+    [Theory]
+    [InlineData(IDMethod.NFC, "04A1B2C3", "NFC", "04A1B2C3")]
+    [InlineData(IDMethod.Code, "EMP0042", "Code", "EMP0042")]
+    [InlineData(IDMethod.TRN, "123456789", "TRN", "123456789")]
+    [InlineData(IDMethod.Name, "NAME SEARCH", "Name", "NAME SEARCH")]
+    public async Task Purchase_PreservesIdentificationMethodAndFfpScanMetadata(
+        IDMethod method,
+        string identificationCode,
+        string expectedScanCode,
+        string expectedCode)
+    {
+        RecordingOutbox gateway = new();
+        ExternalLedgerProjectionService sut = new(gateway);
+        CustomerAccountView account = View(42, 5000m, 3000m);
+        Order order = new(Guid.NewGuid(), 42, DateTimeOffset.Now, method, identificationCode);
+        order.AddItem(new OrderItem(1, "Lunch", 1000m, 1));
+        order.Submit(DateTimeOffset.Now);
+        order.Complete(
+            [new OrderPayment(Guid.NewGuid(), PaymentMethod.CafeteriaAccount, 1000m, DateTimeOffset.Now)],
+            DateTimeOffset.Now,
+            "fwright",
+            "POS01",
+            "Fitzroy Wright");
+
+        await sut.PublishCompletedOrderAsync(account, order);
+
+        ExternalLedgerEntry entry = Assert.Single(gateway.Entries);
+        Assert.Equal(expectedScanCode, entry.ScanCode);
+        Assert.Equal(expectedCode, entry.Code);
+        Assert.Equal("Fitzroy Wright", entry.UserName);
+        Assert.Equal("SYSTEM", entry.CreatedBy);
+        Assert.Equal("Cafeteria Purchase", entry.IdName);
     }
 
     [Fact]
