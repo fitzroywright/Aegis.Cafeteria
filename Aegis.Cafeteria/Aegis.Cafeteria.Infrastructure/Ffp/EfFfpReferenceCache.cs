@@ -48,7 +48,7 @@ public sealed class EfFfpReferenceCache(
             {
                 row.Photo = employee.Photo;
             }
-            row.IsEligibleForCredit = employee.IsEligibleForCafeteriaCredit;
+            row.IsEligibleForCredit = employee.IsActive && employee.IsEligibleForCafeteriaCredit;
             row.AdditionalCreditLimit = employee.AdditionalCreditLimit;
             row.Revision = now.UtcDateTime.Ticks;
             row.UpdatedAt = now;
