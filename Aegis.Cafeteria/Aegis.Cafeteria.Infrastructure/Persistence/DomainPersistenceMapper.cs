@@ -15,6 +15,8 @@ public static class DomainPersistenceMapper
         Name = x.Name,
         NormalizedName = NormalizeSearchText(x.Name),
         Photo = x.Photo,
+        IsActive = x.IsActive,
+        EmploymentStartDate = x.EmploymentStartDate,
         IsEligibleForCredit = x.IsEligibleForCredit,
         AdditionalCreditLimit = x.AdditionalCreditLimit,
         Revision = revision,
