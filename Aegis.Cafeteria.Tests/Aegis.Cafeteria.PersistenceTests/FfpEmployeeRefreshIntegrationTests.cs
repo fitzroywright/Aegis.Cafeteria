@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 public sealed class FfpEmployeeRefreshIntegrationTests
 {
     [Fact]
-    public async Task Refresh_CachesIdentityEligibilityWithoutLegacyTicketFunding()
+    public async Task Refresh_CachesIdentityEligibilityAndPhotoWithoutLegacyTicketFunding()
     {
         string file = SqliteTestDatabase.CreatePath("ffp-refresh");
         try
@@ -19,6 +19,7 @@ public sealed class FfpEmployeeRefreshIntegrationTests
             LocalDbContextFactory factory = new(DbContextOptionsFactory.CreateLocal(options));
             await using (LocalCafeteriaDbContext db = factory.CreateDbContext()) await db.Database.EnsureCreatedAsync();
 
+            byte[] photo = [1, 2, 3];
             EfFfpReferenceCache cache = new(factory);
             EfCustomerReferenceCacheStatus health = new(factory);
             StubSource source = new
@@ -32,7 +33,7 @@ public sealed class FfpEmployeeRefreshIntegrationTests
                         , Nfc = "nfc"
                         , Code = "code"
                         , Trn = "trn"
-                        , Photo = [1, 2, 3]
+                        , Photo = photo
                     }
                 ]
             );
@@ -44,6 +45,7 @@ public sealed class FfpEmployeeRefreshIntegrationTests
             var customer = Assert.Single(await verify.Customers.ToListAsync());
             Assert.True(customer.IsEligibleForCredit);
             Assert.Equal("Jane Doe", customer.Name);
+            Assert.Equal(photo, customer.Photo);
             Assert.Null(verify.Model.FindEntityType("Aegis.Cafeteria.Infrastructure.Persistence.Models.CustomerFundingProfileRow"));
         }
         finally
