@@ -38,6 +38,7 @@ public sealed class PersistenceInitializer(
             await ValidateExistingDatabaseIsCurrentAsync(db, ct);
             await EnsureCustomerDirectoryColumnsAsync(db, ct);
             await EnsureOrderIdentificationColumnsAsync(db, ct);
+            await EnsureFfpLedgerOutboxIdentificationColumnsAsync(db, ct);
             await EnsureFfpImportedTransactionsTableAsync(db, ct);
         }
 
@@ -122,6 +123,22 @@ public sealed class PersistenceInitializer(
         await db.Database.ExecuteSqlRawAsync(
             "CREATE INDEX IF NOT EXISTS \"IX_Orders_IDMethod_CompletedAt\" ON \"Orders\" (\"IDMethod\", \"CompletedAt\");",
             ct);
+    }
+
+    private static async Task EnsureFfpLedgerOutboxIdentificationColumnsAsync(LocalCafeteriaDbContext db, CancellationToken ct)
+    {
+        if (!await TableExistsAsync(db, "FfpLedgerOutbox", ct)) return;
+
+        HashSet<string> columns = await ReadColumnsAsync(db, "FfpLedgerOutbox", ct);
+        if (!columns.Contains("Code"))
+        {
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FfpLedgerOutbox\" ADD COLUMN \"Code\" TEXT NULL;", ct);
+        }
+
+        if (!columns.Contains("CreatedBy"))
+        {
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FfpLedgerOutbox\" ADD COLUMN \"CreatedBy\" TEXT NOT NULL DEFAULT 'SYSTEM';", ct);
+        }
     }
 
     private static async Task<bool> DatabaseContainsAnyUserTableAsync(
