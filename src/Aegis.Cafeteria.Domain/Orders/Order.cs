@@ -1,27 +1,40 @@
 namespace Aegis.Cafeteria.Domain.Orders;
 
+using Aegis.Cafeteria.Domain.Identification;
+
 public sealed class Order
 {
     private readonly List<OrderItem> items = [];
     private readonly List<OrderPayment> payments = [];
     private readonly List<OrderRefund> refunds = [];
 
-    public Order(Guid id, int customerId, DateTimeOffset createdAt)
+    public Order(
+        Guid id,
+        int customerId,
+        DateTimeOffset createdAt,
+        IDMethod? idMethod = null,
+        string? identificationCode = null)
     {
         if (id == Guid.Empty)
             throw new ArgumentException("Order ID is required.", nameof(id));
         if (customerId <= 0)
             throw new ArgumentOutOfRangeException(nameof(customerId));
+        if (idMethod.HasValue && string.IsNullOrWhiteSpace(identificationCode))
+            throw new ArgumentException("Identification code is required when IDMethod is supplied.", nameof(identificationCode));
 
         Id = id;
         CustomerId = customerId;
         CreatedAt = createdAt;
+        IDMethod = idMethod;
+        IdentificationCode = string.IsNullOrWhiteSpace(identificationCode) ? null : identificationCode.Trim();
         Status = OrderStatus.Draft;
     }
 
     public Guid Id { get; }
     public int CustomerId { get; }
     public DateTimeOffset CreatedAt { get; }
+    public IDMethod? IDMethod { get; }
+    public string? IdentificationCode { get; }
     public OrderStatus Status { get; private set; }
     public DateTimeOffset? SubmittedAt { get; private set; }
     public DateTimeOffset? CompletedAt { get; private set; }
