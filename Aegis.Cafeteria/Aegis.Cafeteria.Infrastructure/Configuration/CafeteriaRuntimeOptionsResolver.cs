@@ -122,6 +122,7 @@ public static class CafeteriaRuntimeOptionsResolver
             ConnectionString = ffpConnectionString,
             AllowWrites = ffp.GetValue("AllowWrites", true),
             RefreshIntervalMinutes = Math.Max(1, ffp.GetValue("RefreshIntervalMinutes", 10)),
+            PublicationTimeoutSeconds = Math.Clamp(ffp.GetValue("PublicationTimeoutSeconds", 120), 15, 600),
             CreditLimitLunchItemCode = ffp["CreditLimitLunchItemCode"]?.Trim() ?? "FFP00",
             SubsidyLunchItemCode = ffp["SubsidyLunchItemCode"]?.Trim() ?? "FFP00",
             MonthlyAllocationScanType = ffp.GetValue("MonthlyAllocationScanType", 3),
