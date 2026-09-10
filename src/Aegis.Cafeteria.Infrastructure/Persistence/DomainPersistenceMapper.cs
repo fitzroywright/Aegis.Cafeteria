@@ -55,7 +55,7 @@ public static class DomainPersistenceMapper
     public static OrderRow ToRow(Order x, long revision, DateTimeOffset updatedAt) => new()
     {
         Id=x.Id, CustomerId=x.CustomerId, CreatedAt=x.CreatedAt, Status=(int)x.Status, SubmittedAt=x.SubmittedAt,
-        CompletedAt=x.CompletedAt, AccountYear=(x.CompletedAt ?? x.VoidedAt)?.Year, AccountMonth=(x.CompletedAt ?? x.VoidedAt)?.Month, VoidedAt=x.VoidedAt, VoidedBy=x.VoidedBy, VoidReason=x.VoidReason, CashierUserId=x.CashierUserId, TerminalId=x.TerminalId,
+        CompletedAt=x.CompletedAt, AccountYear=(x.CompletedAt ?? x.VoidedAt)?.Year, AccountMonth=(x.CompletedAt ?? x.VoidedAt)?.Month, VoidedAt=x.VoidedAt, VoidedBy=x.VoidedBy, VoidReason=x.VoidReason, CashierUserId=x.CashierUserId, CashierName=x.CashierName, TerminalId=x.TerminalId,
         IDMethod=x.IDMethod.HasValue ? (int?)x.IDMethod.Value : null, IdentificationCode=x.IdentificationCode,
         Revision=revision, UpdatedAt=updatedAt,
         Items=x.Items.Select(i=>new OrderItemRow{Id=i.Id,OrderId=x.Id,ProductId=i.ProductId,ProductName=i.ProductName,UnitPrice=i.UnitPrice,Quantity=i.Quantity}).ToList(),
