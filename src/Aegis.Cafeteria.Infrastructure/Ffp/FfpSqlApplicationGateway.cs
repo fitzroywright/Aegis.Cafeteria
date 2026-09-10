@@ -348,9 +348,10 @@ SELECT @DeletedLedgerEntries, @@ROWCOUNT;";
 IF NOT EXISTS (SELECT 1 FROM EmployeeIDScans WITH (UPDLOCK, HOLDLOCK) WHERE TransmissionID = @TransmissionID)
 BEGIN
     INSERT INTO EmployeeIDScans
-      (Code, Name, [Description], UserName, DateCreated, DateUpdated, ScanCode, ScanDate, ScanType, ScanValue, IDName, EmployeeID, TransmissionID)
-    SELECT Code, Name, @Description, @UserName, @OccurredAt, @OccurredAt,
-           @ScanCode, @OccurredAt, @ScanType, @ScanValue, @IDName, ID, @TransmissionID
+      (Code, Name, [Description], UserName, DateCreated, DateUpdated, ScanCode, ScanDate, ScanType, ScanValue, IDName, EmployeeID, TransmissionID, CreatedBy)
+    SELECT CASE WHEN @UseIdentificationCode = 1 THEN @IdentificationCode ELSE Code END,
+           Name, @Description, @UserName, @OccurredAt, @OccurredAt,
+           @ScanCode, @OccurredAt, @ScanType, @ScanValue, @IDName, ID, @TransmissionID, @CreatedBy
     FROM Employees WHERE ID = @EmployeeID;
 
     IF @@ROWCOUNT = 0 THROW 51000, 'FFP employee not found for cafeteria ledger publication.', 1;
@@ -367,6 +368,10 @@ END", connection, transaction);
             command.Parameters.AddWithValue("@ScanCode", entry.ScanCode);
             command.Parameters.AddWithValue("@UserName", string.IsNullOrWhiteSpace(entry.UserName) ? "SYSTEM" : entry.UserName);
             command.Parameters.AddWithValue("@IDName", string.IsNullOrWhiteSpace(entry.IdName) ? entry.Description : entry.IdName);
+            bool useIdentificationCode = entry.Kind == ExternalLedgerEntryKind.Purchase && !string.IsNullOrWhiteSpace(entry.Code);
+            command.Parameters.AddWithValue("@UseIdentificationCode", useIdentificationCode ? 1 : 0);
+            command.Parameters.AddWithValue("@IdentificationCode", (object?)entry.Code ?? DBNull.Value);
+            command.Parameters.AddWithValue("@CreatedBy", string.IsNullOrWhiteSpace(entry.CreatedBy) ? "SYSTEM" : entry.CreatedBy);
             command.Parameters.AddWithValue("@ScanType", ScanType(entry.Kind));
             command.Parameters.AddWithValue("@ScanValue", entry.ScanValue);
             command.Parameters.AddWithValue("@CreditLimit", entry.CreditLimit);
