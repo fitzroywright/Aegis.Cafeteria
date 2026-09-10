@@ -2,6 +2,7 @@ namespace Aegis.Cafeteria.Infrastructure.Ffp;
 
 using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Integration;
+using Aegis.Cafeteria.Domain.Identification;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Infrastructure.Persistence;
 using Aegis.Cafeteria.Infrastructure.Persistence.Models;
@@ -79,7 +80,7 @@ public sealed class FfpLedgerPublisherWorker(
                 var available = account?.FinancialStatus.TotalAvailableToSpend ?? row.AvailableBalance;
                 await gateway.PublishLedgerEntryAsync(new ExternalLedgerEntry(
                     row.OperationId,row.EmployeeId,(ExternalLedgerEntryKind)row.Kind,row.OccurredAt,row.Description,row.ScanValue,
-                    creditLimit,available,row.ScanCode,row.UserName,row.IdName), cancellationToken);
+                    creditLimit,available,row.ScanCode,row.UserName,row.IdName,row.Code,row.CreatedBy), cancellationToken);
                 row.State=FfpOutboxState.Succeeded; row.LastError=null; count++;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
@@ -94,7 +95,6 @@ public sealed class FfpLedgerPublisherWorker(
         }
         return count;
     }
-
 
     private async Task RecoverMissingProjectionRowsAsync(CancellationToken cancellationToken)
     {
@@ -113,7 +113,7 @@ public sealed class FfpLedgerPublisherWorker(
             {
                 OperationId=operationId, EmployeeId=a.CustomerId, Kind=(int)ExternalLedgerEntryKind.MonthlyAllocation, OccurredAt=a.CalculatedAt,
                 Description=$"{a.EligibleWorkingDays} new Tickets Assigned to Employee #{a.CustomerId} By SYSTEM", ScanValue=a.TotalCreditLimit, CreditLimit=a.TotalCreditLimit,
-                AvailableBalance=a.TotalCreditLimit, ScanCode="ALLOCATION", UserName="SYSTEM", IdName="Tickets Assigned", State=FfpOutboxState.Pending, CreatedAt=now
+                AvailableBalance=a.TotalCreditLimit, ScanCode="ALLOCATION", UserName="SYSTEM", IdName="Tickets Assigned", CreatedBy="SYSTEM", State=FfpOutboxState.Pending, CreatedAt=now
             });
             existing.Add(operationId);
         }
@@ -130,8 +130,10 @@ public sealed class FfpLedgerPublisherWorker(
                 db.FfpLedgerOutbox.Add(new FfpLedgerOutboxRow
                 {
                     OperationId=order.Id,EmployeeId=order.CustomerId,Kind=(int)ExternalLedgerEntryKind.Purchase,OccurredAt=order.CompletedAt??order.UpdatedAt,
-                    Description=BuildRecoveredPurchaseDescription(order),ScanValue=accountAmount,CreditLimit=0m,AvailableBalance=0m,ScanCode="PURCHASE",
-                    UserName=string.IsNullOrWhiteSpace(order.CashierUserId)?"SYSTEM":order.CashierUserId,IdName="Cafeteria Purchase",State=FfpOutboxState.Pending,CreatedAt=now
+                    Description=BuildRecoveredPurchaseDescription(order),ScanValue=accountAmount,CreditLimit=0m,AvailableBalance=0m,
+                    ScanCode=FormatIDMethod(order.IDMethod),
+                    UserName=FirstNonBlank(order.CashierName, order.CashierUserId, "SYSTEM"),
+                    IdName="Cafeteria Purchase",Code=order.IdentificationCode,CreatedBy="SYSTEM",State=FfpOutboxState.Pending,CreatedAt=now
                 });
                 existing.Add(order.Id);
             }
@@ -143,7 +145,7 @@ public sealed class FfpLedgerPublisherWorker(
                 {
                     OperationId=refund.Id,EmployeeId=order.CustomerId,Kind=(int)ExternalLedgerEntryKind.Refund,OccurredAt=refund.RefundedAt,
                     Description=BuildRecoveredRefundDescription(order, refund, refunded),ScanValue=-refunded,CreditLimit=0m,AvailableBalance=0m,
-                    ScanCode="REFUND",UserName=string.IsNullOrWhiteSpace(refund.RefundedBy)?"SYSTEM":refund.RefundedBy,IdName="Cafeteria Refund",State=FfpOutboxState.Pending,CreatedAt=now
+                    ScanCode="REFUND",UserName=string.IsNullOrWhiteSpace(refund.RefundedBy)?"SYSTEM":refund.RefundedBy,IdName="Cafeteria Refund",CreatedBy="SYSTEM",State=FfpOutboxState.Pending,CreatedAt=now
                 });
                 existing.Add(refund.Id);
             }
@@ -155,7 +157,7 @@ public sealed class FfpLedgerPublisherWorker(
         }
     }
 
-    private static string BuildRecoveredPurchaseDescription(Aegis.Cafeteria.Infrastructure.Persistence.Models.OrderRow order)
+    private static string BuildRecoveredPurchaseDescription(OrderRow order)
     {
         var items=string.Join("; ",order.Items.Select(x=>$"{x.ProductName} x{x.Quantity} @ {x.UnitPrice:N2}"));
         var total=order.Items.Sum(x=>x.UnitPrice*x.Quantity);
@@ -163,18 +165,28 @@ public sealed class FfpLedgerPublisherWorker(
         return cafeteria==total?$"{items} - Total: {total:N2}":$"{items} - Order Total: {total:N2}; Cafeteria: {cafeteria:N2}";
     }
 
-    private static string BuildRecoveredRefundDescription(Aegis.Cafeteria.Infrastructure.Persistence.Models.OrderRow order, Aegis.Cafeteria.Infrastructure.Persistence.Models.OrderRefundRow refund, decimal cafeteriaAmount)
+    private static string BuildRecoveredRefundDescription(OrderRow order, OrderRefundRow refund, decimal cafeteriaAmount)
     {
         var names=order.Items.ToDictionary(x=>x.Id,x=>x.ProductName);
         var items=string.Join("; ",refund.Items.Select(x=>$"{names.GetValueOrDefault(x.OrderItemId,"Item")} x{x.Quantity} @ {x.UnitPrice:N2}"));
         return $"Refund - {items} - Cafeteria Refund: {cafeteriaAmount:N2}";
     }
 
+    private static string FormatIDMethod(int? value)
+    {
+        if (!value.HasValue || !Enum.IsDefined(typeof(IDMethod), value.Value)) return "Unknown";
+        return ((IDMethod)value.Value).ToString();
+    }
+
+    private static string FirstNonBlank(params string?[] values)
+        => values.First(value => !string.IsNullOrWhiteSpace(value))!.Trim();
+
     private static Guid MonthlyOperationId(int customerId,int year,int month)
     {
         var bytes=System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{customerId}:{year:D4}-{month:D2}:monthly-allocation"));
         return new Guid(bytes.AsSpan(0,16));
     }
+
     private async Task RecoverInterruptedAsync(CancellationToken cancellationToken)
     {
         await using var db=await factory.CreateDbContextAsync(cancellationToken);
