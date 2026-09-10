@@ -29,10 +29,10 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Restore Cafeteria unit tests
-        run: dotnet restore tests/Aegis.Cafeteria.UnitTests/Aegis.Cafeteria.UnitTests.csproj
+        run: dotnet restore Aegis.Cafeteria.Tests/Aegis.Cafeteria.UnitTests/Aegis.Cafeteria.UnitTests.csproj
 
       - name: Build Cafeteria unit tests
-        run: dotnet build tests/Aegis.Cafeteria.UnitTests/Aegis.Cafeteria.UnitTests.csproj --no-restore --configuration Release
+        run: dotnet build Aegis.Cafeteria.Tests/Aegis.Cafeteria.UnitTests/Aegis.Cafeteria.UnitTests.csproj --no-restore --configuration Release
 
       - name: Run Common.Security consumer test
-        run: dotnet test tests/Aegis.Cafeteria.UnitTests/Aegis.Cafeteria.UnitTests.csproj --no-build --configuration Release --filter FullyQualifiedName~CommonSecurityConsumerIntegrationTests
+        run: dotnet test Aegis.Cafeteria.Tests/Aegis.Cafeteria.UnitTests/Aegis.Cafeteria.UnitTests.csproj --no-build --configuration Release --filter FullyQualifiedName~CommonSecurityConsumerIntegrationTests

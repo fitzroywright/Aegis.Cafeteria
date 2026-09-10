@@ -19,10 +19,10 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Aegis.Cafeteria.Domain\Aegis.Cafeteria.Domain.csproj" />
-    <ProjectReference Include="..\..\src\Aegis.Cafeteria.Application\Aegis.Cafeteria.Application.csproj" />
-    <ProjectReference Include="..\..\src\Aegis.Cafeteria.Infrastructure\Aegis.Cafeteria.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\Aegis.Cafeteria.Services\Aegis.Cafeteria.Services.csproj" />
+    <ProjectReference Include="..\..\Aegis.Cafeteria\Aegis.Cafeteria.Domain\Aegis.Cafeteria.Domain.csproj" />
+    <ProjectReference Include="..\..\Aegis.Cafeteria\Aegis.Cafeteria.Application\Aegis.Cafeteria.Application.csproj" />
+    <ProjectReference Include="..\..\Aegis.Cafeteria\Aegis.Cafeteria.Infrastructure\Aegis.Cafeteria.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\Aegis.Cafeteria\Aegis.Cafeteria.Services\Aegis.Cafeteria.Services.csproj" />
     <ProjectReference Include="..\..\Common\Common.Security\Common.Security.csproj" />
     <ProjectReference Include="..\..\Common\Common.Security\Common.Diagnostics\Common.Diagnostics.csproj" />
   </ItemGroup>
