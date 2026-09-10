@@ -66,3 +66,58 @@ jobs:
 
       - name: Test
         run: dotnet test --no-build --configuration Debug
+
+  idmethod-core-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Aegis.Cafeteria
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Select Common.Security token
+        id: common_security_token
+        shell: bash
+        env:
+          DEDICATED_TOKEN: ${{ secrets.COMMON_SECURITY_TOKEN }}
+          REPOSITORY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "$DEDICATED_TOKEN" ]; then
+            echo "token=$DEDICATED_TOKEN" >> "$GITHUB_OUTPUT"
+          else
+            echo "token=$REPOSITORY_TOKEN" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout Common.Security
+        uses: actions/checkout@v4
+        with:
+          repository: fitzroywright/Common.Security
+          path: Common/Common.Security
+          token: ${{ steps.common_security_token.outputs.token }}
+          fetch-depth: 1
+
+      - name: Checkout Common.Diagnostics for Common.Security
+        uses: actions/checkout@v4
+        with:
+          repository: fitzroywright/Common.Diagnostics
+          path: Common/Common.Security/Common.Diagnostics
+          fetch-depth: 1
+
+      - name: Authenticate GitHub Packages
+        shell: bash
+        run: dotnet nuget update source github-common --username fitzroywright --password "${{ steps.common_security_token.outputs.token }}" --store-password-in-clear-text --configfile NuGet.config
+
+      - name: Restore persistence tests
+        run: dotnet restore tests/Aegis.Cafeteria.PersistenceTests/Aegis.Cafeteria.PersistenceTests.csproj --configfile NuGet.config
+
+      - name: Restore reporting tests
+        run: dotnet restore tests/Aegis.Cafeteria.ReportingTests/Aegis.Cafeteria.ReportingTests.csproj --configfile NuGet.config
+
+      - name: Test IDMethod persistence and recovery
+        run: dotnet test tests/Aegis.Cafeteria.PersistenceTests/Aegis.Cafeteria.PersistenceTests.csproj --no-restore --configuration Debug --filter "FullyQualifiedName~IDMethod|FullyQualifiedName~FfpLedgerOutboxTests|FullyQualifiedName~FfpSqlLiveIntegrationTests"
+
+      - name: Test IDMethod reporting and exports
+        run: dotnet test tests/Aegis.Cafeteria.ReportingTests/Aegis.Cafeteria.ReportingTests.csproj --no-restore --configuration Debug --filter "FullyQualifiedName~IDMethod|FullyQualifiedName~ReportExporterTests"
