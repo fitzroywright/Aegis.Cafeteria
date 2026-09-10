@@ -12,6 +12,8 @@ public sealed class EfProductCatalogMaintenance
     , IFfpMonthImportService? monthImportService = null
 ) : IProductCatalogMaintenance
 {
+    private const string ReservedPolicyCode = "FFP00";
+
     public async Task<IReadOnlyList<ProductCatalogItem>> GetAllAsync
     (
         CancellationToken cancellationToken = default
@@ -111,13 +113,10 @@ public sealed class EfProductCatalogMaintenance
         }
 
         IReadOnlyList<ExternalProductSnapshot> sourceItems = await lunchItemSource.GetLunchItemsAsync(cancellationToken);
-        int ignoredFfpProducts = sourceItems.Count
-        (
-            item => item.Code.Trim().StartsWith("FFP", StringComparison.OrdinalIgnoreCase)
-        );
+        int ignoredFfpProducts = sourceItems.Count(item => IsReservedPolicyRow(item.Code));
 
         ExternalProductSnapshot[] importable = sourceItems
-            .Where(item => !item.Code.Trim().StartsWith("FFP", StringComparison.OrdinalIgnoreCase))
+            .Where(item => !IsReservedPolicyRow(item.Code))
             .Where(item => item.ProductId > 0)
             .Where(item => !string.IsNullOrWhiteSpace(item.Name))
             .Where(item => item.Price >= 0m)
@@ -186,6 +185,9 @@ public sealed class EfProductCatalogMaintenance
         DateTimeOffset now = DateTimeOffset.Now;
         return monthImportService.ImportAsync(now.Year, now.Month, cancellationToken);
     }
+
+    private static bool IsReservedPolicyRow(string? code)
+        => string.Equals(code?.Trim(), ReservedPolicyCode, StringComparison.OrdinalIgnoreCase);
 
     private static void Validate
     (
