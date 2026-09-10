@@ -11,7 +11,8 @@ public interface IProductCatalogSource
 
 /// <summary>
 /// Raw FFP LunchItems source used only for explicit POS product bootstrap/import.
-/// Callers must exclude all codes beginning with FFP from saleable products.
+/// Callers must exclude the reserved funding-policy row (currently FFP00), but must not reject a
+/// legitimate sellable item merely because its code begins with FFP.
 /// </summary>
 public interface ILunchItemBootstrapSource
 {
