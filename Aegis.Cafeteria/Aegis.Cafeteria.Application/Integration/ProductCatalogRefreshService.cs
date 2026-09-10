@@ -31,8 +31,14 @@ public static class LunchItemRatePolicyDeriver
         ExternalProductSnapshot creditRow = RequirePolicyRow(activeLunchItems, creditCode, "credit-limit", requirePrice: true, requireCost: false);
         ExternalProductSnapshot subsidyRow = RequirePolicyRow(activeLunchItems, subsidyCode, "subsidy", requirePrice: false, requireCost: true);
 
+        HashSet<string> reservedPolicyCodes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            creditCode,
+            subsidyCode
+        };
+
         ExternalProductSnapshot[] saleable = activeLunchItems
-            .Where(item => !item.Code.Trim().StartsWith("FFP", StringComparison.OrdinalIgnoreCase))
+            .Where(item => !reservedPolicyCodes.Contains(item.Code.Trim()))
             .Where(item => item.ProductId > 0 && !string.IsNullOrWhiteSpace(item.Name) && item.Price >= 0m)
             .ToArray();
         if (saleable.Length == 0) throw new InvalidOperationException("FFP LunchItems contains no active saleable cafeteria items.");
