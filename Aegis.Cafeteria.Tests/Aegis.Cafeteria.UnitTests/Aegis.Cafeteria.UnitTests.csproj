@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <CommonRoot Condition="'$(CommonRoot)' == ''">$(MSBuildThisFileDirectory)..\..\..</CommonRoot>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4">
@@ -23,8 +24,8 @@
     <ProjectReference Include="..\..\Aegis.Cafeteria\Aegis.Cafeteria.Application\Aegis.Cafeteria.Application.csproj" />
     <ProjectReference Include="..\..\Aegis.Cafeteria\Aegis.Cafeteria.Infrastructure\Aegis.Cafeteria.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Aegis.Cafeteria\Aegis.Cafeteria.Services\Aegis.Cafeteria.Services.csproj" />
-    <ProjectReference Include="..\..\Common\Common.Security\Common.Security.csproj" />
-    <ProjectReference Include="..\..\Common\Common.Security\Common.Diagnostics\Common.Diagnostics.csproj" />
+    <ProjectReference Include="$(CommonRoot)\Common.Security\Common.Security.csproj" />
+    <ProjectReference Include="$(CommonRoot)\Common.Diagnostics\Common.Diagnostics.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
