@@ -32,17 +32,19 @@ public sealed class ExternalLedgerProjectionService(IExternalLedgerOutbox outbox
         var postBalance = Math.Max(0m, accountBeforePurchase.FinancialStatus.TotalAvailableToSpend - accountAmount);
         var description = BuildPurchaseDescription(order);
         var entry = new ExternalLedgerEntry(
-            order.Id,
-            accountBeforePurchase.Customer.Id,
-            ExternalLedgerEntryKind.Purchase,
-            order.CompletedAt ?? DateTimeOffset.Now,
-            description,
-            accountAmount,
-            accountBeforePurchase.FinancialStatus.TotalCreditLimit,
-            postBalance,
-            "PURCHASE",
-            NormalizeUserName(order.CashierUserId),
-            "Cafeteria Purchase");
+            OperationId: order.Id,
+            CustomerId: accountBeforePurchase.Customer.Id,
+            Kind: ExternalLedgerEntryKind.Purchase,
+            OccurredAt: order.CompletedAt ?? DateTimeOffset.Now,
+            Description: description,
+            ScanValue: accountAmount,
+            CreditLimit: accountBeforePurchase.FinancialStatus.TotalCreditLimit,
+            AvailableBalance: postBalance,
+            ScanCode: order.IDMethod?.ToString() ?? "Unknown",
+            UserName: NormalizeUserName(order.CashierName ?? order.CashierUserId),
+            IdName: "Cafeteria Purchase",
+            Code: order.IdentificationCode,
+            CreatedBy: "SYSTEM");
         return outbox.EnqueueAsync(entry, cancellationToken);
     }
 
