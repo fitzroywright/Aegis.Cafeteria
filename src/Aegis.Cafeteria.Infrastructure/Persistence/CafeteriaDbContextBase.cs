@@ -58,6 +58,7 @@ public abstract class CafeteriaDbContextBase(DbContextOptions options) : DbConte
         b.Entity<OrderRow>().Property(x => x.VoidedBy).HasMaxLength(128);
         b.Entity<OrderRow>().Property(x => x.VoidReason).HasMaxLength(1000);
         b.Entity<OrderRow>().Property(x => x.CashierUserId).HasMaxLength(128);
+        b.Entity<OrderRow>().Property(x => x.CashierName).HasMaxLength(200);
         b.Entity<OrderRow>().Property(x => x.TerminalId).HasMaxLength(128);
         b.Entity<OrderRow>().Property(x => x.IdentificationCode).HasMaxLength(256);
         b.Entity<OrderItemRow>().Property(x => x.ProductName).HasMaxLength(200);
