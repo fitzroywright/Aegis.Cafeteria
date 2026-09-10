@@ -14,8 +14,4 @@
     <Project Path="Aegis.Cafeteria.Tests/Aegis.Cafeteria.PersistenceTests/Aegis.Cafeteria.PersistenceTests.csproj" />
     <Project Path="Aegis.Cafeteria.Tests/Aegis.Cafeteria.ReportingTests/Aegis.Cafeteria.ReportingTests.csproj" />
   </Folder>
-  <Folder Name="/Common/">
-    <Project Path="../Common.Security/Common.Security.csproj" />
-    <Project Path="../Common.Diagnostics/Common.Diagnostics.csproj" />
-  </Folder>
 </Solution>
