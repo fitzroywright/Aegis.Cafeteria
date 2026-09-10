@@ -8,7 +8,7 @@ jobs:
   common-security-integration:
     runs-on: ubuntu-latest
     env:
-      CommonRoot: ${{ github.workspace }}
+      CommonRoot: ${{ github.workspace }}/Common
     steps:
       - name: Checkout Cafeteria
         uses: actions/checkout@v4
@@ -17,13 +17,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: fitzroywright/Common.Security
-          path: Common.Security
+          path: Common/Common.Security
 
       - name: Checkout Common.Diagnostics
         uses: actions/checkout@v4
         with:
           repository: fitzroywright/Common.Diagnostics
-          path: Common.Diagnostics
+          path: Common/Common.Diagnostics
 
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
