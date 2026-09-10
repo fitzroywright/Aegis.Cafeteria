@@ -59,6 +59,7 @@ public sealed class OrderRow
     public string? VoidedBy { get; set; }
     public string? VoidReason { get; set; }
     public string? CashierUserId { get; set; }
+    public string? CashierName { get; set; }
     public string? TerminalId { get; set; }
     public int? IDMethod { get; set; }
     public string? IdentificationCode { get; set; }
