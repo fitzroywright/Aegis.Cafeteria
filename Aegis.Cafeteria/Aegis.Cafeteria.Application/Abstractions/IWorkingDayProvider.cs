@@ -8,5 +8,6 @@ public interface IWorkingDayProvider
         int year,
         int month,
         DateOnly? notBefore,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default)
+        => GetWorkingDaysAsync(year, month, cancellationToken);
 }
