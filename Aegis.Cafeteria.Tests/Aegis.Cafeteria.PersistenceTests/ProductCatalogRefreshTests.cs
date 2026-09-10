@@ -59,7 +59,26 @@ public sealed class ProductCatalogRefreshTests
     }
 
     [Fact]
-    public async Task BootstrapImport_AddsOnlyMissingProducts_AndIgnoresEveryFfpPrefix()
+    public void Derive_ExcludesOnlyReservedPolicyCode_NotEveryFfpPrefix()
+    {
+        CafeteriaCatalogSnapshot catalog = LunchItemRatePolicyDeriver.Derive
+        (
+            [
+                  new ExternalProductSnapshot(100, "FFP00", "Policy", 800m, 250m)
+                , new ExternalProductSnapshot(101, "FFP01", "Lunch Special", 850m, 500m)
+                , new ExternalProductSnapshot(102, "FFP-JUICE", "Juice", 200m, 100m)
+            ],
+            DateTimeOffset.UtcNow
+        );
+
+        Assert.Equal(2, catalog.Products.Count);
+        Assert.DoesNotContain(catalog.Products, product => product.Code.Equals("FFP00", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(catalog.Products, product => product.Code == "FFP01");
+        Assert.Contains(catalog.Products, product => product.Code == "FFP-JUICE");
+    }
+
+    [Fact]
+    public async Task BootstrapImport_AddsMissingProducts_AndIgnoresOnlyReservedFfpPolicyRow()
     {
         string file = SqliteTestDatabase.CreatePath("product-bootstrap");
         try
@@ -87,7 +106,7 @@ public sealed class ProductCatalogRefreshTests
             (
                 [
                       new ExternalProductSnapshot(100, "FFP00", "Policy", 800m, 600m)
-                    , new ExternalProductSnapshot(101, "ffptest", "System Test", 50m, 10m)
+                    , new ExternalProductSnapshot(101, "FFPTEST", "System Test", 50m, 10m)
                     , new ExternalProductSnapshot(102, "LUNCH", "Lunch", 800m, 500m)
                     , new ExternalProductSnapshot(103, "JUICE", "Juice", 200m, 100m)
                 ]
@@ -96,15 +115,16 @@ public sealed class ProductCatalogRefreshTests
 
             ProductCatalogImportResult result = await maintenance.ImportFromFfpAsync();
 
-            Assert.Equal(1, result.AddedProducts);
+            Assert.Equal(2, result.AddedProducts);
             Assert.Equal(1, result.ExistingProducts);
-            Assert.Equal(2, result.IgnoredFfpProducts);
+            Assert.Equal(1, result.IgnoredFfpProducts);
 
             await using LocalCafeteriaDbContext db = await factory.CreateDbContextAsync();
-            Assert.Equal(2, await db.Products.CountAsync());
+            Assert.Equal(3, await db.Products.CountAsync());
             Assert.Equal(999m, (await db.Products.SingleAsync(product => product.Name == "Lunch")).Price);
             Assert.Equal(200m, (await db.Products.SingleAsync(product => product.Name == "Juice")).Price);
-            Assert.DoesNotContain(await db.Products.ToListAsync(), product => product.Name == "Policy" || product.Name == "System Test");
+            Assert.Equal(50m, (await db.Products.SingleAsync(product => product.Name == "System Test")).Price);
+            Assert.DoesNotContain(await db.Products.ToListAsync(), product => product.Name == "Policy");
         }
         finally
         {
