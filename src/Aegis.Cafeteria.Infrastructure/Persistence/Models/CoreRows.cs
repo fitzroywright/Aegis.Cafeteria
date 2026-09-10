@@ -60,6 +60,8 @@ public sealed class OrderRow
     public string? VoidReason { get; set; }
     public string? CashierUserId { get; set; }
     public string? TerminalId { get; set; }
+    public int? IDMethod { get; set; }
+    public string? IdentificationCode { get; set; }
     public long Revision { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
     public List<OrderItemRow> Items { get; set; } = [];
