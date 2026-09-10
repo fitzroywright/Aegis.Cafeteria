@@ -59,6 +59,7 @@ public abstract class CafeteriaDbContextBase(DbContextOptions options) : DbConte
         b.Entity<OrderRow>().Property(x => x.VoidReason).HasMaxLength(1000);
         b.Entity<OrderRow>().Property(x => x.CashierUserId).HasMaxLength(128);
         b.Entity<OrderRow>().Property(x => x.TerminalId).HasMaxLength(128);
+        b.Entity<OrderRow>().Property(x => x.IdentificationCode).HasMaxLength(256);
         b.Entity<OrderItemRow>().Property(x => x.ProductName).HasMaxLength(200);
         b.Entity<OrderRefundRow>().Property(x => x.RefundedBy).HasMaxLength(128);
         b.Entity<OrderRefundRow>().Property(x => x.Reason).HasMaxLength(1000);
@@ -85,6 +86,7 @@ public abstract class CafeteriaDbContextBase(DbContextOptions options) : DbConte
         b.Entity<OrderRow>().HasIndex(x => x.CompletedAt);
         b.Entity<OrderRow>().HasIndex(x => new { x.TerminalId, x.CompletedAt });
         b.Entity<OrderRow>().HasIndex(x => new { x.CashierUserId, x.CompletedAt });
+        b.Entity<OrderRow>().HasIndex(x => new { x.IDMethod, x.CompletedAt });
         b.Entity<OrderRefundRow>().HasIndex(x => x.RefundedAt);
         b.Entity<ProductRow>().HasIndex(x => x.Name);
         b.Entity<AccountEventRow>().HasIndex(x => new { x.CustomerId, x.AccountYear, x.AccountMonth, x.OccurredAt });
