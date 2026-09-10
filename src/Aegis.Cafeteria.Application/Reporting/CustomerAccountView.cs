@@ -1,6 +1,7 @@
 namespace Aegis.Cafeteria.Application.Reporting;
 
 using Aegis.Cafeteria.Application.Abstractions;
+using Aegis.Cafeteria.Domain.Identification;
 
 public sealed record CustomerAccountView(
     CustomerIdentityView Customer,
@@ -8,7 +9,12 @@ public sealed record CustomerAccountView(
     CustomerFinancialStatusView FinancialStatus,
     IReadOnlyList<CustomerMonthlyTransactionView> Transactions,
     FfpPublicationStatus FfpPublication,
-    CustomerFundingStatusView? Funding = null);
+    CustomerFundingStatusView? Funding = null,
+    CustomerIdentificationContext? Identification = null);
+
+public sealed record CustomerIdentificationContext(
+    IDMethod Method,
+    string Code);
 
 public sealed record CustomerFundingStatusView(
     bool PolicyLoaded,
