@@ -20,6 +20,8 @@ SELECT
     , e.Photo
     , CAST(CASE WHEN e.EligibleForLunchTicket = 1 THEN 1 ELSE 0 END AS bit) AS IsEligible
     , ISNULL(CONVERT(nvarchar(256), e.LoginName), '') AS LoginName
+    , CAST(CASE WHEN ISNULL(e.IsActive, 0) = 1 THEN 1 ELSE 0 END AS bit) AS IsActive
+    , e.DateEmployed
 FROM dbo.Employees AS e
 WHERE e.EligibleForLunchTicket = 1;";
 
@@ -43,6 +45,10 @@ WHERE YEAR(CalendarDate) = @year;";
             string loginName = reader.IsDBNull(7)
                 ? string.Empty
                 : Convert.ToString(reader.GetValue(7))?.Trim() ?? string.Empty;
+            bool isActive = !reader.IsDBNull(8) && Convert.ToBoolean(reader.GetValue(8));
+            DateOnly? employmentStartDate = reader.IsDBNull(9)
+                ? null
+                : DateOnly.FromDateTime(Convert.ToDateTime(reader.GetValue(9)));
             ActiveDirectoryEmployeeRecord? directoryEmployee = directoryCache.Get(loginName);
 
             result.Add
@@ -55,7 +61,9 @@ WHERE YEAR(CalendarDate) = @year;";
                     , Nfc = NormalizeIdentifier(reader, 3)
                     , Name = Convert.ToString(reader.GetValue(4))?.Trim() ?? string.Empty
                     , Photo = reader.IsDBNull(5) ? null : (byte[])reader.GetValue(5)
-                    , IsEligibleForCafeteriaCredit = !reader.IsDBNull(6) && Convert.ToBoolean(reader.GetValue(6))
+                    , IsActive = isActive
+                    , EmploymentStartDate = employmentStartDate
+                    , IsEligibleForCafeteriaCredit = isActive && !reader.IsDBNull(6) && Convert.ToBoolean(reader.GetValue(6))
                     , LoginName = loginName
                     , Department = directoryEmployee?.Department ?? string.Empty
                     , Manager = directoryEmployee?.Manager ?? string.Empty
