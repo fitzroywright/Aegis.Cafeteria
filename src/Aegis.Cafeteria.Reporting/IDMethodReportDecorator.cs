@@ -2,6 +2,7 @@ namespace Aegis.Cafeteria.Reporting;
 
 using Aegis.Cafeteria.Domain.Identification;
 using Aegis.Cafeteria.Infrastructure.Persistence;
+using Aegis.Cafeteria.Infrastructure.Persistence.Models;
 using Aegis.Cafeteria.Reporting.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -24,12 +25,15 @@ public sealed class IDMethodReportDecorator(
         if (!IsTransactionDetailReport(kind)) return document;
 
         await using LocalCafeteriaDbContext db = await localFactory.CreateDbContextAsync(cancellationToken);
-        var customers = await db.Customers.AsNoTracking().ToDictionaryAsync(x => x.Id, cancellationToken);
-        var orders = await db.Orders.AsNoTracking()
+        Dictionary<int, CustomerRow> customers = await db.Customers.AsNoTracking()
+            .ToDictionaryAsync(x => x.Id, cancellationToken);
+        List<OrderRow> orders = await db.Orders.AsNoTracking()
+            .Include(x => x.Items)
+            .Include(x => x.Refunds)
             .Where(x => x.CompletedAt.HasValue || x.VoidedAt.HasValue)
             .ToListAsync(cancellationToken);
 
-        Dictionary<Guid, Infrastructure.Persistence.Models.OrderRow> byId = orders.ToDictionary(x => x.Id);
+        Dictionary<Guid, OrderRow> byId = orders.ToDictionary(x => x.Id);
         ReportTable[] tables = document.Tables
             .Select(table => EnrichTable(kind, filter, table, orders, customers, byId))
             .ToArray();
@@ -45,9 +49,9 @@ public sealed class IDMethodReportDecorator(
         CafeteriaReportKind kind,
         ReportFilter filter,
         ReportTable table,
-        IReadOnlyList<Infrastructure.Persistence.Models.OrderRow> orders,
-        IReadOnlyDictionary<int, Infrastructure.Persistence.Models.CustomerRow> customers,
-        IReadOnlyDictionary<Guid, Infrastructure.Persistence.Models.OrderRow> byId)
+        IReadOnlyList<OrderRow> orders,
+        IReadOnlyDictionary<int, CustomerRow> customers,
+        IReadOnlyDictionary<Guid, OrderRow> byId)
     {
         if (!ShouldEnrichTable(kind, table)) return table;
         if (table.Columns.Any(x => string.Equals(x.Key, "idMethod", StringComparison.OrdinalIgnoreCase))) return table;
@@ -71,11 +75,11 @@ public sealed class IDMethodReportDecorator(
     private static IReadOnlyDictionary<string, object?> AddIDMethod(
         IReadOnlyDictionary<string, object?> row,
         ReportFilter filter,
-        IReadOnlyList<Infrastructure.Persistence.Models.OrderRow> orders,
-        IReadOnlyDictionary<int, Infrastructure.Persistence.Models.CustomerRow> customers,
-        IReadOnlyDictionary<Guid, Infrastructure.Persistence.Models.OrderRow> byId)
+        IReadOnlyList<OrderRow> orders,
+        IReadOnlyDictionary<int, CustomerRow> customers,
+        IReadOnlyDictionary<Guid, OrderRow> byId)
     {
-        Infrastructure.Persistence.Models.OrderRow? order = null;
+        OrderRow? order = null;
         if (row.TryGetValue("order", out object? orderValue) && TryGuid(orderValue, out Guid orderId))
         {
             byId.TryGetValue(orderId, out order);
@@ -83,7 +87,7 @@ public sealed class IDMethodReportDecorator(
 
         if (order is null && row.TryGetValue("date", out object? dateValue) && TryDate(dateValue, out DateTimeOffset occurredAt))
         {
-            IEnumerable<Infrastructure.Persistence.Models.OrderRow> candidates = orders.Where(x =>
+            IEnumerable<OrderRow> candidates = orders.Where(x =>
                 x.CompletedAt == occurredAt || x.VoidedAt == occurredAt || x.Refunds.Any(r => r.RefundedAt == occurredAt));
 
             if (filter.EmployeeId.HasValue)
@@ -93,8 +97,15 @@ public sealed class IDMethodReportDecorator(
             if (!string.IsNullOrWhiteSpace(customerName))
             {
                 candidates = candidates.Where(x =>
-                    customers.TryGetValue(x.CustomerId, out Infrastructure.Persistence.Models.CustomerRow? customer) &&
+                    customers.TryGetValue(x.CustomerId, out CustomerRow? customer) &&
                     string.Equals(customer.Name, customerName, StringComparison.OrdinalIgnoreCase));
+            }
+
+            string? itemName = ReadString(row, "item");
+            if (!string.IsNullOrWhiteSpace(itemName))
+            {
+                candidates = candidates.Where(x => x.Items.Any(item =>
+                    string.Equals(item.ProductName, itemName, StringComparison.OrdinalIgnoreCase)));
             }
 
             order = candidates.OrderByDescending(x => x.CompletedAt ?? x.VoidedAt).FirstOrDefault();
