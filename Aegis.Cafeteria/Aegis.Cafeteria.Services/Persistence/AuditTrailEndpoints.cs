@@ -79,5 +79,33 @@ public static class AuditTrailEndpoints
                 return Results.Ok(query.Take(limit).ToArray());
             }
         ).RequireAuthorization("CafeteriaManagement");
+
+        application.MapGet
+        (
+              "/api/management/audit/integrity"
+            , async
+            (
+                  IDbContextFactory<ServiceDbContext> factory
+                , CancellationToken cancellationToken
+            ) =>
+            {
+                AuditTrailService auditTrail = new(factory);
+                AuditIntegrityResult result = await auditTrail.VerifyIntegrityAsync(cancellationToken);
+                return result.IsValid
+                    ? Results.Ok(result)
+                    : Results.Problem
+                    (
+                          statusCode: StatusCodes.Status409Conflict
+                        , title: "Audit trail integrity check failed"
+                        , detail: result.Error
+                        , extensions: new Dictionary<string, object?>
+                        {
+                              ["firstInvalidAuditId"] = result.FirstInvalidAuditId
+                            , ["verifiedRows"] = result.VerifiedRows
+                            , ["legacyRows"] = result.LegacyRows
+                        }
+                    );
+            }
+        ).RequireAuthorization("CafeteriaManagement");
     }
 }
