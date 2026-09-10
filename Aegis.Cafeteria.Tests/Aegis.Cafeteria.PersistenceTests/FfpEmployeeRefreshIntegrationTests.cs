@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 public sealed class FfpEmployeeRefreshIntegrationTests
 {
     [Fact]
-    public async Task Refresh_CachesIdentityEligibilityAndPhotoWithoutLegacyTicketFunding()
+    public async Task Refresh_CachesIdentityEligibilityPhotoAndEmploymentMetadataWithoutLegacyTicketFunding()
     {
         string file = SqliteTestDatabase.CreatePath("ffp-refresh");
         try
@@ -20,6 +20,7 @@ public sealed class FfpEmployeeRefreshIntegrationTests
             await using (LocalCafeteriaDbContext db = factory.CreateDbContext()) await db.Database.EnsureCreatedAsync();
 
             byte[] photo = [1, 2, 3];
+            DateOnly startDate = new(2026, 9, 14);
             EfFfpReferenceCache cache = new(factory);
             EfCustomerReferenceCacheStatus health = new(factory);
             StubSource source = new
@@ -30,6 +31,7 @@ public sealed class FfpEmployeeRefreshIntegrationTests
                           CustomerId = 101
                         , Name = "Jane Doe"
                         , IsActive = true
+                        , EmploymentStartDate = startDate
                         , IsEligibleForCafeteriaCredit = true
                         , Nfc = "nfc"
                         , Code = "code"
@@ -44,7 +46,9 @@ public sealed class FfpEmployeeRefreshIntegrationTests
 
             await using LocalCafeteriaDbContext verify = factory.CreateDbContext();
             var customer = Assert.Single(await verify.Customers.ToListAsync());
+            Assert.True(customer.IsActive);
             Assert.True(customer.IsEligibleForCredit);
+            Assert.Equal(startDate, customer.EmploymentStartDate);
             Assert.Equal("Jane Doe", customer.Name);
             Assert.Equal(photo, customer.Photo);
             Assert.Null(verify.Model.FindEntityType("Aegis.Cafeteria.Infrastructure.Persistence.Models.CustomerFundingProfileRow"));
@@ -85,6 +89,7 @@ public sealed class FfpEmployeeRefreshIntegrationTests
 
             await using LocalCafeteriaDbContext verify = factory.CreateDbContext();
             var customer = Assert.Single(await verify.Customers.ToListAsync());
+            Assert.False(customer.IsActive);
             Assert.False(customer.IsEligibleForCredit);
         }
         finally
