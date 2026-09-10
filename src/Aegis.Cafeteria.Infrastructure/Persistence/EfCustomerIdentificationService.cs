@@ -32,8 +32,9 @@ public sealed class EfCustomerIdentificationService(
             _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unsupported customer identifier type.")
         };
         CustomerIdentificationContext context = new(method, value.Trim());
-        this.identificationContexts[customerId.Value] = context;
 
+        // An exact identifier hit supersedes any pending name-search selection context.
+        this.identificationContexts.TryRemove(customerId.Value, out _);
         CustomerAccountView? account = await accountQuery.GetCurrentAsync(customerId.Value, cancellationToken);
         return account is null ? null : account with { Identification = context };
     }
@@ -43,6 +44,9 @@ public sealed class EfCustomerIdentificationService(
         maximumResults = Math.Clamp(maximumResults, 1, 50);
         string rawSearch = searchText?.Trim() ?? string.Empty;
         string normalized = DomainPersistenceMapper.NormalizeSearchText(rawSearch);
+
+        // Search results are ephemeral. A previous candidate must never label a later sale.
+        this.identificationContexts.Clear();
 
         await using LocalCafeteriaDbContext db = await factory.CreateDbContextAsync(cancellationToken);
 
@@ -74,8 +78,8 @@ public sealed class EfCustomerIdentificationService(
             .Where(x => matchedIds.Contains(x.Id))
             .ToListAsync(cancellationToken);
 
-        // A cashier must confirm a name-search candidate before LoadAsync is called. Record
-        // NAME SEARCH now so the subsequently loaded account carries the identification context.
+        // A cashier must confirm a name-search candidate before LoadAsync is called. The context
+        // is consumed exactly once by LoadAsync so it cannot leak into a later transaction.
         foreach (int customerId in matchedIds)
         {
             this.identificationContexts[customerId] = new CustomerIdentificationContext(IDMethod.Name, "NAME SEARCH");
@@ -101,7 +105,7 @@ public sealed class EfCustomerIdentificationService(
     {
         CustomerAccountView? account = await accountQuery.GetCurrentAsync(customerId, cancellationToken);
         if (account is null) return null;
-        return this.identificationContexts.TryGetValue(customerId, out CustomerIdentificationContext? context)
+        return this.identificationContexts.TryRemove(customerId, out CustomerIdentificationContext? context)
             ? account with { Identification = context }
             : account;
     }
