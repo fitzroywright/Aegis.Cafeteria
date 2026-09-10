@@ -6,6 +6,7 @@ public sealed class FfpIntegrationOptions
     public string ConnectionString { get; init; } = string.Empty;
     public bool AllowWrites { get; init; } = true;
     public int RefreshIntervalMinutes { get; init; } = 10;
+    public int PublicationTimeoutSeconds { get; init; } = 120;
     public string CreditLimitLunchItemCode { get; init; } = "FFP00";
     public string SubsidyLunchItemCode { get; init; } = "FFP00";
 
