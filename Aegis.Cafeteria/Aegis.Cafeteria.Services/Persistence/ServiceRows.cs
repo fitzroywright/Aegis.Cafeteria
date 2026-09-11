@@ -36,6 +36,8 @@ public sealed class AuditTrailRow
     public string? BeforeJson { get; set; }
     public string? AfterJson { get; set; }
     public string? Detail { get; set; }
+    public string? PreviousHash { get; set; }
+    public string? Hash { get; set; }
 }
 
 /// <summary>
