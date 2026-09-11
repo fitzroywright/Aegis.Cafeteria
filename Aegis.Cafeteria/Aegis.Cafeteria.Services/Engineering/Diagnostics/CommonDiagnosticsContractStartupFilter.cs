@@ -20,7 +20,13 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
         {
             app.Use(async (context, continuePipeline) =>
             {
-                if (!context.Request.Path.StartsWithSegments("/api/engineering/diagnostics") || !IsMachineAuthorized(context))
+                if (!context.Request.Path.StartsWithSegments("/api/engineering/diagnostics"))
+                {
+                    await continuePipeline();
+                    return;
+                }
+
+                if (!IsMachineAuthorized(context))
                 {
                     await continuePipeline();
                     return;
@@ -39,18 +45,21 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
         IServiceProvider services = context.RequestServices;
         LocalRunStore store = services.GetRequiredService<LocalRunStore>();
 
-        if (HttpMethods.IsGet(context.Request.Method) && path.Equals("/api/engineering/diagnostics/runs", StringComparison.OrdinalIgnoreCase))
+        if (HttpMethods.IsGet(context.Request.Method)
+            && path.Equals("/api/engineering/diagnostics/runs", StringComparison.OrdinalIgnoreCase))
         {
-            int take = int.TryParse(context.Request.Query["take"], out int requested) ? Math.Clamp(requested, 1, 100) : 25;
+            int take = int.TryParse(context.Request.Query["take"], out int requested)
+                ? Math.Clamp(requested, 1, 100)
+                : 25;
             IReadOnlyList<LocalRun> runs = await store.GetRecentAsync(take, context.RequestAborted);
             await context.Response.WriteAsJsonAsync(runs.Select(ToCommon).ToArray(), context.RequestAborted);
             return;
         }
 
-        const string prefix = "/api/engineering/diagnostics/runs/";
-        if (path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        const string runsPrefix = "/api/engineering/diagnostics/runs/";
+        if (path.StartsWith(runsPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            string remainder = path[prefix.Length..];
+            string remainder = path[runsPrefix.Length..];
             bool resolve = remainder.EndsWith("/resolve", StringComparison.OrdinalIgnoreCase);
             string idText = resolve ? remainder[..^"/resolve".Length] : remainder;
             if (!Guid.TryParse(idText.Trim('/'), out Guid runId))
@@ -62,8 +71,14 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
             if (HttpMethods.IsGet(context.Request.Method) && !resolve)
             {
                 LocalRun? run = await store.GetAsync(runId, context.RequestAborted);
-                if (run is null) context.Response.StatusCode = StatusCodes.Status404NotFound;
-                else await context.Response.WriteAsJsonAsync(ToCommon(run), context.RequestAborted);
+                if (run is null)
+                {
+                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                }
+                else
+                {
+                    await context.Response.WriteAsJsonAsync(ToCommon(run), context.RequestAborted);
+                }
                 return;
             }
 
@@ -77,14 +92,25 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
                     return;
                 }
 
-                LocalRun? resolved = await store.ResolveAsync(runId, "Aegis.Diagnostics", request.Resolution.Trim(), context.RequestAborted);
-                if (resolved is null) context.Response.StatusCode = StatusCodes.Status404NotFound;
-                else await context.Response.WriteAsJsonAsync(ToCommon(resolved), context.RequestAborted);
+                LocalRun? resolved = await store.ResolveAsync(
+                    runId,
+                    "Aegis.Diagnostics",
+                    request.Resolution.Trim(),
+                    context.RequestAborted);
+                if (resolved is null)
+                {
+                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                }
+                else
+                {
+                    await context.Response.WriteAsJsonAsync(ToCommon(resolved), context.RequestAborted);
+                }
                 return;
             }
         }
 
-        if (HttpMethods.IsPost(context.Request.Method) && path.Equals("/api/engineering/diagnostics/run", StringComparison.OrdinalIgnoreCase))
+        if (HttpMethods.IsPost(context.Request.Method)
+            && path.Equals("/api/engineering/diagnostics/run", StringComparison.OrdinalIgnoreCase))
         {
             EngineeringDiagnosticRunRequest? request = await context.Request.ReadFromJsonAsync<EngineeringDiagnosticRunRequest>(context.RequestAborted);
             if (request is null)
@@ -95,8 +121,15 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
 
             try
             {
+                EngineeringDiagnosticPolicy.ValidateLevel(request.Level);
+                EngineeringDiagnosticPolicy.ValidateReason(request.Level, request.Reason);
+
                 LocalDiagnosticService diagnostics = services.GetRequiredService<LocalDiagnosticService>();
-                LocalRun run = await diagnostics.RunAsync(ToLocal(request.Level), "Aegis.Diagnostics", request.Reason, context.RequestAborted);
+                LocalRun run = await diagnostics.RunAsync(
+                    ToLocal(request.Level),
+                    "Aegis.Diagnostics",
+                    request.Reason,
+                    context.RequestAborted);
                 await context.Response.WriteAsJsonAsync(ToCommon(run), context.RequestAborted);
             }
             catch (ArgumentException exception)
@@ -113,7 +146,8 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
     private static bool IsMachineAuthorized(HttpContext context)
     {
         string? expected = Environment.GetEnvironmentVariable(EnvironmentVariable);
-        if (string.IsNullOrWhiteSpace(expected) || !context.Request.Headers.TryGetValue(HeaderName, out var supplied))
+        if (string.IsNullOrWhiteSpace(expected)
+            || !context.Request.Headers.TryGetValue(HeaderName, out Microsoft.Extensions.Primitives.StringValues supplied))
         {
             return false;
         }
