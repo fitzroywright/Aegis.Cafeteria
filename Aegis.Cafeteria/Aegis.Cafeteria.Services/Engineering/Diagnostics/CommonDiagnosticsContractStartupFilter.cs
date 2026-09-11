@@ -2,10 +2,10 @@ using System.Security.Cryptography;
 using System.Text;
 using Common.Diagnostics;
 using LocalDiagnosticService = Aegis.Engineering.Diagnostics.CafeteriaEngineeringDiagnosticService;
-using LocalLevel = Aegis.Engineering.Diagnostics.EngineeringDiagnosticLevel;
-using LocalRun = Aegis.Engineering.Diagnostics.EngineeringDiagnosticRun;
 using LocalRunStore = Aegis.Engineering.Diagnostics.EngineeringDiagnosticRunStore;
-using LocalStatus = Aegis.Engineering.Diagnostics.EngineeringDiagnosticStatus;
+using LocalLevel = Common.Diagnostics.EngineeringDiagnosticLevel;
+using LocalRun = Common.Diagnostics.EngineeringDiagnosticRun;
+using LocalStatus = Common.Diagnostics.EngineeringDiagnosticStatus;
 
 namespace Aegis.Cafeteria.Services.Engineering.Diagnostics;
 
@@ -52,7 +52,7 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
                 ? Math.Clamp(requested, 1, 100)
                 : 25;
             IReadOnlyList<LocalRun> runs = await store.GetRecentAsync(take, context.RequestAborted);
-            await context.Response.WriteAsJsonAsync(runs.Select(ToCommon).ToArray(), context.RequestAborted);
+            await context.Response.WriteAsJsonAsync(runs.ToArray(), context.RequestAborted);
             return;
         }
 
@@ -77,7 +77,7 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
                 }
                 else
                 {
-                    await context.Response.WriteAsJsonAsync(ToCommon(run), context.RequestAborted);
+                    await context.Response.WriteAsJsonAsync(run, context.RequestAborted);
                 }
                 return;
             }
@@ -103,7 +103,7 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
                 }
                 else
                 {
-                    await context.Response.WriteAsJsonAsync(ToCommon(resolved), context.RequestAborted);
+                    await context.Response.WriteAsJsonAsync(resolved, context.RequestAborted);
                 }
                 return;
             }
@@ -126,11 +126,11 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
 
                 LocalDiagnosticService diagnostics = services.GetRequiredService<LocalDiagnosticService>();
                 LocalRun run = await diagnostics.RunAsync(
-                    ToLocal(request.Level),
+                    request.Level,
                     "Aegis.Diagnostics",
                     request.Reason,
                     context.RequestAborted);
-                await context.Response.WriteAsJsonAsync(ToCommon(run), context.RequestAborted);
+                await context.Response.WriteAsJsonAsync(run, context.RequestAborted);
             }
             catch (ArgumentException exception)
             {
@@ -157,58 +157,4 @@ public sealed class CommonDiagnosticsContractStartupFilter : IStartupFilter
         return expectedBytes.Length == suppliedBytes.Length
             && CryptographicOperations.FixedTimeEquals(expectedBytes, suppliedBytes);
     }
-
-    private static LocalLevel ToLocal(EngineeringDiagnosticLevel level) => level switch
-    {
-        EngineeringDiagnosticLevel.Level5Scan => LocalLevel.Level5Scan,
-        EngineeringDiagnosticLevel.Level4Analysis => LocalLevel.Level4Analysis,
-        EngineeringDiagnosticLevel.Level3Verification => LocalLevel.Level3Verification,
-        EngineeringDiagnosticLevel.Level2Repair => LocalLevel.Level2Repair,
-        EngineeringDiagnosticLevel.Level1CriticalIntervention => LocalLevel.Level1CriticalIntervention,
-        _ => throw new ArgumentOutOfRangeException(nameof(level))
-    };
-
-    private static EngineeringDiagnosticRun ToCommon(LocalRun run)
-    {
-        EngineeringDiagnosticCheckResult[] checks = run.Checks.Select(check => new EngineeringDiagnosticCheckResult(
-            check.CheckId,
-            check.Name,
-            ToCommon(check.Status),
-            check.Summary,
-            check.Evidence)).ToArray();
-
-        return new EngineeringDiagnosticRun(
-            run.RunId,
-            ToCommon(run.Level),
-            run.Application,
-            run.Environment,
-            run.RequestedBy,
-            run.Reason,
-            run.StartedAt,
-            run.CompletedAt,
-            ToCommon(run.Status),
-            checks,
-            run.ResolvedAt,
-            run.ResolvedBy,
-            run.Resolution);
-    }
-
-    private static EngineeringDiagnosticLevel ToCommon(LocalLevel level) => level switch
-    {
-        LocalLevel.Level5Scan => EngineeringDiagnosticLevel.Level5Scan,
-        LocalLevel.Level4Analysis => EngineeringDiagnosticLevel.Level4Analysis,
-        LocalLevel.Level3Verification => EngineeringDiagnosticLevel.Level3Verification,
-        LocalLevel.Level2Repair => EngineeringDiagnosticLevel.Level2Repair,
-        LocalLevel.Level1CriticalIntervention => EngineeringDiagnosticLevel.Level1CriticalIntervention,
-        _ => throw new ArgumentOutOfRangeException(nameof(level))
-    };
-
-    private static EngineeringDiagnosticStatus ToCommon(LocalStatus status) => status switch
-    {
-        LocalStatus.Passed => EngineeringDiagnosticStatus.Passed,
-        LocalStatus.Warning => EngineeringDiagnosticStatus.Warning,
-        LocalStatus.Failed => EngineeringDiagnosticStatus.Failed,
-        LocalStatus.InterventionRequired => EngineeringDiagnosticStatus.InterventionRequired,
-        _ => throw new ArgumentOutOfRangeException(nameof(status))
-    };
 }
