@@ -18,6 +18,13 @@ public sealed class LocalPersistenceStore(
         => SaveAsync(async db => { var x=await db.Products.SingleOrDefaultAsync(v=>v.Id==row.Id,ct); if(x is null) db.Products.Add(row); else db.Entry(x).CurrentValues.SetValues(row); }, ct);
     public Task SaveOrderAsync(OrderRow row, CancellationToken ct = default)
         => SaveAsync(db => financialPostingService.SaveOrderAsync(db, row, ct), ct);
+    public Task SaveOrderWithTransactionAsync(OrderRow order, PosTransactionOutboxRow transaction, CancellationToken ct = default)
+        => SaveAsync(async db =>
+        {
+            await financialPostingService.SaveOrderAsync(db, order, ct);
+            bool exists = await db.PosTransactionOutbox.AnyAsync(x => x.EventId == transaction.EventId, ct);
+            if (!exists) db.PosTransactionOutbox.Add(transaction);
+        }, ct);
     public Task SaveAccountEventAsync(AccountEventRow row, CancellationToken ct = default)
         => SaveAsync(db => financialPostingService.SaveAccountEventAsync(db, row, ct), ct);
     public Task SaveAccountPeriodAsync(AccountPeriodRow row, CancellationToken ct = default)
@@ -26,6 +33,36 @@ public sealed class LocalPersistenceStore(
         => SaveAsync(db => financialPostingService.SaveMonthlyCreditAllocationAsync(db, row, ct), ct);
     public async Task<MonthlyCreditAllocationRow?> GetMonthlyCreditAllocationAsync(int customerId,int year,int month,CancellationToken ct=default)
     { await using var db=await factory.CreateDbContextAsync(ct); return await db.MonthlyCreditAllocations.AsNoTracking().SingleOrDefaultAsync(x=>x.CustomerId==customerId&&x.Year==year&&x.Month==month,ct); }
+
+    public Task EnqueuePosTransactionAsync(PosTransactionOutboxRow row, CancellationToken ct = default)
+        => SaveAsync(async db => { bool exists = await db.PosTransactionOutbox.AnyAsync(x => x.EventId == row.EventId, ct); if (!exists) db.PosTransactionOutbox.Add(row); }, ct);
+
+    public async Task<IReadOnlyList<PosTransactionOutboxRow>> GetPendingPosTransactionsAsync(int take, DateTimeOffset now, CancellationToken ct = default)
+    {
+        await using LocalCafeteriaDbContext db = await factory.CreateDbContextAsync(ct);
+        return await db.PosTransactionOutbox.AsNoTracking().Where(x => x.PublishedAt == null && x.NextAttemptAt <= now).OrderBy(x => x.CreatedAt).Take(Math.Clamp(take, 1, 100)).ToArrayAsync(ct);
+    }
+
+    public Task MarkPosTransactionPublishedAsync(Guid eventId, DateTimeOffset publishedAt, CancellationToken ct = default)
+        => SaveAsync(async db =>
+        {
+            PosTransactionOutboxRow row = await db.PosTransactionOutbox.SingleAsync(x => x.EventId == eventId, ct);
+            row.AttemptCount++;
+            row.LastAttemptAt = publishedAt;
+            row.PublishedAt = publishedAt;
+            row.LastError = null;
+        }, ct);
+
+    public Task RecordPosTransactionFailureAsync(Guid eventId, string error, DateTimeOffset attemptedAt, DateTimeOffset nextAttemptAt, CancellationToken ct = default)
+        => SaveAsync(async db =>
+        {
+            PosTransactionOutboxRow row = await db.PosTransactionOutbox.SingleAsync(x => x.EventId == eventId, ct);
+            row.AttemptCount++;
+            row.LastAttemptAt = attemptedAt;
+            row.NextAttemptAt = nextAttemptAt;
+            row.LastError = string.IsNullOrWhiteSpace(error) ? "Unknown publication error." : error[..Math.Min(error.Length, 2000)];
+        }, ct);
+
     private async Task SaveAsync(Func<LocalCafeteriaDbContext,Task> action,CancellationToken ct)
     { await using var db=await factory.CreateDbContextAsync(ct); await using var tx=await db.Database.BeginTransactionAsync(ct); await action(db); await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); logger.LogDebug("Local cafeteria state committed"); }
 }
