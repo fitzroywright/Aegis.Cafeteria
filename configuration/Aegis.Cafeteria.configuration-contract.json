@@ -1,0 +1,90 @@
+{
+  "applicationId": "Aegis.Cafeteria",
+  "displayName": "Aegis Cafeteria",
+  "version": "1.0.0",
+  "requirements": [
+    {
+      "id": "local-persistence",
+      "displayName": "Cafeteria local persistence",
+      "kind": "Configuration",
+      "required": true,
+      "purpose": "Stores Cafeteria service runtime state locally.",
+      "configurationKey": "Persistence:LocalSqliteConnectionString",
+      "instructionId": "cafeteria-local-persistence"
+    },
+    {
+      "id": "service-persistence",
+      "displayName": "Cafeteria service persistence",
+      "kind": "Configuration",
+      "required": true,
+      "purpose": "Defines the persistent Cafeteria service database.",
+      "configurationKey": "ServicePersistence:ConnectionString",
+      "instructionId": "cafeteria-service-persistence"
+    },
+    {
+      "id": "ffp-server",
+      "displayName": "FFP Manager SQL Server",
+      "kind": "Configuration",
+      "required": true,
+      "purpose": "Identifies the FFP Manager SQL Server used by Cafeteria integration.",
+      "configurationKey": "FfpIntegration:Server",
+      "instructionId": "cafeteria-ffp-server"
+    },
+    {
+      "id": "ffp-database",
+      "displayName": "FFP Manager database",
+      "kind": "Configuration",
+      "required": true,
+      "purpose": "Identifies the FFP Manager database used by Cafeteria integration.",
+      "configurationKey": "FfpIntegration:Database",
+      "instructionId": "cafeteria-ffp-database"
+    },
+    {
+      "id": "directory-domain",
+      "displayName": "Directory domain",
+      "kind": "Configuration",
+      "required": true,
+      "purpose": "Identifies the directory domain used for Cafeteria authentication.",
+      "configurationKey": "Security:Domain",
+      "instructionId": "cafeteria-directory-domain"
+    },
+    {
+      "id": "directory-search-base",
+      "displayName": "Directory search base",
+      "kind": "Configuration",
+      "required": true,
+      "purpose": "Defines the directory search base used for Cafeteria authentication.",
+      "configurationKey": "Security:SearchBase",
+      "instructionId": "cafeteria-directory-search-base"
+    },
+    {
+      "id": "smtp-host",
+      "displayName": "Scheduled email SMTP host",
+      "kind": "Configuration",
+      "required": true,
+      "purpose": "Provides the SMTP service used for scheduled Cafeteria reports and notifications.",
+      "configurationKey": "ScheduledEmail:SmtpHost",
+      "instructionId": "cafeteria-smtp"
+    },
+    {
+      "id": "management-service",
+      "displayName": "Cafeteria service endpoint",
+      "kind": "ExternalService",
+      "required": true,
+      "purpose": "Provides the Cafeteria service endpoint consumed by the management application.",
+      "configurationKey": "CafeteriaServices:BaseUrl",
+      "validator": "http",
+      "instructionId": "cafeteria-service-endpoint"
+    },
+    {
+      "id": "diagnostics-key",
+      "displayName": "Engineering diagnostics machine credential",
+      "kind": "Secret",
+      "required": true,
+      "purpose": "Protects the Common.Diagnostics machine interface exposed by Cafeteria.",
+      "secretName": "Cafeteria:Diagnostics:Key",
+      "validator": "secret",
+      "instructionId": "cafeteria-diagnostics-key"
+    }
+  ]
+}
