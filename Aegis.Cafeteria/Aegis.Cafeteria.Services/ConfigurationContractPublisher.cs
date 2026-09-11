@@ -1,4 +1,5 @@
 using System.Text;
+using Common.Secrets;
 
 namespace Aegis.Cafeteria.Services;
 
@@ -17,20 +18,21 @@ public sealed class ConfigurationContractPublisher(
         }
 
         string path = configuration["AegisConfiguration:ContractPath"]
-            ?? Path.Combine(environment.ContentRootPath, "configuration", "Aegis.Cafeteria.configuration-contract.json");
+            ?? Path.GetFullPath(Path.Combine(environment.ContentRootPath, "..", "..", "configuration", "Aegis.Cafeteria.configuration-contract.json"));
 
         try
         {
             if (!File.Exists(path))
             {
-                logger.LogWarning("Cafeteria configuration contract was not found at {ContractPath}; Cafeteria Services will continue without publishing it.", path);
+                logger.LogWarning("Aegis.Configuration contract was not found at {ContractPath}; Cafeteria will continue without publishing it.", path);
                 return;
             }
 
-            string? key = configuration["AegisConfiguration:RegistrationKey"];
+            ISecretProvider secrets = CommonSecretProviderFactory.Create(configuration);
+            string? key = await secrets.GetAsync("configuration/registration/Aegis.Cafeteria", stoppingToken);
             if (string.IsNullOrWhiteSpace(key))
             {
-                logger.LogWarning("Aegis.Configuration registration credential is unavailable; Cafeteria Services will continue without publishing its contract.");
+                logger.LogWarning("Aegis.Configuration registration credential is unavailable; Cafeteria will continue without publishing its contract.");
                 return;
             }
 
@@ -42,7 +44,7 @@ public sealed class ConfigurationContractPublisher(
             using HttpResponseMessage response = await client.SendAsync(request, stoppingToken);
             if (!response.IsSuccessStatusCode)
             {
-                logger.LogWarning("Aegis.Configuration rejected Cafeteria contract publication with HTTP {StatusCode}; Cafeteria Services remains operational.", (int)response.StatusCode);
+                logger.LogWarning("Aegis.Configuration rejected Cafeteria contract publication with HTTP {StatusCode}; Cafeteria remains operational.", (int)response.StatusCode);
                 return;
             }
 
@@ -53,7 +55,7 @@ public sealed class ConfigurationContractPublisher(
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Unable to publish Aegis.Cafeteria configuration contract; Cafeteria Services remains operational.");
+            logger.LogWarning(exception, "Unable to publish Aegis.Cafeteria configuration contract; Cafeteria remains operational.");
         }
     }
 }
