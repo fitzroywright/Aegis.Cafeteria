@@ -30,7 +30,14 @@ public sealed class EfOrderQuery(IDbContextFactory<LocalCafeteriaDbContext> fact
             .Include(x => x.Refunds).ThenInclude(x => x.Allocations)
             .Where(x => x.Status == (int)OrderStatus.Completed && x.CompletedAt.HasValue);
         if (customerId.HasValue) query = query.Where(x => x.CustomerId == customerId.Value);
-        var rows = await query.OrderByDescending(x => x.CompletedAt).Take(take).ToArrayAsync(cancellationToken);
-        return rows.Select(DomainReadMapper.ToDomain).ToArray();
+
+        // SQLite cannot reliably ORDER BY the DateTimeOffset CompletedAt column. Materialize
+        // the completed rows first, then sort the domain values in memory for cashier/refund use.
+        var rows = await query.ToArrayAsync(cancellationToken);
+        return rows
+            .Select(DomainReadMapper.ToDomain)
+            .OrderByDescending(x => x.CompletedAt)
+            .Take(take)
+            .ToArray();
     }
 }
