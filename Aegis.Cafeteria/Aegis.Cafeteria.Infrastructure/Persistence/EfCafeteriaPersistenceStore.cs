@@ -7,6 +7,7 @@ using Aegis.Cafeteria.Domain.Identification;
 using Aegis.Cafeteria.Domain.Orders;
 using Aegis.Cafeteria.Domain.Products;
 using Aegis.Cafeteria.Infrastructure.Persistence.Models;
+using Aegis.Cafeteria.Infrastructure.Services;
 
 public sealed class EfCafeteriaPersistenceStore(LocalPersistenceStore store) : ICafeteriaPersistenceStore, IMonthlyCreditAllocationStore
 {
@@ -16,7 +17,32 @@ public sealed class EfCafeteriaPersistenceStore(LocalPersistenceStore store) : I
     public Task SaveMonthlyCreditAllocationAsync(MonthlyCreditAllocation x,CancellationToken ct=default) => store.SaveMonthlyCreditAllocationAsync(DomainPersistenceMapper.ToRow(x,Revision(),DateTimeOffset.UtcNow),ct);
     public Task SaveAsync(MonthlyCreditAllocation x,CancellationToken ct=default) => SaveMonthlyCreditAllocationAsync(x,ct);
     public Task SaveProductAsync(Product x,CancellationToken ct=default) => store.SaveProductAsync(DomainPersistenceMapper.ToRow(x,Revision(),DateTimeOffset.UtcNow),ct);
-    public Task SaveOrderAsync(Order x,CancellationToken ct=default) => store.SaveOrderAsync(DomainPersistenceMapper.ToRow(x,Revision(),DateTimeOffset.UtcNow),ct);
+
+    public Task SaveOrderAsync(Order x,CancellationToken ct=default)
+    {
+        PosTransactionEvent transactionEvent = PosTransactionEventFactory.Create(x);
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        PosTransactionOutboxRow outbox = new()
+        {
+            EventId = transactionEvent.EventId,
+            CorrelationId = transactionEvent.CorrelationId,
+            Kind = transactionEvent.Kind,
+            OrderId = transactionEvent.OrderId,
+            CustomerId = transactionEvent.CustomerId,
+            Actor = transactionEvent.Actor,
+            TerminalId = transactionEvent.TerminalId,
+            AccountYear = transactionEvent.AccountYear,
+            AccountMonth = transactionEvent.AccountMonth,
+            OccurredAt = transactionEvent.OccurredAt,
+            PayloadJson = transactionEvent.PayloadJson,
+            Reason = transactionEvent.Reason,
+            CreatedAt = now,
+            NextAttemptAt = now
+        };
+
+        return store.SaveOrderWithTransactionAsync(DomainPersistenceMapper.ToRow(x,Revision(),now), outbox, ct);
+    }
+
     public Task SaveAdditionalCreditApprovalAsync(AdditionalCreditApproval x,CancellationToken ct=default) => SaveEvent(x.Id,"AdditionalCreditApproval",x.CustomerId,x.ApprovedAt.Year,x.ApprovedAt.Month,x.Amount,x.ApprovedAt,x,ct);
     public Task SaveCustomerPaymentAsync(CustomerPayment x,CancellationToken ct=default) => SaveEvent(x.Id,"CustomerPayment",x.CustomerId,x.ReceivedAt.Year,x.ReceivedAt.Month,x.Amount,x.ReceivedAt,x,ct);
     public Task SaveCarriedForwardDebtAsync(CarriedForwardDebt x,CancellationToken ct=default) => SaveEvent(x.Id,"CarriedForwardDebt",x.CustomerId,x.AppliedYear,x.AppliedMonth,x.Amount,x.RecordedAt,x,ct);
@@ -28,7 +54,6 @@ public sealed class EfCafeteriaPersistenceStore(LocalPersistenceStore store) : I
     {
         var row = await store.GetMonthlyCreditAllocationAsync(customerId, year, month, ct);
         if (row is null) return null;
-
         return new MonthlyCreditAllocation(row.CustomerId,row.Year,row.Month,row.EligibleWorkingDays,row.IsEligibleForCredit,row.CreditLimitPrice,row.SubsidyCost,row.CalculatedAt);
     }
 
