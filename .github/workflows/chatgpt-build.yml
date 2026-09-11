@@ -3,10 +3,7 @@ name: Aegis Cafeteria Build
 on:
   push:
     branches:
-      - master
-      - development/post-rc1
-      - chatgpt/enable-messaging-and-tests
-      - integration/common-security-platform
+      - main
   pull_request:
   workflow_dispatch:
 
