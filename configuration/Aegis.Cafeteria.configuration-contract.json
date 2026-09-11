@@ -58,11 +58,20 @@
       "instructionId": "cafeteria-directory-search-base"
     },
     {
+      "id": "directory-servers",
+      "displayName": "Directory servers",
+      "kind": "Configuration",
+      "required": true,
+      "purpose": "Defines the LDAPS directory servers used by Common.Security-backed Cafeteria authentication.",
+      "configurationKey": "Security:Servers",
+      "instructionId": "cafeteria-directory-servers"
+    },
+    {
       "id": "smtp-host",
       "displayName": "Scheduled email SMTP host",
       "kind": "Configuration",
-      "required": true,
-      "purpose": "Provides the SMTP service used for scheduled Cafeteria reports and notifications.",
+      "required": false,
+      "purpose": "Provides the SMTP service when scheduled Cafeteria reports and notifications are enabled.",
       "configurationKey": "ScheduledEmail:SmtpHost",
       "instructionId": "cafeteria-smtp"
     },
@@ -81,7 +90,7 @@
       "displayName": "Engineering diagnostics machine credential",
       "kind": "Secret",
       "required": true,
-      "purpose": "Protects the Common.Diagnostics machine interface exposed by Cafeteria.",
+      "purpose": "Protects the Common.Diagnostics machine interface consumed by Aegis.Diagnostics. Provision the resolved secret to the CAFETERIA_DIAGNOSTICS_KEY runtime environment variable.",
       "secretName": "Cafeteria:Diagnostics:Key",
       "validator": "secret",
       "instructionId": "cafeteria-diagnostics-key"
