@@ -55,6 +55,7 @@ public sealed class CafeteriaAuthenticationHostingStartup : IHostingStartup
                 services.AddHostedService<EmployeeDirectorySyncWorker>();
                 services.AddSingleton<OutboundEmailWorker>();
                 services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<OutboundEmailWorker>());
+                services.AddHostedService<ConfigurationContractPublisher>();
 
                 services.AddCommonDiagnostics();
                 services.AddDiagnosticCheck<CafeteriaDatabaseDiagnostic>();
