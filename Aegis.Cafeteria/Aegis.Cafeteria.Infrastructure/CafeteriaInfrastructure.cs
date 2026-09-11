@@ -20,11 +20,7 @@ using Microsoft.Extensions.Logging;
 
 public static class CafeteriaInfrastructure
 {
-    public static IServiceCollection AddCafeteriaPos
-    (
-          this IServiceCollection services
-        , CafeteriaRuntimeOptions runtime
-    )
+    public static IServiceCollection AddCafeteriaPos(this IServiceCollection services, CafeteriaRuntimeOptions runtime)
     {
         services.AddSingleton(runtime);
         services.AddSingleton(runtime.Persistence);
@@ -34,35 +30,12 @@ public static class CafeteriaInfrastructure
         services.AddSingleton(runtime.Services);
         services.AddSingleton<PosServicesSession>();
         services.AddTransient<PosServicesTokenHandler>();
-
-        services.AddSingleton
-        (
-            new LocalDbContextFactory
-            (
-                DbContextOptionsFactory.CreateLocal(runtime.Persistence)
-            )
-        );
-
-        services.AddSingleton<IDbContextFactory<LocalCafeteriaDbContext>>
-        (
-            serviceProvider => serviceProvider.GetRequiredService<LocalDbContextFactory>()
-        );
-
+        services.AddSingleton(new LocalDbContextFactory(DbContextOptionsFactory.CreateLocal(runtime.Persistence)));
+        services.AddSingleton<IDbContextFactory<LocalCafeteriaDbContext>>(serviceProvider => serviceProvider.GetRequiredService<LocalDbContextFactory>());
         services.AddSingleton<LocalPersistenceStore>();
         services.AddSingleton<EfCafeteriaPersistenceStore>();
-        services.AddSingleton<IMonthlyCreditAllocationStore>
-        (
-            serviceProvider => serviceProvider.GetRequiredService<EfCafeteriaPersistenceStore>()
-        );
-        services.AddSingleton<ICafeteriaPersistenceStore>
-        (
-            serviceProvider => new Aegis.Cafeteria.Infrastructure.Logging.LoggingCafeteriaPersistenceStore
-            (
-                  serviceProvider.GetRequiredService<EfCafeteriaPersistenceStore>()
-                , serviceProvider.GetRequiredService<ILogger<Aegis.Cafeteria.Infrastructure.Logging.LoggingCafeteriaPersistenceStore>>()
-            )
-        );
-
+        services.AddSingleton<IMonthlyCreditAllocationStore>(serviceProvider => serviceProvider.GetRequiredService<EfCafeteriaPersistenceStore>());
+        services.AddSingleton<ICafeteriaPersistenceStore>(serviceProvider => new Aegis.Cafeteria.Infrastructure.Logging.LoggingCafeteriaPersistenceStore(serviceProvider.GetRequiredService<EfCafeteriaPersistenceStore>(), serviceProvider.GetRequiredService<ILogger<Aegis.Cafeteria.Infrastructure.Logging.LoggingCafeteriaPersistenceStore>>()));
         services.AddSingleton<IHolidayProvider, EfHolidayProvider>();
         services.AddSingleton<IWorkingDayProvider, StandardWorkingDayProvider>();
         services.AddSingleton<ICafeteriaRatePolicyProvider, EfCafeteriaRatePolicyProvider>();
@@ -74,71 +47,28 @@ public static class CafeteriaInfrastructure
         services.AddSingleton<IRecentTransactionQuery, EfRecentTransactionQuery>();
         services.AddSingleton<ICustomerReferenceCacheStatus, EfCustomerReferenceCacheStatus>();
         services.AddSingleton<CustomerAccountChangeNotifier>();
-        services.AddSingleton<ICustomerAccountChangeNotifier>
-        (
-            serviceProvider => serviceProvider.GetRequiredService<CustomerAccountChangeNotifier>()
-        );
+        services.AddSingleton<ICustomerAccountChangeNotifier>(serviceProvider => serviceProvider.GetRequiredService<CustomerAccountChangeNotifier>());
 
-        if (runtime.FfpIntegration.Enabled)
-        {
-            ConfigureLocalFfpProjection(services);
-        }
+        if (runtime.FfpIntegration.Enabled) ConfigureLocalFfpProjection(services);
+        if (runtime.FfpIntegration.Enabled && runtime.Services.Enabled) ConfigureOnlineFfpIntegration(services, runtime);
 
-        if (runtime.FfpIntegration.Enabled && runtime.Services.Enabled)
-        {
-            ConfigureOnlineFfpIntegration
-            (
-                  services
-                , runtime
-            );
-        }
-
-        services.AddSingleton<IProductCatalogMaintenance>
-        (
-            serviceProvider => new EfProductCatalogMaintenance
-            (
-                  serviceProvider.GetRequiredService<IDbContextFactory<LocalCafeteriaDbContext>>()
-                , serviceProvider.GetService<ILunchItemBootstrapSource>()
-                , serviceProvider.GetService<IFfpMonthImportService>()
-            )
-        );
-
+        services.AddSingleton<IProductCatalogMaintenance>(serviceProvider => new EfProductCatalogMaintenance(serviceProvider.GetRequiredService<IDbContextFactory<LocalCafeteriaDbContext>>(), serviceProvider.GetService<ILunchItemBootstrapSource>(), serviceProvider.GetService<IFfpMonthImportService>()));
         services.AddSingleton<MonthlyAllocationCalculator>();
         services.AddSingleton<IMonthlyAllocationExecutionPolicy, MonthlyAllocationExecutionPolicy>();
         services.AddSingleton<MonthlyCreditAllocationService>();
         services.AddSingleton<PosCheckoutService>();
         services.AddSingleton<EfWeeklyTransactionSummaryQuery>();
-        services.AddSingleton<IWeeklyTransactionSummaryQuery>
-        (
-            serviceProvider => serviceProvider.GetRequiredService<EfWeeklyTransactionSummaryQuery>()
-        );
-        services.AddSingleton<IWeeklySummaryDispatchStore>
-        (
-            serviceProvider => serviceProvider.GetRequiredService<EfWeeklyTransactionSummaryQuery>()
-        );
+        services.AddSingleton<IWeeklyTransactionSummaryQuery>(serviceProvider => serviceProvider.GetRequiredService<EfWeeklyTransactionSummaryQuery>());
+        services.AddSingleton<IWeeklySummaryDispatchStore>(serviceProvider => serviceProvider.GetRequiredService<EfWeeklyTransactionSummaryQuery>());
         services.AddSingleton<WeeklyCustomerSummaryService>();
 
-        if (runtime.Messaging.Enabled)
-        {
-            services.AddHttpClient<ICafeteriaMessagingGateway, HttpCafeteriaMessagingGateway>();
-        }
-        else
-        {
-            services.AddSingleton<ICafeteriaMessagingGateway, DisabledCafeteriaMessagingGateway>();
-        }
+        if (runtime.Messaging.Enabled) services.AddHttpClient<ICafeteriaMessagingGateway, HttpCafeteriaMessagingGateway>();
+        else services.AddSingleton<ICafeteriaMessagingGateway, DisabledCafeteriaMessagingGateway>();
 
-        if (runtime.Services.Enabled)
-        {
-            ConfigureCafeteriaServicesIntegration
-            (
-                  services
-                , runtime.Services
-            );
-        }
+        if (runtime.Services.Enabled) ConfigureCafeteriaServicesIntegration(services, runtime.Services);
 
         services.AddSingleton<PersistenceInitializer>();
         services.AddHostedService<CafeteriaHeartbeatWorker>();
-
         return services;
     }
 
@@ -148,18 +78,9 @@ public static class CafeteriaInfrastructure
         services.AddSingleton<IExternalLedgerProjectionService, ExternalLedgerProjectionService>();
     }
 
-    private static void ConfigureOnlineFfpIntegration
-    (
-          IServiceCollection services
-        , CafeteriaRuntimeOptions runtime
-    )
+    private static void ConfigureOnlineFfpIntegration(IServiceCollection services, CafeteriaRuntimeOptions runtime)
     {
-        services.AddHttpClient<ServicesIntegrationGateway>
-        (
-            client => ConfigureServicesHttpClient(client, runtime.Services)
-        )
-        .AddHttpMessageHandler<PosServicesTokenHandler>();
-
+        services.AddHttpClient<ServicesIntegrationGateway>(client => ConfigureServicesHttpClient(client, runtime.Services)).AddHttpMessageHandler<PosServicesTokenHandler>();
         services.AddSingleton<IExternalAccountingGateway>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
         services.AddSingleton<IWorkforceReferenceSource>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
         services.AddSingleton<ILunchItemBootstrapSource>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
@@ -171,43 +92,18 @@ public static class CafeteriaInfrastructure
         services.AddHostedService<FfpLedgerPublisherWorker>();
     }
 
-    private static void ConfigureCafeteriaServicesIntegration
-    (
-          IServiceCollection services
-        , CafeteriaServicesOptions options
-    )
+    private static void ConfigureCafeteriaServicesIntegration(IServiceCollection services, CafeteriaServicesOptions options)
     {
-        services.AddHttpClient<ServicesOperatorAuthenticator>
-        (
-            client => ConfigureServicesHttpClient(client, options)
-        );
-
-        services.AddHttpClient<CafeteriaServicesClient>
-        (
-            client => ConfigureServicesHttpClient(client, options)
-        )
-        .AddHttpMessageHandler<PosServicesTokenHandler>();
-
-        services.AddHttpClient<CafeteriaManagementClient>
-        (
-            client => ConfigureServicesHttpClient(client, options)
-        )
-        .AddHttpMessageHandler<PosServicesTokenHandler>();
-
+        services.AddHttpClient<ServicesOperatorAuthenticator>(client => ConfigureServicesHttpClient(client, options));
+        services.AddHttpClient<CafeteriaServicesClient>(client => ConfigureServicesHttpClient(client, options)).AddHttpMessageHandler<PosServicesTokenHandler>();
+        services.AddHttpClient<CafeteriaManagementClient>(client => ConfigureServicesHttpClient(client, options)).AddHttpMessageHandler<PosServicesTokenHandler>();
         services.AddSingleton<ManagementEventWakeSignal>();
         services.AddHostedService<ManagementEventSyncWorker>();
-
-        if (options.RealtimeEnabled)
-        {
-            services.AddHostedService<ManagementEventSignalRWorker>();
-        }
+        services.AddHostedService<PosTransactionOutboxWorker>();
+        if (options.RealtimeEnabled) services.AddHostedService<ManagementEventSignalRWorker>();
     }
 
-    private static void ConfigureServicesHttpClient
-    (
-          HttpClient client
-        , CafeteriaServicesOptions options
-    )
+    private static void ConfigureServicesHttpClient(HttpClient client, CafeteriaServicesOptions options)
     {
         client.BaseAddress = new Uri(options.BaseUrl.TrimEnd('/') + "/");
         client.Timeout = TimeSpan.FromSeconds(options.RequestTimeoutSeconds);
