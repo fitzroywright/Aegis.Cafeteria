@@ -8,6 +8,8 @@ public sealed class LocalCafeteriaDbContext(DbContextOptions<LocalCafeteriaDbCon
     public DbSet<FfpImportedTransactionRow> FfpImportedTransactions => Set<FfpImportedTransactionRow>();
     public DbSet<LocalSchemaInfoRow> LocalSchemaInfo => Set<LocalSchemaInfoRow>();
     public DbSet<ManagementEventInboxRow> ManagementEventInbox => Set<ManagementEventInboxRow>();
+    public DbSet<PosTransactionOutboxRow> PosTransactionOutbox => Set<PosTransactionOutboxRow>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
@@ -34,6 +36,17 @@ public sealed class LocalCafeteriaDbContext(DbContextOptions<LocalCafeteriaDbCon
         b.Entity<ManagementEventInboxRow>().HasIndex(x => x.Sequence).IsUnique();
         b.Entity<ManagementEventInboxRow>().Property(x => x.PayloadJson).HasMaxLength(8000);
         b.Entity<ManagementEventInboxRow>().Property(x => x.LastError).HasMaxLength(2000);
+
+        b.Entity<PosTransactionOutboxRow>().ToTable("PosTransactionOutbox");
+        b.Entity<PosTransactionOutboxRow>().HasKey(x => x.EventId);
+        b.Entity<PosTransactionOutboxRow>().HasIndex(x => new { x.PublishedAt, x.NextAttemptAt, x.CreatedAt });
+        b.Entity<PosTransactionOutboxRow>().Property(x => x.Kind).HasMaxLength(64);
+        b.Entity<PosTransactionOutboxRow>().Property(x => x.Actor).HasMaxLength(256);
+        b.Entity<PosTransactionOutboxRow>().Property(x => x.TerminalId).HasMaxLength(128);
+        b.Entity<PosTransactionOutboxRow>().Property(x => x.PayloadJson).HasMaxLength(16000);
+        b.Entity<PosTransactionOutboxRow>().Property(x => x.Reason).HasMaxLength(2000);
+        b.Entity<PosTransactionOutboxRow>().Property(x => x.LastError).HasMaxLength(2000);
+
         b.Entity<LocalSchemaInfoRow>().ToTable("LocalSchemaInfo");
         b.Entity<LocalSchemaInfoRow>().HasKey(x => x.Id);
     }
