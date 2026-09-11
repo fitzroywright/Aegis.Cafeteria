@@ -21,7 +21,9 @@ public sealed class StipendService
         string processedByUserId,
         DateTimeOffset processedAt,
         string? expenseReportReference = null,
-        string? notes = null)
+        string? notes = null,
+        int? fundingYear = null,
+        int? fundingMonth = null)
     {
         ArgumentNullException.ThrowIfNull(customer);
         ArgumentNullException.ThrowIfNull(account);
@@ -31,7 +33,7 @@ public sealed class StipendService
         if (cashAmount <= 0)
             throw new ArgumentOutOfRangeException(nameof(cashAmount));
 
-        var cardReduction = Math.Min(cashAmount, account.RemainingCompanyContribution);
+        decimal cardReduction = Math.Min(cashAmount, account.RemainingCompanyContribution);
         cardReduction = Math.Min(cardReduction, account.AvailableCredit);
 
         return new Stipend(
@@ -43,6 +45,8 @@ public sealed class StipendService
             processedByUserId,
             processedAt,
             expenseReportReference,
-            notes);
+            notes,
+            fundingYear,
+            fundingMonth);
     }
 }

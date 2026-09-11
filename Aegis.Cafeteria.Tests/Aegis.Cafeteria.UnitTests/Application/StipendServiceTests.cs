@@ -48,6 +48,30 @@ public sealed class StipendServiceTests
     }
 
     [Fact]
+    public void Process_WhenFundingPeriodIsPriorMonth_BindsStipendToFundingPeriod()
+    {
+        var service = new StipendService(new Authorizer(true));
+        var processedAt = new DateTimeOffset(2026, 9, 4, 12, 0, 0, TimeSpan.Zero);
+
+        var stipend = service.Process(
+            CreateCustomer(),
+            Snapshot(availableCredit: 5_000m, remainingContribution: 2_000m),
+            cashAmount: 800m,
+            StipendPaymentMode.Reimbursement,
+            "accounts.user",
+            processedAt,
+            expenseReportReference: "ER-AUG-31",
+            notes: "August expense paid in September",
+            fundingYear: 2026,
+            fundingMonth: 8);
+
+        Assert.Equal(2026, stipend.FundingYear);
+        Assert.Equal(8, stipend.FundingMonth);
+        Assert.True(stipend.IsPriorPeriodAdjustment);
+        Assert.Equal(800m, stipend.CardReduction);
+    }
+
+    [Fact]
     public void Process_WhenUnauthorized_Throws()
     {
         var service = new StipendService(new Authorizer(false));

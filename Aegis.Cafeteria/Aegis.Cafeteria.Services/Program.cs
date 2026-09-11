@@ -438,20 +438,59 @@ app.MapPost("/api/management/stipends", async
 
     string actor = RequireActor(http);
     DateTimeOffset processedAt = request.ProcessedAt ?? DateTimeOffset.Now;
+    int fundingYear = request.FundingYear ?? processedAt.Year;
+    int fundingMonth = request.FundingMonth ?? processedAt.Month;
+
+    if (fundingYear < 2000 || fundingYear > 9999 || fundingMonth is < 1 or > 12)
+    {
+        return Results.BadRequest("A valid stipend funding year and month are required.");
+    }
+
+    DateOnly processingMonth = new(processedAt.Year, processedAt.Month, 1);
+    DateOnly fundingPeriod = new(fundingYear, fundingMonth, 1);
+    if (fundingPeriod > processingMonth)
+    {
+        return Results.BadRequest("A stipend cannot be charged to a future funding period.");
+    }
 
     try
     {
-        CustomerAccountSnapshot account = await accountFactory.BuildAsync(request.CustomerId, processedAt.Year, processedAt.Month, ct);
+        CustomerAccountSnapshot account = await accountFactory.BuildAsync(request.CustomerId, fundingYear, fundingMonth, ct);
         Customer customer = new(employee.CustomerId, employee.Name, employee.Photo, true, 0m);
-        Stipend stipend = stipendService.Process(customer, account, request.CashAmount, request.PaymentMode, actor, processedAt, request.ExpenseReportReference, request.Notes);
+        Stipend stipend = stipendService.Process
+        (
+              customer
+            , account
+            , request.CashAmount
+            , request.PaymentMode
+            , actor
+            , processedAt
+            , request.ExpenseReportReference
+            , request.Notes
+            , fundingYear
+            , fundingMonth
+        );
 
         if (request.CardReductionAmount != stipend.CardReduction)
         {
-            return Results.BadRequest($"Card reduction must be {stipend.CardReduction:N2} for the employee's current subsidy and cafeteria balance.");
+            return Results.BadRequest($"Card reduction must be {stipend.CardReduction:N2} for the employee's selected funding-period subsidy and cafeteria balance.");
         }
 
         Guid operationId = request.OperationId.GetValueOrDefault(Guid.NewGuid());
-        StipendServiceEvent payload = new(operationId, request.CustomerId, stipend.CashAmount, stipend.CardReduction, stipend.PaymentMode, actor, stipend.ProcessedAt, stipend.ExpenseReportReference, stipend.Notes);
+        StipendServiceEvent payload = new
+        (
+              operationId
+            , request.CustomerId
+            , stipend.CashAmount
+            , stipend.CardReduction
+            , stipend.PaymentMode
+            , actor
+            , stipend.ProcessedAt
+            , stipend.ExpenseReportReference
+            , stipend.Notes
+            , stipend.FundingYear
+            , stipend.FundingMonth
+        );
         CafeteriaServiceEventEnvelope serviceEvent = await store.AppendAsync(operationId, CafeteriaServiceEventKind.Stipend, request.CustomerId, processedAt, payload, ct);
         return Results.Created($"/api/events/{serviceEvent.Sequence}", serviceEvent);
     }
@@ -521,7 +560,7 @@ app.MapGet("/api/ffp/holidays", async (int year,int month,IWorkforceReferenceSou
     .RequireAuthorization("CafeteriaPos");
 app.MapGet("/api/ffp/lunch-items", async (ILunchItemBootstrapSource source,CancellationToken ct)=>Results.Ok(await source.GetLunchItemsAsync(ct)))
     .RequireAuthorization("CafeteriaPos");
-app.MapGet("/api/ffp/month-import", async (int year, int month, IFfpMonthImportSource source, CancellationToken ct)=>Results.Ok(await source.GetMonthAsync(year, month, ct)))
+app.MapGet("/api/ffp/month-import", async (int year, int month, IFfpMonthImportSource source,CancellationToken ct)=>Results.Ok(await source.GetMonthAsync(year, month, ct)))
     .RequireAuthorization("CafeteriaPos");
 app.MapGet("/api/ffp/accounts", async (IExternalAccountingGateway gateway,CancellationToken ct)=>Results.Ok(await gateway.GetAccountSummariesAsync(ct)))
     .RequireAuthorization("CafeteriaPos");

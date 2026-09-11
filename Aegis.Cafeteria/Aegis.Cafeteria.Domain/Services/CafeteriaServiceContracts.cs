@@ -8,7 +8,8 @@ public enum CafeteriaServiceEventKind
     Stipend = 2,
     MonthlyAllocation = 3,
     MonthlyAllocationRecalculation = 4,
-    DevelopmentReset = 5
+    DevelopmentReset = 5,
+    AccountPeriodClose = 6
 }
 
 public sealed record CafeteriaServiceEventEnvelope(
@@ -37,7 +38,9 @@ public sealed record StipendServiceEvent(
     string ProcessedBy,
     DateTimeOffset ProcessedAt,
     string? ExpenseReportReference,
-    string? Notes);
+    string? Notes,
+    int? FundingYear = null,
+    int? FundingMonth = null);
 
 public sealed record MonthlyAllocationServiceEvent(
     Guid OperationId,
@@ -50,7 +53,6 @@ public sealed record MonthlyAllocationServiceEvent(
     decimal SubsidyCost,
     DateTimeOffset CalculatedAt,
     string EmployeeName);
-
 
 public sealed record MonthlyAllocationRecalculationServiceEvent
 (
@@ -69,3 +71,21 @@ public sealed record DevelopmentResetServiceEvent
     , bool PreserveProducts
     , bool PreserveFundingPolicy
 );
+
+public sealed record AccountPeriodCloseServiceEvent
+(
+      Guid OperationId
+    , int CustomerId
+    , int Year
+    , int Month
+    , int WorkingDays
+    , decimal EmployeeAmountDue
+    , decimal ClosingAvailableCredit
+    , decimal ClosingCompanyContributionRemaining
+    , decimal ClosingStipendCardReduction
+    , string ClosedBy
+    , DateTimeOffset ClosedAt
+)
+{
+    public string ProcessedBy => ClosedBy;
+}
