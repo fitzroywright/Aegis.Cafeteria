@@ -1,7 +1,7 @@
 namespace Aegis.Cafeteria.Infrastructure.Services;
 
+using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Domain.Services;
-
 using System.Net.Http.Json;
 
 public sealed record CustomerNotificationPreferenceSnapshot
@@ -23,6 +23,12 @@ public sealed class CafeteriaServicesClient(HttpClient http)
     {
         string path = $"api/pos/events?afterSequence={afterSequence}&take={Math.Clamp(take, 1, 500)}";
         return await http.GetFromJsonAsync<CafeteriaServiceEventEnvelope[]>(path, cancellationToken) ?? [];
+    }
+
+    public async Task PublishTransactionEventAsync(PosTransactionEvent transactionEvent, CancellationToken cancellationToken = default)
+    {
+        using HttpResponseMessage response = await http.PostAsJsonAsync("api/pos/transactions", transactionEvent, cancellationToken);
+        response.EnsureSuccessStatusCode();
     }
 
     public async Task<CustomerNotificationPreferenceSnapshot> GetNotificationPreferenceAsync
