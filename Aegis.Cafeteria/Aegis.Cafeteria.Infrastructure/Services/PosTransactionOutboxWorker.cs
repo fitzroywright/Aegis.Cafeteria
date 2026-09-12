@@ -18,6 +18,7 @@ public sealed class PosTransactionOutboxWorker(
             try
             {
                 await PublishBatchAsync(stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -27,8 +28,6 @@ public sealed class PosTransactionOutboxWorker(
             {
                 logger.LogError(exception, "POS transaction outbox cycle failed; queued events will retry");
             }
-
-            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
         }
     }
 
