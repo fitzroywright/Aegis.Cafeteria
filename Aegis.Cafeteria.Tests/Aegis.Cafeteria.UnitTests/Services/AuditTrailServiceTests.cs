@@ -21,13 +21,21 @@ public sealed class AuditTrailServiceTests
             AuditIntegrityResult valid = await service.VerifyIntegrityAsync();
             Assert.True(valid.IsValid);
             Assert.Equal(2, valid.VerifiedRows);
-            await using ServiceDbContext database = await factory.CreateDbContextAsync();
-            await database.Database.ExecuteSqlRawAsync("UPDATE AuditTrail SET Detail = 'tampered' WHERE Id = {0};", first.Id);
+
+            await using (ServiceDbContext database = await factory.CreateDbContextAsync())
+            {
+                await database.Database.ExecuteSqlInterpolatedAsync($"UPDATE AuditTrail SET Detail = {"tampered"} WHERE Id = {first.Id};");
+            }
+
             AuditIntegrityResult invalid = await service.VerifyIntegrityAsync();
             Assert.False(invalid.IsValid);
             Assert.Equal(first.Id, invalid.FirstInvalidAuditId);
         }
-        finally { if (File.Exists(databasePath)) File.Delete(databasePath); }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            if (File.Exists(databasePath)) File.Delete(databasePath);
+        }
     }
 
     private sealed class TestServiceDbContextFactory : IDbContextFactory<ServiceDbContext>

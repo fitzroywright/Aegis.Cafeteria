@@ -12,7 +12,7 @@ public sealed class CustomerConstructorContractTests
         var parameters = constructor.GetParameters();
 
         Assert.Equal(
-            ["id", "name", "photo", "isEligibleForCredit", "additionalCreditLimit"],
+            ["id", "name", "photo", "isEligibleForCredit", "additionalCreditLimit", "isActive", "employmentStartDate"],
             parameters.Select(x => x.Name).ToArray());
     }
 }

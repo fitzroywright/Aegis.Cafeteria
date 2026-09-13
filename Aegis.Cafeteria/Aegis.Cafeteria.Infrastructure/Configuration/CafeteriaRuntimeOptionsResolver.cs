@@ -21,13 +21,13 @@ public static class CafeteriaRuntimeOptionsResolver
         };
     }
 
-    public static Task<CafeteriaRuntimeOptions> ResolvePosAsync
+    public static async Task<CafeteriaRuntimeOptions> ResolvePosAsync
     (
           IConfiguration configuration
         , CancellationToken cancellationToken = default
     )
     {
-        return ResolveCoreAsync
+        CafeteriaRuntimeOptions runtime = await ResolveCoreAsync
         (
               configuration
             , secrets: null
@@ -35,6 +35,10 @@ public static class CafeteriaRuntimeOptionsResolver
             , allowRemoteSecrets: false
             , cancellationToken
         );
+
+        string? siteId = NullIfWhiteSpace(configuration["Deployment:SiteId"]);
+        await CafeteriaConfigurationRegistration.TryPublishPosAsync(runtime, siteId, cancellationToken);
+        return runtime;
     }
 
     public static Task<CafeteriaRuntimeOptions> ResolveAsync

@@ -6,8 +6,7 @@ using Aegis.Cafeteria.Infrastructure.Persistence;
 using Aegis.Cafeteria.Infrastructure.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
 
-public sealed class EfFfpReferenceCache(
-    IDbContextFactory<LocalCafeteriaDbContext> factory) : IWorkforceReferenceCache
+public sealed class EfFfpReferenceCache(IDbContextFactory<LocalCafeteriaDbContext> factory) : IWorkforceReferenceCache
 {
     public async Task ReplaceCustomersAsync(IReadOnlyCollection<ExternalCustomerSnapshot> employees, CancellationToken cancellationToken = default)
     {
@@ -15,9 +14,11 @@ public sealed class EfFfpReferenceCache(
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction tx = await db.Database.BeginTransactionAsync(cancellationToken);
         DateTimeOffset now = DateTimeOffset.UtcNow;
         List<CustomerRow> allCustomers = await db.Customers.ToListAsync(cancellationToken);
-        List<CustomerIdentifierRow> allIdentifiers = await db.CustomerIdentifiers.ToListAsync(cancellationToken);
 
-        db.CustomerIdentifiers.RemoveRange(allIdentifiers);
+        // Identifiers are a source-owned snapshot. Delete the old snapshot in the database first
+        // so EF never tracks a Deleted and Added entity with the same deterministic key.
+        await db.CustomerIdentifiers.ExecuteDeleteAsync(cancellationToken);
+
         HashSet<int> sourceIds = employees.Select(employee => employee.CustomerId).ToHashSet();
         foreach (CustomerRow stale in allCustomers.Where(customer => !sourceIds.Contains(customer.Id)))
         {
@@ -45,10 +46,7 @@ public sealed class EfFfpReferenceCache(
             row.Manager = employee.Manager?.Trim() ?? string.Empty;
             row.EmailAddress = employee.EmailAddress?.Trim() ?? string.Empty;
             row.Extension = employee.Extension?.Trim() ?? string.Empty;
-            if (employee.Photo is not null)
-            {
-                row.Photo = employee.Photo;
-            }
+            if (employee.Photo is not null) row.Photo = employee.Photo;
             row.IsActive = employee.IsActive;
             row.EmploymentStartDate = employee.EmploymentStartDate;
             row.IsEligibleForCredit = employee.IsActive && employee.IsEligibleForCafeteriaCredit;
@@ -72,50 +70,19 @@ public sealed class EfFfpReferenceCache(
         List<HolidayRow> existing = allHolidays.Where(holiday => holiday.Date.Year == year && holiday.Date.Month == month).ToList();
         db.Holidays.RemoveRange(existing);
         DateTimeOffset now = DateTimeOffset.UtcNow;
-
         foreach (DateOnly holiday in holidays.Distinct())
-        {
-            db.Holidays.Add(new HolidayRow
-            {
-                Date = holiday,
-                Name = "FFP Holiday",
-                Revision = now.UtcDateTime.Ticks,
-                UpdatedAt = now
-            });
-        }
-
+            db.Holidays.Add(new HolidayRow { Date = holiday, Name = "FFP Holiday", Revision = now.UtcDateTime.Ticks, UpdatedAt = now });
         await db.SaveChangesAsync(cancellationToken);
     }
 
     private static void AddIdentifier(LocalCafeteriaDbContext db, HashSet<string> claimed, int customerId, CustomerIdentifierType type, string? value, DateTimeOffset now)
     {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return;
-        }
-
+        if (string.IsNullOrWhiteSpace(value)) return;
         string normalized = DomainPersistenceMapper.NormalizeIdentifier(type, value);
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            return;
-        }
-
+        if (string.IsNullOrWhiteSpace(normalized)) return;
         string claim = $"{(int)type}:{normalized}";
-        if (!claimed.Add(claim))
-        {
-            return;
-        }
-
+        if (!claimed.Add(claim)) return;
         byte[] bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"FFP:{customerId}:{type}:{normalized}"));
-        db.CustomerIdentifiers.Add(new CustomerIdentifierRow
-        {
-            Id = new Guid(bytes.AsSpan(0, 16)),
-            CustomerId = customerId,
-            Type = (int)type,
-            Value = value.Trim(),
-            NormalizedValue = normalized,
-            Revision = now.UtcDateTime.Ticks,
-            UpdatedAt = now
-        });
+        db.CustomerIdentifiers.Add(new CustomerIdentifierRow { Id = new Guid(bytes.AsSpan(0, 16)), CustomerId = customerId, Type = (int)type, Value = value.Trim(), NormalizedValue = normalized, Revision = now.UtcDateTime.Ticks, UpdatedAt = now });
     }
 }
