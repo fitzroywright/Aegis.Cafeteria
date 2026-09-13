@@ -34,7 +34,7 @@ public sealed class ExternalLedgerProjectionServiceTests
         await sut.PublishCompletedOrderAsync(account,order);
         var x=Assert.Single(gateway.Entries); Assert.Equal(700m,x.ScanValue); Assert.Equal(2300m,x.AvailableBalance);
         Assert.Equal("FWright", x.UserName);
-        Assert.Equal("Lunch x1 - Order Total: 1,000.00; Cafeteria: 700.00", x.Description);
+        Assert.Equal("Lunch x1 @ 1,000.00 - Order Total: 1,000.00; Cafeteria: 700.00", x.Description);
         Assert.Equal("Cafeteria Purchase", x.IdName);
     }
 
@@ -43,11 +43,7 @@ public sealed class ExternalLedgerProjectionServiceTests
     [InlineData(IDMethod.Code, "EMP0042", "Code", "EMP0042")]
     [InlineData(IDMethod.TRN, "123456789", "TRN", "123456789")]
     [InlineData(IDMethod.Name, "NAME SEARCH", "Name", "NAME SEARCH")]
-    public async Task Purchase_PreservesIdentificationMethodAndFfpScanMetadata(
-        IDMethod method,
-        string identificationCode,
-        string expectedScanCode,
-        string expectedCode)
+    public async Task Purchase_PreservesIdentificationMethodAndFfpScanMetadata(IDMethod method, string identificationCode, string expectedScanCode, string expectedCode)
     {
         RecordingOutbox gateway = new();
         ExternalLedgerProjectionService sut = new(gateway);
@@ -55,15 +51,8 @@ public sealed class ExternalLedgerProjectionServiceTests
         Order order = new(Guid.NewGuid(), 42, DateTimeOffset.Now, method, identificationCode);
         order.AddItem(new OrderItem(1, "Lunch", 1000m, 1));
         order.Submit(DateTimeOffset.Now);
-        order.Complete(
-            [new OrderPayment(Guid.NewGuid(), PaymentMethod.CafeteriaAccount, 1000m, DateTimeOffset.Now)],
-            DateTimeOffset.Now,
-            "fwright",
-            "POS01",
-            "Fitzroy Wright");
-
+        order.Complete([new OrderPayment(Guid.NewGuid(), PaymentMethod.CafeteriaAccount, 1000m, DateTimeOffset.Now)], DateTimeOffset.Now, "fwright", "POS01", "Fitzroy Wright");
         await sut.PublishCompletedOrderAsync(account, order);
-
         ExternalLedgerEntry entry = Assert.Single(gateway.Entries);
         Assert.Equal(expectedScanCode, entry.ScanCode);
         Assert.Equal(expectedCode, entry.Code);
@@ -86,30 +75,20 @@ public sealed class ExternalLedgerProjectionServiceTests
         await sut.PublishRefundAsync(account, order, refund);
         var x=Assert.Single(gateway.Entries);
         Assert.Equal("Manager1",x.UserName);
-        Assert.Equal("Refund - Lunch x1 - Cafeteria Refund: 1,000.00",x.Description);
+        Assert.Contains("Refund - Lunch x1 @ 1,000.00 - Cafeteria Refund: 1,000.00", x.Description);
         Assert.Equal("Cafeteria Refund",x.IdName);
     }
 
     private static CustomerAccountView View(int id, decimal limit, decimal available) => new(
         new CustomerIdentityView(id, "Employee", null, true),
         new AccountPeriodView(2026, 9, 20, 0m, 0m, false),
-        new CustomerFinancialStatusView(
-            CreditLimit: limit, SubsidyLimit: 0m, SubsidyUsed: 0m, SubsidyAmountRemaining: 0m,
-            NonSubsidyAmountRemaining: available, TotalAvailableToSpend: available, CarriedForwardDebt: 0m,
-            GrossCustomerLiability: 0m, TotalOrderSales: 0m, CafeteriaAccountSpending: 0m, CashSpending: 0m,
-            AdditionalCreditApproved: 0m, AdditionalCreditUsed: 0m, AdditionalCreditRemaining: 0m,
-            StipendCashPaid: 0m, StipendCardReduction: 0m, PriorPeriodSettlements: 0m, PriorPeriodRefundCredits: 0m,
-            CustomerPayments: 0m, CustomerResponsibility: 0m, EmployeeAmountDue: 0m, TotalRefunds: 0m),
+        new CustomerFinancialStatusView(CreditLimit: limit, SubsidyLimit: 0m, SubsidyUsed: 0m, SubsidyAmountRemaining: 0m, NonSubsidyAmountRemaining: available, TotalAvailableToSpend: available, CarriedForwardDebt: 0m, GrossCustomerLiability: 0m, TotalOrderSales: 0m, CafeteriaAccountSpending: 0m, CashSpending: 0m, AdditionalCreditApproved: 0m, AdditionalCreditUsed: 0m, AdditionalCreditRemaining: 0m, StipendCashPaid: 0m, StipendCardReduction: 0m, PriorPeriodSettlements: 0m, PriorPeriodRefundCredits: 0m, CustomerPayments: 0m, CustomerResponsibility: 0m, EmployeeAmountDue: 0m, TotalRefunds: 0m),
         [],
         new FfpPublicationStatus(Enabled: true, PendingOperations: 0, PoisonedOperations: 0, LastSuccessfulPublication: null, LastError: null));
 
     private sealed class RecordingOutbox : IExternalLedgerOutbox
     {
         public List<ExternalLedgerEntry> Entries { get; } = [];
-        public Task EnqueueAsync(ExternalLedgerEntry entry, CancellationToken cancellationToken = default)
-        {
-            Entries.Add(entry);
-            return Task.CompletedTask;
-        }
+        public Task EnqueueAsync(ExternalLedgerEntry entry, CancellationToken cancellationToken = default) { Entries.Add(entry); return Task.CompletedTask; }
     }
 }
