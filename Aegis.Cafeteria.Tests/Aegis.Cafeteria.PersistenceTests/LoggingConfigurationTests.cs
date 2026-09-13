@@ -12,7 +12,7 @@ public sealed class LoggingConfigurationTests
     {
         var o = new CafeteriaLoggingOptions();
         Assert.Equal("10.10.0.3", o.GraylogHost);
-        Assert.Equal(12201, o.GraylogPort);
+        Assert.Equal(1699, o.GraylogPort);
         Assert.True(o.GraylogEnabled);
     }
 
