@@ -9,7 +9,7 @@ public sealed class CafeteriaUiOptionsTests
     {
         CafeteriaUiOptions options = new();
 
-        Assert.Equal(30, options.CustomerInactivityTimeoutSeconds);
+        Assert.Equal(60, options.CustomerInactivityTimeoutSeconds);
         Assert.Equal(10, options.RecentTransactionCount);
         Assert.True(options.ShowFfpDataTools);
     }
