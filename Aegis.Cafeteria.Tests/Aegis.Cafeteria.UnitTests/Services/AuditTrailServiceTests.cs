@@ -30,7 +30,6 @@ public sealed class AuditTrailServiceTests
             AuditIntegrityResult invalid = await service.VerifyIntegrityAsync();
             Assert.False(invalid.IsValid);
             Assert.Equal(first.Id, invalid.FirstInvalidAuditId);
-            SqliteConnection.ClearAllPools();
         }
         finally
         {
