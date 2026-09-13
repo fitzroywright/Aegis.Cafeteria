@@ -21,6 +21,6 @@
   <ItemGroup>
     <None Update="appsettings.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
     <None Update="appsettings.Development.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
-    <Content Include="../../configuration/Aegis.Cafeteria.configuration-contract.json" Link="configuration/Aegis.Cafeteria.configuration-contract.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../configuration/Aegis.Cafeteria.Services.configuration-contract.json" Link="configuration/Aegis.Cafeteria.Services.configuration-contract.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
