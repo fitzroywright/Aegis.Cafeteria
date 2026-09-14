@@ -27,3 +27,7 @@ public sealed record StipendRequest(
     int? FundingMonth = null);
 
 public sealed record CustomerCreditPolicyRequest(decimal AdditionalCreditLimit);
+
+public sealed record FundingPolicyRequest(
+    decimal DailyCreditLimitRate,
+    decimal DailyCompanySubsidyRate);
