@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Reflection;
+using Microsoft.Extensions.Configuration;
 
 namespace Aegis.Cafeteria.Infrastructure.Configuration;
 
@@ -10,15 +11,15 @@ namespace Aegis.Cafeteria.Infrastructure.Configuration;
 /// </summary>
 public static class CafeteriaConfigurationRegistration
 {
-    private const string ConfigurationUrlVariable = "AEGIS_CONFIGURATION_URL";
     private const string RegistrationKeyVariable = "AEGIS_CONFIGURATION_REGISTRATION_KEY";
 
     public static async Task TryPublishPosAsync(
+        IConfiguration configuration,
         CafeteriaRuntimeOptions runtime,
         string? siteId,
         CancellationToken cancellationToken = default)
     {
-        string? configurationUrl = Environment.GetEnvironmentVariable(ConfigurationUrlVariable);
+        string? configurationUrl = configuration["Aegis:Configuration:Url"];
         string? registrationKey = Environment.GetEnvironmentVariable(RegistrationKeyVariable);
 
         if (string.IsNullOrWhiteSpace(configurationUrl) || string.IsNullOrWhiteSpace(registrationKey))
@@ -69,45 +70,21 @@ public static class CafeteriaConfigurationRegistration
             Description = "Local-first cafeteria point-of-sale terminal.",
             Requirements = new object[]
             {
-                Requirement(
-                    "local-sqlite",
-                    "Local SQLite Database",
-                    "Configuration",
-                    true,
+                Requirement("local-sqlite", "Local SQLite Database", "Configuration", true,
                     "Stores the terminal's offline cache and local transaction data.",
-                    "Persistence:LocalSqliteConnectionString",
-                    !string.IsNullOrWhiteSpace(sqlite),
-                    sqlite,
+                    "Persistence:LocalSqliteConnectionString", !string.IsNullOrWhiteSpace(sqlite), sqlite,
                     "Data Source=/var/lib/aegis-cafeteria/cafeteria.local.db;Cache=Shared"),
-                Requirement(
-                    "cafeteria-services-url",
-                    "Cafeteria Services URL",
-                    "ExternalService",
-                    true,
+                Requirement("cafeteria-services-url", "Cafeteria Services URL", "ExternalService", true,
                     "Identifies the Cafeteria Services endpoint used for central synchronization.",
-                    "CafeteriaServices:BaseUrl",
-                    !string.IsNullOrWhiteSpace(servicesUrl),
-                    servicesUrl,
+                    "CafeteriaServices:BaseUrl", !string.IsNullOrWhiteSpace(servicesUrl), servicesUrl,
                     "https://cafeteria-services.example.org"),
-                Requirement(
-                    "terminal-id",
-                    "Terminal ID",
-                    "Configuration",
-                    true,
+                Requirement("terminal-id", "Terminal ID", "Configuration", true,
                     "Uniquely identifies this POS terminal.",
-                    "Persistence:TerminalId",
-                    !string.IsNullOrWhiteSpace(terminalId),
-                    terminalId,
+                    "Persistence:TerminalId", !string.IsNullOrWhiteSpace(terminalId), terminalId,
                     "CAFETERIA-POS-01"),
-                Requirement(
-                    "site-id",
-                    "Site ID",
-                    "Configuration",
-                    true,
+                Requirement("site-id", "Site ID", "Configuration", true,
                     "Identifies the site where this terminal is deployed.",
-                    "Deployment:SiteId",
-                    !string.IsNullOrWhiteSpace(siteId),
-                    Clean(siteId),
+                    "Deployment:SiteId", !string.IsNullOrWhiteSpace(siteId), Clean(siteId),
                     "JM-KINGSTON")
             }
         };
