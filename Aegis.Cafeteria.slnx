@@ -1,13 +1,13 @@
 <Solution>
   <Folder Name="/Aegis.Cafeteria/">
-    <Project Path="Aegis.Cafeteria/Aegis.Cafeteria.Domain/Aegis.Cafeteria.Domain.csproj" />
-    <Project Path="Aegis.Cafeteria/Aegis.Cafeteria.Application/Aegis.Cafeteria.Application.csproj" />
-    <Project Path="Aegis.Cafeteria/Aegis.Cafeteria.Infrastructure/Aegis.Cafeteria.Infrastructure.csproj" />
-    <Project Path="Aegis.Cafeteria/Aegis.Cafeteria.Reporting/Aegis.Cafeteria.Reporting.csproj" />
-    <Project Path="Aegis.Cafeteria/Aegis.Cafeteria.UI/Aegis.Cafeteria.UI.csproj" />
-    <Project Path="Aegis.Cafeteria/Aegis.Cafeteria.UI.Linux/Aegis.Cafeteria.UI.Linux.csproj" />
-    <Project Path="Aegis.Cafeteria/Aegis.Cafeteria.Services/Aegis.Cafeteria.Services.csproj" />
-    <Project Path="Aegis.Cafeteria/Aegis.Cafeteria.Management/Aegis.Cafeteria.Management.csproj" />
+    <Project Path="Aegis.Cafeteria.Domain/Aegis.Cafeteria.Domain.csproj" />
+    <Project Path="Aegis.Cafeteria.Application/Aegis.Cafeteria.Application.csproj" />
+    <Project Path="Aegis.Cafeteria.Infrastructure/Aegis.Cafeteria.Infrastructure.csproj" />
+    <Project Path="Aegis.Cafeteria.Reporting/Aegis.Cafeteria.Reporting.csproj" />
+    <Project Path="Aegis.Cafeteria.UI/Aegis.Cafeteria.UI.csproj" />
+    <Project Path="Aegis.Cafeteria.UI.Linux/Aegis.Cafeteria.UI.Linux.csproj" />
+    <Project Path="Aegis.Cafeteria.Services/Aegis.Cafeteria.Services.csproj" />
+    <Project Path="Aegis.Cafeteria.Management/Aegis.Cafeteria.Management.csproj" />
   </Folder>
   <Folder Name="/Aegis.Cafeteria.Tests/">
     <Project Path="Aegis.Cafeteria.Tests/Aegis.Cafeteria.UnitTests/Aegis.Cafeteria.UnitTests.csproj" />
