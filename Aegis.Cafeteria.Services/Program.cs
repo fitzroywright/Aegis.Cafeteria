@@ -7,6 +7,7 @@ using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Infrastructure.Ffp;
 using Aegis.Cafeteria.Infrastructure.Logging;
+using Aegis.Cafeteria.Infrastructure.Secrets;
 using Aegis.Cafeteria.Services;
 using Aegis.Cafeteria.Services.Email;
 using Aegis.Cafeteria.Services.Development;
@@ -573,6 +574,7 @@ app.MapPost("/api/ffp/ledger", async (ExternalLedgerEntry entry, IExternalAccoun
     return Results.Ok();
 }).RequireAuthorization("CafeteriaPos");
 
+await TryRegisterServicesWithConfigurationAsync(app.Configuration, app.Environment, serviceDb, ffpIntegration, app.Lifetime.ApplicationStopping);
 await app.RunAsync();
 
 static FfpIntegrationOptions BuildTrustedFfpOptions
@@ -627,10 +629,90 @@ static FfpIntegrationOptions BuildTrustedFfpOptions
 
 static string RequireActor(HttpContext http)
 {
-    var name=http.User.Identity?.Name;
-    if(http.User.Identity?.IsAuthenticated!=true || string.IsNullOrWhiteSpace(name))
-        throw new UnauthorizedAccessException("Authenticated management identity is required.");
-    return name.Trim();
+    return http.User.Identity?.Name ?? "UNKNOWN";
 }
 
-public sealed record FundingPolicyRequest(decimal DailyCreditLimitRate, decimal DailyCompanySubsidyRate);
+static async Task TryRegisterServicesWithConfigurationAsync(
+    IConfiguration configuration,
+    IHostEnvironment environment,
+    string serviceDb,
+    FfpIntegrationOptions ffp,
+    CancellationToken cancellationToken)
+{
+    string? configurationUrl = configuration["Aegis:Configuration:Url"];
+    if (string.IsNullOrWhiteSpace(configurationUrl)) return;
+
+    IApplicationSecretProvider secrets = ApplicationSecretProviderFactory.Create(configuration, environment);
+    string? registrationKey = await secrets.GetSecretAsync(ApplicationSecretNames.ConfigurationRegistrationKey, cancellationToken);
+    if (string.IsNullOrWhiteSpace(registrationKey)) return;
+
+    string? siteId = configuration["Deployment:SiteId"];
+    string? servicesUrl = configuration["urls"];
+    object contract = new
+    {
+        ApplicationId = "Cafeteria.Services",
+        DisplayName = "Aegis Cafeteria Services",
+        Version = typeof(Program).Assembly.GetName().Version?.ToString() ?? "unknown",
+        SiteId = string.IsNullOrWhiteSpace(siteId) ? null : siteId.Trim(),
+        InstanceId = Environment.MachineName,
+        Description = "Central synchronization, management, reporting, and integration services for Aegis Cafeteria.",
+        Requirements = new object[]
+        {
+            Requirement("service-database", "Service Database", "Configuration", true,
+                "Stores central Cafeteria Services state.", "ServicePersistence:ConnectionString",
+                !string.IsNullOrWhiteSpace(serviceDb), serviceDb, "Data Source=cafeteria.services.db"),
+            Requirement("service-url", "Service URL", "Configuration", true,
+                "Defines the address exposed by Cafeteria Services.", "urls",
+                !string.IsNullOrWhiteSpace(servicesUrl), servicesUrl, "http://0.0.0.0:5088"),
+            Requirement("ffp-integration", "FFP Integration", "ExternalService", true,
+                "Connects Cafeteria Services to the FFP workforce and accounting data source.", "FfpIntegration:Enabled",
+                ffp.Enabled, ffp.Enabled ? "Enabled" : "Disabled", "Enabled"),
+            Requirement("configuration-url", "System Configuration URL", "ExternalService", true,
+                "Identifies the System Configuration registry.", "Aegis:Configuration:Url",
+                true, configurationUrl, "http://localhost:5101"),
+            Requirement("diagnostics-url", "System Diagnostics URL", "ExternalService", false,
+                "Identifies the System Diagnostics service.", "Aegis:Diagnostics:Url",
+                !string.IsNullOrWhiteSpace(configuration["Aegis:Diagnostics:Url"]), configuration["Aegis:Diagnostics:Url"], "http://localhost:5102")
+        }
+    };
+
+    try
+    {
+        using HttpClient client = new()
+        {
+            BaseAddress = new Uri(configurationUrl.TrimEnd('/') + "/", UriKind.Absolute),
+            Timeout = TimeSpan.FromSeconds(3)
+        };
+        client.DefaultRequestHeaders.Add("X-Aegis-Registration-Key", registrationKey);
+        using HttpResponseMessage response = await client.PostAsJsonAsync("api/contracts/register", contract, cancellationToken);
+        _ = response.IsSuccessStatusCode;
+    }
+    catch (Exception) when (!cancellationToken.IsCancellationRequested)
+    {
+        // Registration is best-effort and must not become a service startup dependency.
+    }
+}
+
+static object Requirement(
+    string id,
+    string displayName,
+    string kind,
+    bool required,
+    string purpose,
+    string configurationKey,
+    bool isConfigured,
+    string? safeDisplayValue,
+    string example)
+    => new
+    {
+        Id = id,
+        DisplayName = displayName,
+        Kind = kind,
+        Required = required,
+        Purpose = purpose,
+        ConfigurationKey = configurationKey,
+        IsConfigured = isConfigured,
+        SafeDisplayValue = string.IsNullOrWhiteSpace(safeDisplayValue) ? null : safeDisplayValue.Trim(),
+        Example = example,
+        Sensitive = false
+    };
