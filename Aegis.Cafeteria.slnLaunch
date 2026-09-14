@@ -1,15 +1,19 @@
 [
   {
-    "Name": "Development - Services + Management + Windows POS",
+    "Name": "Development - Full Cafeteria + Control Plane",
     "Projects": [
+      { "Path": "..\\Aegis.Configuration\\Aegis.Configuration.Web\\Aegis.Configuration.Web.csproj", "Action": "Start" },
+      { "Path": "..\\Aegis.Diagnostics\\Aegis.Diagnostics.csproj", "Action": "Start" },
       { "Path": "Aegis.Cafeteria.Services\\Aegis.Cafeteria.Services.csproj", "Action": "Start" },
       { "Path": "Aegis.Cafeteria.Management\\Aegis.Cafeteria.Management.csproj", "Action": "Start" },
       { "Path": "Aegis.Cafeteria.UI\\Aegis.Cafeteria.UI.csproj", "Action": "Start" }
     ]
   },
   {
-    "Name": "Development - Services + Windows POS",
+    "Name": "Development - Services + POS + Control Plane",
     "Projects": [
+      { "Path": "..\\Aegis.Configuration\\Aegis.Configuration.Web\\Aegis.Configuration.Web.csproj", "Action": "Start" },
+      { "Path": "..\\Aegis.Diagnostics\\Aegis.Diagnostics.csproj", "Action": "Start" },
       { "Path": "Aegis.Cafeteria.Services\\Aegis.Cafeteria.Services.csproj", "Action": "Start" },
       { "Path": "Aegis.Cafeteria.UI\\Aegis.Cafeteria.UI.csproj", "Action": "Start" }
     ]
