@@ -4,6 +4,7 @@
     "Projects": [
       { "Path": "..\\Aegis.Configuration\\Aegis.Configuration.Web\\Aegis.Configuration.Web.csproj", "Action": "Start" },
       { "Path": "..\\Aegis.Diagnostics\\Aegis.Diagnostics.csproj", "Action": "Start" },
+      { "Path": "..\\Aegis.Operations\\Aegis.Operations.csproj", "Action": "Start" },
       { "Path": "Aegis.Cafeteria.Services\\Aegis.Cafeteria.Services.csproj", "Action": "Start" },
       { "Path": "Aegis.Cafeteria.Management\\Aegis.Cafeteria.Management.csproj", "Action": "Start" },
       { "Path": "Aegis.Cafeteria.UI\\Aegis.Cafeteria.UI.csproj", "Action": "Start" }
@@ -14,6 +15,7 @@
     "Projects": [
       { "Path": "..\\Aegis.Configuration\\Aegis.Configuration.Web\\Aegis.Configuration.Web.csproj", "Action": "Start" },
       { "Path": "..\\Aegis.Diagnostics\\Aegis.Diagnostics.csproj", "Action": "Start" },
+      { "Path": "..\\Aegis.Operations\\Aegis.Operations.csproj", "Action": "Start" },
       { "Path": "Aegis.Cafeteria.Services\\Aegis.Cafeteria.Services.csproj", "Action": "Start" },
       { "Path": "Aegis.Cafeteria.UI\\Aegis.Cafeteria.UI.csproj", "Action": "Start" }
     ]
