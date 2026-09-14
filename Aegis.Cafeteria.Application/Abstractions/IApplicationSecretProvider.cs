@@ -30,6 +30,7 @@ public static class ApplicationSecretProviderExtensions
 
 public static class ApplicationSecretNames
 {
+    public const string ConfigurationRegistrationKey = "ConfigurationRegistrationKey";
     public const string FfpDatabaseConnectionString = "FfpDatabaseConnectionString";
     public const string MessagingBearerToken = "MessagingBearerToken";
     public const string CafeteriaServicesApiKey = "CafeteriaServicesApiKey";
