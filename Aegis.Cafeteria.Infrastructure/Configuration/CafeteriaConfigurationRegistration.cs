@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Reflection;
+using Aegis.Cafeteria.Application.Abstractions;
 using Microsoft.Extensions.Configuration;
 
 namespace Aegis.Cafeteria.Infrastructure.Configuration;
@@ -11,16 +12,17 @@ namespace Aegis.Cafeteria.Infrastructure.Configuration;
 /// </summary>
 public static class CafeteriaConfigurationRegistration
 {
-    private const string RegistrationKeyVariable = "AEGIS_CONFIGURATION_REGISTRATION_KEY";
-
     public static async Task TryPublishPosAsync(
         IConfiguration configuration,
+        IApplicationSecretProvider secrets,
         CafeteriaRuntimeOptions runtime,
         string? siteId,
         CancellationToken cancellationToken = default)
     {
         string? configurationUrl = configuration["Aegis:Configuration:Url"];
-        string? registrationKey = Environment.GetEnvironmentVariable(RegistrationKeyVariable);
+        string? registrationKey = await secrets.GetSecretAsync(
+            ApplicationSecretNames.ConfigurationRegistrationKey,
+            cancellationToken);
 
         if (string.IsNullOrWhiteSpace(configurationUrl) || string.IsNullOrWhiteSpace(registrationKey))
         {
@@ -36,7 +38,7 @@ public static class CafeteriaConfigurationRegistration
                 BaseAddress = new Uri(configurationUrl.TrimEnd('/') + "/", UriKind.Absolute),
                 Timeout = TimeSpan.FromSeconds(3)
             };
-            client.DefaultRequestHeaders.Add("X-Configuration-Registration-Key", registrationKey);
+            client.DefaultRequestHeaders.Add("X-Aegis-Registration-Key", registrationKey);
 
             using HttpResponseMessage response = await client.PostAsJsonAsync(
                 "api/contracts/register",
