@@ -21,51 +21,41 @@ public static class CafeteriaRuntimeOptionsResolver
         };
     }
 
-    public static async Task<CafeteriaRuntimeOptions> ResolvePosAsync
-    (
-          IConfiguration configuration
-        , CancellationToken cancellationToken = default
-    )
+    public static async Task<CafeteriaRuntimeOptions> ResolvePosAsync(
+        IConfiguration configuration,
+        CancellationToken cancellationToken = default)
     {
-        CafeteriaRuntimeOptions runtime = await ResolveCoreAsync
-        (
-              configuration
-            , secrets: null
-            , allowDirectFfpDatabase: false
-            , allowRemoteSecrets: false
-            , cancellationToken
-        );
+        CafeteriaRuntimeOptions runtime = await ResolveCoreAsync(
+            configuration,
+            secrets: null,
+            allowDirectFfpDatabase: false,
+            allowRemoteSecrets: false,
+            cancellationToken);
 
         string? siteId = NullIfWhiteSpace(configuration["Deployment:SiteId"]);
-        await CafeteriaConfigurationRegistration.TryPublishPosAsync(runtime, siteId, cancellationToken);
+        await CafeteriaConfigurationRegistration.TryPublishPosAsync(configuration, runtime, siteId, cancellationToken);
         return runtime;
     }
 
-    public static Task<CafeteriaRuntimeOptions> ResolveAsync
-    (
-          IConfiguration configuration
-        , IApplicationSecretProvider secrets
-        , CancellationToken cancellationToken = default
-    )
+    public static Task<CafeteriaRuntimeOptions> ResolveAsync(
+        IConfiguration configuration,
+        IApplicationSecretProvider secrets,
+        CancellationToken cancellationToken = default)
     {
-        return ResolveCoreAsync
-        (
-              configuration
-            , secrets
-            , allowDirectFfpDatabase: true
-            , allowRemoteSecrets: true
-            , cancellationToken
-        );
+        return ResolveCoreAsync(
+            configuration,
+            secrets,
+            allowDirectFfpDatabase: true,
+            allowRemoteSecrets: true,
+            cancellationToken);
     }
 
-    private static async Task<CafeteriaRuntimeOptions> ResolveCoreAsync
-    (
-          IConfiguration configuration
-        , IApplicationSecretProvider? secrets
-        , bool allowDirectFfpDatabase
-        , bool allowRemoteSecrets
-        , CancellationToken cancellationToken
-    )
+    private static async Task<CafeteriaRuntimeOptions> ResolveCoreAsync(
+        IConfiguration configuration,
+        IApplicationSecretProvider? secrets,
+        bool allowDirectFfpDatabase,
+        bool allowRemoteSecrets,
+        CancellationToken cancellationToken)
     {
         IConfigurationSection p = configuration.GetSection("Persistence");
         IConfigurationSection log = configuration.GetSection("Logging");
@@ -85,19 +75,14 @@ public static class CafeteriaRuntimeOptionsResolver
         if (allowDirectFfpDatabase && ffpEnabled && !servicesEnabled)
         {
             if (secrets is null)
-            {
                 throw new InvalidOperationException("Direct FFP database access requires a service-side secret provider.");
-            }
 
             ffpConnectionString = !string.IsNullOrWhiteSpace(configuredFfpConnectionString)
                 ? configuredFfpConnectionString.Trim()
-                : await secrets.GetSecretAsync(ApplicationSecretNames.FfpDatabaseConnectionString, cancellationToken)
-                    ?? string.Empty;
+                : await secrets.GetSecretAsync(ApplicationSecretNames.FfpDatabaseConnectionString, cancellationToken) ?? string.Empty;
 
             if (!developmentDataEnabled && string.IsNullOrWhiteSpace(ffpConnectionString))
-            {
                 throw new InvalidOperationException("FFP integration is enabled but no FfpIntegration:ConnectionString or FfpDatabaseConnectionString secret is configured.");
-            }
         }
 
         string? messagingToken = allowRemoteSecrets && messaging.GetValue("Enabled", false) && secrets is not null
@@ -159,9 +144,7 @@ public static class CafeteriaRuntimeOptionsResolver
             string? configuredServiceApiKey = svc["ApiKey"];
             serviceApiKey = !string.IsNullOrWhiteSpace(configuredServiceApiKey)
                 ? configuredServiceApiKey.Trim()
-                : secrets is null
-                    ? null
-                    : await secrets.GetSecretAsync(ApplicationSecretNames.CafeteriaServicesApiKey, cancellationToken);
+                : secrets is null ? null : await secrets.GetSecretAsync(ApplicationSecretNames.CafeteriaServicesApiKey, cancellationToken);
         }
 
         CafeteriaServicesOptions servicesOptions = new()
