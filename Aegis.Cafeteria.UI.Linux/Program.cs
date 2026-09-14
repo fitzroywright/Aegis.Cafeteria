@@ -9,6 +9,7 @@ using Aegis.Cafeteria.Infrastructure;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Infrastructure.Logging;
 using Aegis.Cafeteria.Infrastructure.Persistence;
+using Aegis.Cafeteria.Infrastructure.Secrets;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Themes.Fluent;
@@ -31,8 +32,9 @@ internal static class Program
             .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: false)
             .AddEnvironmentVariables();
 
+        IApplicationSecretProvider startupSecrets = ApplicationSecretProviderFactory.Create(builder.Configuration, builder.Environment);
         CafeteriaRuntimeOptions runtime = CafeteriaRuntimeOptionsResolver
-            .ResolvePosAsync(builder.Configuration)
+            .ResolvePosAsync(builder.Configuration, startupSecrets)
             .GetAwaiter()
             .GetResult();
 
