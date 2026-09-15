@@ -93,13 +93,14 @@ public sealed class ServicesOperatorAuthenticator
             return null;
         }
 
+        string normalizedLogin = loginName.Trim();
         HttpResponseMessage response;
         try
         {
             response = await http.PostAsJsonAsync
             (
                   "api/pos/authenticate"
-                , new PosAuthenticationRequest(loginName.Trim(), password)
+                , new PosAuthenticationRequest(normalizedLogin, normalizedLogin, password)
                 , cancellationToken
             );
         }
@@ -205,7 +206,7 @@ public sealed class ServicesOperatorAuthenticator
         return value.ToLowerInvariant();
     }
 
-    private sealed record PosAuthenticationRequest(string UserName, string Password);
+    private sealed record PosAuthenticationRequest(string LoginName, string UserName, string Password);
 
     private sealed record PosAuthenticationResponse
     (
