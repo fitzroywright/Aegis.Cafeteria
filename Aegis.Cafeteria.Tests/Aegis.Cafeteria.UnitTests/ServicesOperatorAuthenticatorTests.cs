@@ -90,7 +90,7 @@ public sealed class ServicesOperatorAuthenticatorTests
         var result = await sut.AuthenticateAsync("fwright", "password");
 
         Assert.NotNull(result);
-        Assert.Equal("fwright", result.UserName);
+        Assert.Equal("fwright", result.UserId);
         Assert.Equal("Fitzroy Wright", result.DisplayName);
         Assert.True(result.IsManager);
         Assert.Equal("ABC123", session.Token);
