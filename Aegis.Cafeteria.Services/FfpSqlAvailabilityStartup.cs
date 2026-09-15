@@ -12,7 +12,7 @@ using System.ComponentModel;
 namespace Aegis.Cafeteria.Services;
 
 /// <summary>
-/// Adds outer HTTP pipeline guards for service availability and authenticated management sessions.
+/// Adds outer HTTP pipeline guards for service availability.
 /// </summary>
 public sealed class FfpSqlAvailabilityHostingStartup : IHostingStartup
 {
@@ -22,7 +22,6 @@ public sealed class FfpSqlAvailabilityHostingStartup : IHostingStartup
         (
             services =>
             {
-                services.AddManagementCommonSecurityAuthentication();
                 services.AddTransient<IStartupFilter, FfpSqlAvailabilityStartupFilter>();
             }
         );
