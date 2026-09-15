@@ -1,7 +1,6 @@
 using System.Reflection;
-using System.Text;
-using System.Text.Json;
 using System.Text.Json.Nodes;
+using Common.Registration;
 using Common.Secrets;
 
 namespace Aegis.Cafeteria.Services;
@@ -38,7 +37,7 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
 
             contract["applicationId"] = ApplicationId;
             contract["displayName"] = "Aegis Cafeteria Services";
-            contract["version"] = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "1.0.0";
+            contract["version"] = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown";
             contract["siteId"] = NullIfBlank(First(configuration["Deployment:SiteId"], configuration["Site:Id"]));
             contract["instanceId"] = NullIfBlank(First(configuration["Service:Identity"], Environment.MachineName));
             contract["description"] = "Central synchronization, management, reporting, and FFP integration services for Aegis Cafeteria.";
@@ -46,13 +45,21 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
             contract["diagnostics"] = BuildDiagnosticsCapability();
             contract["requirements"] = await BuildRequirementsAsync(secrets, registrationSecretPath, cancellationToken);
 
-            using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(10) };
-            using HttpRequestMessage request = new(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/api/contracts/register");
-            request.Headers.TryAddWithoutValidation("X-Aegis-Registration-Key", key);
-            request.Content = new StringContent(contract.ToJsonString(new JsonSerializerOptions { WriteIndented = false }), Encoding.UTF8, "application/json");
-            using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
-            if (!response.IsSuccessStatusCode) { logger.LogWarning("Aegis.Configuration rejected Cafeteria Services publication with HTTP {StatusCode}; service remains operational and will retry.", (int)response.StatusCode); return false; }
-            logger.LogInformation("Aegis.Cafeteria.Services published its configuration contract heartbeat to Aegis.Configuration.");
+            using HttpClient client = new();
+            var registrar = new ConfigurationRegistrar(
+                client,
+                new RegistrationOptions(
+                    new Uri(baseUrl.TrimEnd('/') + "/", UriKind.Absolute),
+                    key,
+                    TimeSpan.FromSeconds(10)));
+            RegistrationResult result = await registrar.RegisterContractAsync(contract, cancellationToken);
+            if (!result.Succeeded)
+            {
+                logger.LogWarning("Aegis.Configuration registration failed for Cafeteria Services: {RegistrationError}; service remains operational and will retry.", result.Error ?? "Unknown registration failure.");
+                return false;
+            }
+
+            logger.LogInformation("Aegis.Cafeteria.Services published its configuration contract heartbeat to Aegis.Configuration with HTTP {StatusCode}.", (int?)result.StatusCode);
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
