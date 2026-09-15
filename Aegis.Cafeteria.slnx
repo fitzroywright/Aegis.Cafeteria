@@ -25,5 +25,6 @@
     <Project Path="../Common/Common.Secrets/Common.Secrets.csproj" />
     <Project Path="../Common/Common.Messaging/Common.Messaging.csproj" />
     <Project Path="../Common/Common.Storage/Common.Storage.csproj" />
+    <Project Path="../Common/Common.Registration/Common.Registration.csproj" />
   </Folder>
 </Solution>
