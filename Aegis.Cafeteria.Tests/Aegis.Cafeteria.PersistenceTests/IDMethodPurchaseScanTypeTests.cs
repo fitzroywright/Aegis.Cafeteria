@@ -14,8 +14,8 @@ public sealed class IDMethodPurchaseScanTypeTests
     }
 
     [Theory]
-    [InlineData("Aegis.Cafeteria/Aegis.Cafeteria.Services/appsettings.json")]
-    [InlineData("Aegis.Cafeteria/Aegis.Cafeteria.UI/appsettings.json")]
+    [InlineData("Aegis.Cafeteria.Services/appsettings.json")]
+    [InlineData("Aegis.Cafeteria.UI/appsettings.json")]
     public void ShippedConfiguration_PurchaseScanType_Is8(string relativePath)
     {
         string repositoryRoot = FindRepositoryRoot();
@@ -33,7 +33,7 @@ public sealed class IDMethodPurchaseScanTypeTests
         DirectoryInfo? current = new(AppContext.BaseDirectory);
         while (current is not null)
         {
-            if (Directory.Exists(Path.Combine(current.FullName, "Aegis.Cafeteria")) &&
+            if (Directory.Exists(Path.Combine(current.FullName, "Aegis.Cafeteria.Services")) &&
                 Directory.Exists(Path.Combine(current.FullName, "Aegis.Cafeteria.Tests")))
             {
                 return current.FullName;
