@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Common.Security;
+using Common.Security.Abstractions;
 using Common.Security.Authenticators;
+using Common.Security.Models;
+using Common.Security.Options;
 using Microsoft.AspNetCore.Http;
 
 public sealed class ManagementCommonSecurityAuthenticationStartup : IHostedService
@@ -43,61 +46,130 @@ public sealed class ManagementCommonSecurityAuthenticationRuntime
     public bool Ready => ready;
 
     public void MarkReady() => ready = true;
+
     public void MarkStopped() => ready = false;
 
-    public Task AuthenticateAsync(HttpContext context)
+    public AuthenticationResult Authenticate(string loginName, string password)
     {
-        return AuthenticationEndpointCore.AuthenticateAsync(context, authenticator, tokenStore);
+        return authenticator.Authenticate(loginName, password);
+    }
+
+    public ManagementServiceTokenSession CreateSession(string userName, string displayName, bool isManager)
+    {
+        return tokenStore.Create(userName, displayName, isManager);
+    }
+
+    public bool TryGetSession(string token, out ManagementServiceTokenSession? session)
+    {
+        return tokenStore.TryGet(token, out session);
+    }
+
+    public bool IsManager(AuthenticationResult result)
+    {
+        if (result.IsAdministrative)
+        {
+            return true;
+        }
+
+        return result.GroupNames.Any(group => authenticator.AuthorizedGroups.Any(authorized =>
+            group.Equals(authorized, StringComparison.OrdinalIgnoreCase)));
     }
 }
 
-internal static class AuthenticationEndpointCore
+public static class ManagementCommonSecurityAuthenticationExtensions
 {
-    public static async Task AuthenticateAsync(
-        HttpContext context,
-        ManagementCommonSecurityAuthenticator authenticator,
-        ManagementServiceTokenStore tokenStore)
+    public static IServiceCollection AddManagementCommonSecurityAuthentication(this IServiceCollection services)
     {
-        ManagementLoginRequest? request;
-        try
-        {
-            request = await context.Request.ReadFromJsonAsync<ManagementLoginRequest>(context.RequestAborted);
-        }
-        catch
-        {
-            context.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await context.Response.WriteAsJsonAsync(new { error = "Invalid login request." }, context.RequestAborted);
-            return;
-        }
+        services.AddSingleton<ManagementCommonSecurityAuthenticator>();
+        services.AddSingleton<ManagementServiceTokenStore>();
+        services.AddSingleton<ManagementCommonSecurityAuthenticationRuntime>();
+        services.AddHostedService<ManagementCommonSecurityAuthenticationStartup>();
+        return services;
+    }
 
-        if (request is null || string.IsNullOrWhiteSpace(request.UserName) || string.IsNullOrWhiteSpace(request.Password))
+    public static IApplicationBuilder UseManagementCommonSecurityAuthentication(this IApplicationBuilder app)
+    {
+        return app.Use(async (context, next) =>
         {
-            context.Response.StatusCode = StatusCodes.Status400BadRequest;
-            await context.Response.WriteAsJsonAsync(new { error = "Username and password are required." }, context.RequestAborted);
-            return;
-        }
+            if (context.Request.Path.Equals("/api/management/authenticate", StringComparison.OrdinalIgnoreCase)
+                && HttpMethods.IsPost(context.Request.Method))
+            {
+                ManagementCommonSecurityAuthenticationRuntime runtime = context.RequestServices
+                    .GetRequiredService<ManagementCommonSecurityAuthenticationRuntime>();
 
-        AuthenticationExchange exchange;
-        try
-        {
-            exchange = Authenticate(authenticator, request.UserName, request.Password);
-        }
-        catch
+                await HandleAuthenticationAsync(context, runtime);
+                return;
+            }
+
+            await next();
+        });
+    }
+
+    private static async Task HandleAuthenticationAsync(
+        HttpContext context,
+        ManagementCommonSecurityAuthenticationRuntime runtime)
+    {
+        if (!runtime.Ready)
         {
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
-            await context.Response.WriteAsJsonAsync(new { error = "Authentication service is unavailable." }, context.RequestAborted);
+            await context.Response.WriteAsJsonAsync(new
+            {
+                authenticated = false,
+                error = "Authentication service is not ready."
+            }, context.RequestAborted);
             return;
         }
 
-        if (!exchange.Result.Success)
+        ManagementAuthenticationRequest? request;
+        try
+        {
+            request = await context.Request.ReadFromJsonAsync<ManagementAuthenticationRequest>(context.RequestAborted);
+        }
+        catch
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                authenticated = false,
+                error = "Invalid authentication request."
+            }, context.RequestAborted);
+            return;
+        }
+
+        if (request is null
+            || string.IsNullOrWhiteSpace(request.LoginName)
+            || string.IsNullOrWhiteSpace(request.Password))
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response.WriteAsJsonAsync(new
+            {
+                authenticated = false,
+                error = "Login name and password are required."
+            }, context.RequestAborted);
+            return;
+        }
+
+        AuthenticationResult result = runtime.Authenticate(request.LoginName, request.Password);
+        if (!result.IsAuthenticated)
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            await context.Response.WriteAsJsonAsync(new { error = "Invalid username or password." }, context.RequestAborted);
+            await context.Response.WriteAsJsonAsync(new
+            {
+                authenticated = false,
+                error = "Authentication failed."
+            }, context.RequestAborted);
             return;
         }
 
-        bool isManager = exchange.Result.Groups.Any(group => authenticator.AuthorizedGroups.Contains(group, StringComparer.OrdinalIgnoreCase));
-        ManagementServiceTokenSession session = tokenStore.Create(exchange.UserName, exchange.DisplayName, isManager);
+        string userName = NormalizeUserName(request.LoginName);
+        string displayName = result.UserInfo?.DisplayName?.Trim();
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            displayName = userName;
+        }
+
+        bool isManager = runtime.IsManager(result);
+        ManagementServiceTokenSession session = runtime.CreateSession(userName, displayName, isManager);
 
         object response = isManager
             ? new
@@ -106,8 +178,8 @@ internal static class AuthenticationEndpointCore
                 , userName = session.UserName
                 , displayName = session.DisplayName
                 , expiresAt = session.ExpiresAt
+                , isManager = true
                 , authenticationSource = "Common.Security"
-                , managementAccess = true
             }
             : new
             {
@@ -119,17 +191,6 @@ internal static class AuthenticationEndpointCore
             };
 
         await context.Response.WriteAsJsonAsync(response, context.RequestAborted);
-    }
-
-    private static AuthenticationExchange Authenticate(
-        ManagementCommonSecurityAuthenticator authenticator,
-        string loginName,
-        string password)
-    {
-        AuthenticationResult result = authenticator.Authenticate(loginName, password);
-        string normalized = NormalizeUserName(loginName);
-        string displayName = string.IsNullOrWhiteSpace(result.DisplayName) ? normalized : result.DisplayName;
-        return new AuthenticationExchange(result, normalized, displayName);
     }
 
     private static string NormalizeUserName(string loginName)
@@ -149,13 +210,6 @@ internal static class AuthenticationEndpointCore
 
         return value.ToLowerInvariant();
     }
-
-    private sealed record AuthenticationExchange
-    (
-          AuthenticationResult Result
-        , string UserName
-        , string DisplayName
-    );
 }
 
 public sealed class ManagementCommonSecurityAuthenticator
@@ -166,12 +220,12 @@ public sealed class ManagementCommonSecurityAuthenticator
     {
         IConfigurationSection security = configuration.GetSection("Security");
 
-        string? configuredDomain = security["Domain"]?.Trim();
+        string configuredDomain = security["Domain"]?.Trim() ?? string.Empty;
         string domain = string.IsNullOrWhiteSpace(configuredDomain)
             ? "fftpj.local"
             : configuredDomain;
 
-        string? configuredSearchBase = security["SearchBase"]?.Trim();
+        string configuredSearchBase = security["SearchBase"]?.Trim() ?? string.Empty;
         string searchBase = string.IsNullOrWhiteSpace(configuredSearchBase)
             ? "DC=fftpj,DC=local"
             : configuredSearchBase;
@@ -264,6 +318,8 @@ public sealed class ManagementServiceTokenStore
     }
 }
 
+public sealed record ManagementAuthenticationRequest(string LoginName, string Password);
+
 public sealed record ManagementServiceTokenSession
 (
       string Token
@@ -272,5 +328,3 @@ public sealed record ManagementServiceTokenSession
     , bool IsManager
     , DateTimeOffset ExpiresAt
 );
-
-public sealed record ManagementLoginRequest(string UserName, string Password);
