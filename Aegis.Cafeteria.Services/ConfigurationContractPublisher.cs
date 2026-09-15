@@ -104,6 +104,8 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
         Add(requirements, "graylog-host", "Logging:GraylogHost", "Graylog Host", false, false, "Graylog server address.", null, "Logging:GraylogEnabled=true");
         Add(requirements, "graylog-port", "Logging:GraylogPort", "Graylog Port", false, false, "Graylog input port.", null, "Logging:GraylogEnabled=true");
 
+        SecretManagerConfigurationContractRequirements.Add(requirements, configuration);
+
         await AddSecretAsync(requirements, secrets, "configuration-registration-key", "ConfigurationRegistrationKey", "Configuration Registration Credential", false, "Credential used to publish this contract to Aegis.Configuration.", registrationSecretPath, cancellationToken: cancellationToken);
         await AddSecretAsync(requirements, secrets, "openbao-secret-zero", "Secret0", "OpenBao Secret Zero", true, "Bootstrap material used to authenticate to OpenBao. The value is never published.", "bootstrap/OpenBao", directlyProbeable: false, cancellationToken: cancellationToken);
         await AddSecretAsync(requirements, secrets, "smtp-credential", "ScheduledEmail:SmtpCredential", "SMTP Credential", false, "SMTP credential when authenticated SMTP is used.", "cafeteria/smtp", "ScheduledEmail:Enabled=true", cancellationToken: cancellationToken);
