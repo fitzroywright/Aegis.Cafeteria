@@ -7,9 +7,10 @@ using System.Text.Json.Nodes;
 namespace Aegis.Cafeteria.Services;
 
 /// <summary>
-/// Captures runtime and host facts that the process can directly observe.
-/// This class intentionally does not infer declared requirements, topology,
-/// capacity needs, or any credential/secret information.
+/// Captures deployment identity facts the process can directly observe.
+/// Live health and capacity telemetry (memory availability, free disk, interface status,
+/// latency and dependency reachability) belongs to Aegis.Diagnostics and is intentionally
+/// excluded from the Configuration contract.
 /// </summary>
 internal static class DetectedRuntimeEnvironment
 {
@@ -62,16 +63,12 @@ internal static class DetectedRuntimeEnvironment
                 {
                     ["name"] = drive.Name,
                     ["driveType"] = drive.DriveType.ToString(),
-                    ["format"] = drive.DriveFormat,
-                    ["totalBytes"] = drive.TotalSize,
-                    ["availableBytes"] = drive.AvailableFreeSpace
+                    ["format"] = drive.DriveFormat
                 });
             }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
-
-        long availableMemory = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
 
         return new JsonObject
         {
@@ -84,7 +81,6 @@ internal static class DetectedRuntimeEnvironment
             ["processArchitecture"] = RuntimeInformation.ProcessArchitecture.ToString(),
             ["frameworkDescription"] = RuntimeInformation.FrameworkDescription,
             ["processorCount"] = Environment.ProcessorCount,
-            ["runtimeAvailableMemoryBytes"] = availableMemory > 0 ? availableMemory : null,
             ["contentRootPath"] = contentRootPath,
             ["networkInterfaces"] = interfaces,
             ["storage"] = storage
