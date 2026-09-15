@@ -112,6 +112,7 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
 
     private void Add(JsonArray array, string id, string key, string name, bool required, bool sensitive, string description, string? defaultValue = null, string? condition = null)
     {
+        defaultValue ??= CafeteriaConfigurationCodeDefaults.Get(key);
         IConfigurationSection section = configuration.GetSection(key);
         string? scalarValue = NullIfBlank(section.Value);
         string envName = key.Replace(":", "__", StringComparison.Ordinal);
