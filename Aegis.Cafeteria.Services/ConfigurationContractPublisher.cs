@@ -154,7 +154,6 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
                     ? "Runtime/Code Default"
                     : "Unresolved";
         string state = explicitlyConfigured ? "Configured" : hasDefault ? "Default" : "Unresolved";
-        string? safeDisplayValue = sensitive ? null : exactEnvironmentValue ?? scalarValue ?? SafeChildDisplay(section) ?? defaultValue;
 
         array.Add(new JsonObject
         {
@@ -174,9 +173,7 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
             ["configurationState"] = state,
             ["isConfigured"] = explicitlyConfigured,
             ["effectiveValueAvailable"] = effectiveValueAvailable,
-            ["hasDefault"] = hasDefault,
-            ["defaultValue"] = defaultValue,
-            ["safeDisplayValue"] = safeDisplayValue
+            ["hasDefault"] = hasDefault
         });
     }
 
@@ -227,23 +224,12 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
             ["isConfigured"] = configured,
             ["effectiveValueAvailable"] = configured,
             ["verificationStatus"] = verificationStatus,
-            ["safeDisplayValue"] = null,
             ["redacted"] = true
         });
     }
 
     private static bool HasConfiguredChildren(IConfigurationSection section)
         => section.GetChildren().Any(child => NullIfBlank(child.Value) is not null || HasConfiguredChildren(child));
-
-    private static string? SafeChildDisplay(IConfigurationSection section)
-    {
-        string[] values = section.GetChildren()
-            .Select(child => NullIfBlank(child.Value))
-            .Where(value => value is not null)
-            .Cast<string>()
-            .ToArray();
-        return values.Length == 0 ? null : string.Join(", ", values);
-    }
 
     private static string? First(params string?[] values) => values.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
     private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
