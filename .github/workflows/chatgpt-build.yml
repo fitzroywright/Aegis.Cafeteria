@@ -51,7 +51,7 @@ jobs:
       - name: Checkout Common.Registration
         uses: actions/checkout@v4
         with:
-          repository: fitzroywright/Aegis.Engineering
+          repository: fitzroywright/Common.Diagnostics
           ref: common-registration
           path: Common/Common.Registration
 
