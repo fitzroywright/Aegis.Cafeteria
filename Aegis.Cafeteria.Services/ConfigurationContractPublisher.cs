@@ -9,7 +9,8 @@ namespace Aegis.Cafeteria.Services;
 public sealed class ConfigurationContractPublisher(IConfiguration configuration, IWebHostEnvironment environment, ILogger<ConfigurationContractPublisher> logger) : BackgroundService
 {
     private const string ApplicationId = "Aegis.Cafeteria.Services";
-    private static readonly TimeSpan retryDelay = TimeSpan.FromMinutes(5);
+    private const string DiagnosticsMachineSecret = "diagnostics/machine/Aegis.Cafeteria.Services";
+    private static readonly TimeSpan publishInterval = TimeSpan.FromMinutes(5);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -18,8 +19,8 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
         string path = configuration["AegisConfiguration:ContractPath"] ?? Path.Combine(environment.ContentRootPath, "configuration", "Aegis.Cafeteria.Services.configuration-contract.json");
         while (!stoppingToken.IsCancellationRequested)
         {
-            if (await TryPublishAsync(baseUrl, path, stoppingToken)) return;
-            try { await Task.Delay(retryDelay, stoppingToken); } catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
+            await TryPublishAsync(baseUrl, path, stoppingToken);
+            try { await Task.Delay(publishInterval, stoppingToken); } catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
     }
 
@@ -43,26 +44,39 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
             contract["instanceId"] = NullIfBlank(First(configuration["Service:Identity"], Environment.MachineName));
             contract["description"] = "Central synchronization, management, reporting, and FFP integration services for Aegis Cafeteria.";
             contract["runtimeEnvironment"] = DetectedRuntimeEnvironment.Capture(environment.EnvironmentName, environment.ContentRootPath);
+            contract["diagnostics"] = BuildDiagnosticsCapability();
             contract["requirements"] = await BuildRequirementsAsync(secrets, registrationSecretPath, cancellationToken);
 
             using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(10) };
             using HttpRequestMessage request = new(HttpMethod.Post, $"{baseUrl.TrimEnd('/')}/api/contracts/register");
-            request.Headers.TryAddWithoutValidation("X-Configuration-Registration-Key", key);
             request.Headers.TryAddWithoutValidation("X-Aegis-Registration-Key", key);
             request.Content = new StringContent(contract.ToJsonString(new JsonSerializerOptions { WriteIndented = false }), Encoding.UTF8, "application/json");
             using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode) { logger.LogWarning("Aegis.Configuration rejected Cafeteria Services publication with HTTP {StatusCode}; service remains operational and will retry.", (int)response.StatusCode); return false; }
-            logger.LogInformation("Aegis.Cafeteria.Services published its complete configuration contract to Aegis.Configuration.");
+            logger.LogInformation("Aegis.Cafeteria.Services published its configuration contract heartbeat to Aegis.Configuration.");
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception exception) { logger.LogWarning(exception, "Unable to publish Aegis.Cafeteria.Services configuration contract; service remains operational and will retry publication."); return false; }
     }
 
+    private static JsonObject BuildDiagnosticsCapability() => new()
+    {
+        ["baseUrlConfigurationKey"] = "Aegis:PublicUrl",
+        ["healthPath"] = "/health",
+        ["diagnosticsRunPath"] = "/api/engineering/diagnostics/run",
+        ["diagnosticsRunsPath"] = "/api/engineering/diagnostics/runs",
+        ["supportsRemoteDiagnostics"] = true,
+        ["authenticationScheme"] = "MachineCredential",
+        ["secretName"] = DiagnosticsMachineSecret,
+        ["supportedLevels"] = new JsonArray(1, 2, 3, 4, 5)
+    };
+
     private async Task<JsonArray> BuildRequirementsAsync(ISecretProvider secrets, string registrationSecretPath, CancellationToken cancellationToken)
     {
         JsonArray requirements = [];
-        Add(requirements, "service-url", "urls", "Service URL", true, false, "Address exposed by Cafeteria Services.");
+        Add(requirements, "public-url", "Aegis:PublicUrl", "Public Service URL", true, false, "Canonical URL used by Aegis.Diagnostics and other Aegis services to reach Cafeteria Services.");
+        Add(requirements, "service-url", "urls", "Service Listener", true, false, "Address on which Cafeteria Services listens locally.");
         Add(requirements, "configuration-url", "Aegis:Configuration:Url", "System Configuration URL", false, false, "Aegis.Configuration endpoint used for contract publication.");
         Add(requirements, "diagnostics-url", "Aegis:Diagnostics:Url", "System Diagnostics URL", false, false, "Aegis.Diagnostics endpoint.");
         Add(requirements, "site-id", "Deployment:SiteId", "Site ID", false, false, "Deployment site identifier.");
@@ -108,6 +122,7 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
         SecretManagerConfigurationContractRequirements.Add(requirements, configuration);
 
         await AddSecretAsync(requirements, secrets, "configuration-registration-key", "ConfigurationRegistrationKey", "Configuration Registration Credential", false, "Credential used to publish this contract to Aegis.Configuration.", registrationSecretPath, cancellationToken: cancellationToken);
+        await AddSecretAsync(requirements, secrets, "diagnostics-machine-credential", "DiagnosticsMachineCredential", "Diagnostics Machine Credential", false, "Credential Aegis.Diagnostics uses for authenticated diagnostic calls. The value is never published.", DiagnosticsMachineSecret, cancellationToken: cancellationToken);
         await AddSecretAsync(requirements, secrets, "openbao-secret-zero", "Secret0", "OpenBao Secret Zero", true, "Bootstrap material used to authenticate to OpenBao. The value is never published.", "bootstrap/OpenBao", directlyProbeable: false, cancellationToken: cancellationToken);
         await AddSecretAsync(requirements, secrets, "smtp-credential", "ScheduledEmail:SmtpCredential", "SMTP Credential", false, "SMTP credential when authenticated SMTP is used.", "cafeteria/smtp", "ScheduledEmail:Enabled=true", cancellationToken: cancellationToken);
         return requirements;
