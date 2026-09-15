@@ -27,7 +27,7 @@ public sealed class ScheduledEmailOptions
     public string SmtpHost { get; init; } = string.Empty;
     public int SmtpPort { get; init; } = 25;
     public bool EnableSsl { get; init; }
-    public string FromAddress { get; init; } = "cafeteria@localhost";
+    public string FromAddress { get; init; } = string.Empty;
     public string[] DailySummaryRecipients { get; init; } = [];
     public int DailySummaryHourLocal { get; init; } = 17;
     public DayOfWeek WeeklyEmployeeDay { get; init; } = DayOfWeek.Monday;
