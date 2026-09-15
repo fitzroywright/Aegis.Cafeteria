@@ -25,6 +25,13 @@ jobs:
           repository: fitzroywright/Common.Diagnostics
           path: Common/Common.Diagnostics
 
+      - name: Checkout Common.Registration
+        uses: actions/checkout@v4
+        with:
+          repository: fitzroywright/Common.Diagnostics
+          ref: common-registration
+          path: Common/Common.Registration
+
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
