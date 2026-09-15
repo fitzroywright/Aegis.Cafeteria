@@ -14,11 +14,6 @@
     <Project Path="Aegis.Cafeteria.Tests/Aegis.Cafeteria.PersistenceTests/Aegis.Cafeteria.PersistenceTests.csproj" />
     <Project Path="Aegis.Cafeteria.Tests/Aegis.Cafeteria.ReportingTests/Aegis.Cafeteria.ReportingTests.csproj" />
   </Folder>
-  <Folder Name="/Aegis Control Plane/">
-    <Project Path="../Aegis.Operations/Aegis.Operations.csproj" />
-    <Project Path="../Aegis.Configuration/Aegis.Configuration.Web/Aegis.Configuration.Web.csproj" />
-    <Project Path="../Aegis.Diagnostics/Aegis.Diagnostics.csproj" />
-  </Folder>
   <Folder Name="/Common/">
     <Project Path="../Common/Common.Security/Common.Security.csproj" />
     <Project Path="../Common/Common.Diagnostics/Common.Diagnostics.csproj" />
