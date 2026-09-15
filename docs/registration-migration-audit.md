@@ -9,9 +9,10 @@ This audit covers the Aegis.Cafeteria.Services registration path only. It does n
 ## Registration boundary
 
 - Cafeteria Services registers only with Aegis.Configuration.
-- Registration transport is provided by Common.Registration.
+- Registration transport is provided by the standalone `Common.Registration` library.
 - Cafeteria does not register with Aegis.Diagnostics.
 - Aegis.Diagnostics remains a diagnostics/observability concern, not an application-registration target.
+- Retry occurs only while registration is unsuccessful; a real successful registration ends the startup retry cycle.
 
 ## Configuration ownership rule
 
@@ -37,7 +38,7 @@ Cafeteria must not publish the actual contents of:
 - connection strings
 - display values derived from the above
 
-The Cafeteria publisher no longer emits `defaultValue` or `safeDisplayValue`. Common.Registration also applies a metadata-only sanitizer before transmission as a second enforcement layer.
+The Cafeteria publisher no longer emits `defaultValue` or `safeDisplayValue`. Common.Registration recursively strips value-bearing fields again at the transport boundary and normalizes requirement-kind wire values for Aegis.Configuration.
 
 ## Failure semantics
 
@@ -59,10 +60,10 @@ Secret requirements may publish existence/verification state only. Secret materi
 
 ## Validation evidence
 
-Common.Registration's current staging branch has executable tests covering metadata-only sanitization, source-contract non-mutation, and rejected-registration failure semantics, and its current CI is green after restore, build, and tests.
+The permanent `fitzroywright/Common.Registration` repository has executable tests covering recursive metadata-only sanitization, source-contract non-mutation, requirement-kind wire normalization, sanitized transmission, HTTP rejection, timeout, and transport failure. Its current CI is green.
 
-Cafeteria's current GitHub Actions jobs are not executable validation evidence because the jobs are failing before any workflow step runs and no runner is assigned. Therefore this branch does not claim a successful Cafeteria compile/test run yet.
+Cafeteria workflows now consume the standalone Common.Registration repository directly. Cafeteria's current GitHub Actions jobs are not executable validation evidence because the jobs are failing before any workflow step runs and no runner is assigned. Therefore this branch does not claim a successful Cafeteria compile/test run yet.
 
-## Temporary repository layout
+## Repository layout
 
-Common.Registration is temporarily staged on the `common-registration` branch of `Common.Diagnostics` so downstream projects can consume it at their normal sibling CommonRoot path. This is temporary. The intended final state is a standalone `Common.Registration` repository, followed by a clean restore/build/test of Cafeteria against that repository before this migration is promoted from draft.
+Common.Registration is a permanent Common.* sibling library at `Common/Common.Registration`. Cafeteria's solution and CI use that location directly; no workflow should source registration code from Common.Diagnostics.
