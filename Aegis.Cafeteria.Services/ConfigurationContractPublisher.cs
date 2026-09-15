@@ -9,7 +9,6 @@ namespace Aegis.Cafeteria.Services;
 public sealed class ConfigurationContractPublisher(IConfiguration configuration, IWebHostEnvironment environment, ILogger<ConfigurationContractPublisher> logger) : BackgroundService
 {
     private const string ApplicationId = "Aegis.Cafeteria.Services";
-    private const string DiagnosticsMachineSecret = "diagnostics/machine/Aegis.Cafeteria.Services";
     private static readonly TimeSpan publishInterval = TimeSpan.FromMinutes(5);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -66,10 +65,12 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
         ["healthPath"] = "/health",
         ["diagnosticsRunPath"] = "/api/engineering/diagnostics/run",
         ["diagnosticsRunsPath"] = "/api/engineering/diagnostics/runs",
-        ["supportsRemoteDiagnostics"] = true,
-        ["authenticationScheme"] = "MachineCredential",
-        ["secretName"] = DiagnosticsMachineSecret,
-        ["supportedLevels"] = new JsonArray(1, 2, 3, 4, 5)
+        ["telemetryPath"] = "/api/engineering/diagnostics/telemetry",
+        ["supportsRemoteDiagnostics"] = false,
+        ["supportsOperationalTelemetry"] = false,
+        ["authenticationScheme"] = "None",
+        ["secretName"] = "",
+        ["supportedLevels"] = new JsonArray()
     };
 
     private async Task<JsonArray> BuildRequirementsAsync(ISecretProvider secrets, string registrationSecretPath, CancellationToken cancellationToken)
@@ -122,7 +123,6 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
         SecretManagerConfigurationContractRequirements.Add(requirements, configuration);
 
         await AddSecretAsync(requirements, secrets, "configuration-registration-key", "ConfigurationRegistrationKey", "Configuration Registration Credential", false, "Credential used to publish this contract to Aegis.Configuration.", registrationSecretPath, cancellationToken: cancellationToken);
-        await AddSecretAsync(requirements, secrets, "diagnostics-machine-credential", "DiagnosticsMachineCredential", "Diagnostics Machine Credential", false, "Credential Aegis.Diagnostics uses for authenticated diagnostic calls. The value is never published.", DiagnosticsMachineSecret, cancellationToken: cancellationToken);
         await AddSecretAsync(requirements, secrets, "openbao-secret-zero", "Secret0", "OpenBao Secret Zero", true, "Bootstrap material used to authenticate to OpenBao. The value is never published.", "bootstrap/OpenBao", directlyProbeable: false, cancellationToken: cancellationToken);
         await AddSecretAsync(requirements, secrets, "smtp-credential", "ScheduledEmail:SmtpCredential", "SMTP Credential", false, "SMTP credential when authenticated SMTP is used.", "cafeteria/smtp", "ScheduledEmail:Enabled=true", cancellationToken: cancellationToken);
         return requirements;
