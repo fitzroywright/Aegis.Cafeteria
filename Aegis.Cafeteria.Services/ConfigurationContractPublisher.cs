@@ -42,6 +42,7 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
             contract["siteId"] = NullIfBlank(First(configuration["Deployment:SiteId"], configuration["Site:Id"]));
             contract["instanceId"] = NullIfBlank(First(configuration["Service:Identity"], Environment.MachineName));
             contract["description"] = "Central synchronization, management, reporting, and FFP integration services for Aegis Cafeteria.";
+            contract["runtimeEnvironment"] = DetectedRuntimeEnvironment.Capture(environment.EnvironmentName, environment.ContentRootPath);
             contract["requirements"] = await BuildRequirementsAsync(secrets, registrationSecretPath, cancellationToken);
 
             using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(10) };
