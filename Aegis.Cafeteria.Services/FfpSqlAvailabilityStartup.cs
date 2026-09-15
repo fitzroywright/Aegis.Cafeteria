@@ -22,9 +22,7 @@ public sealed class FfpSqlAvailabilityHostingStartup : IHostingStartup
         (
             services =>
             {
-                services.AddSingleton<ManagementCommonSecurityAuthenticator>();
-                services.AddSingleton<ManagementServiceTokenStore>();
-                services.AddTransient<IStartupFilter, ManagementCommonSecurityStartupFilter>();
+                services.AddManagementCommonSecurityAuthentication();
                 services.AddTransient<IStartupFilter, FfpSqlAvailabilityStartupFilter>();
             }
         );
