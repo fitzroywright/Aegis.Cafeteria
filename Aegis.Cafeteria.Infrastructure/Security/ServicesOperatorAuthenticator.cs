@@ -57,6 +57,23 @@ public sealed class PosServicesTokenHandler(PosServicesSession session) : Delega
     }
 }
 
+/// <summary>
+/// Indicates that Cafeteria Services could not process an authentication request.
+/// This is deliberately distinct from rejected credentials.
+/// </summary>
+public sealed class CafeteriaServicesAuthenticationException : Exception
+{
+    public CafeteriaServicesAuthenticationException(string message)
+        : base(message)
+    {
+    }
+
+    public CafeteriaServicesAuthenticationException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
+
 public sealed class ServicesOperatorAuthenticator
 (
       HttpClient http
@@ -76,31 +93,80 @@ public sealed class ServicesOperatorAuthenticator
             return null;
         }
 
+        HttpResponseMessage response;
         try
         {
-            using HttpResponseMessage response = await http.PostAsJsonAsync
+            response = await http.PostAsJsonAsync
             (
                   "api/pos/authenticate"
                 , new PosAuthenticationRequest(loginName.Trim(), password)
                 , cancellationToken
             );
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException exception)
+        {
+            servicesSession.Clear();
+            logger.LogWarning(exception, "Cafeteria Services authentication request timed out for {LoginName}", Normalize(loginName));
+            throw new CafeteriaServicesAuthenticationException(
+                "Cafeteria Services did not respond to the authentication request in time. Your credentials were not rejected.",
+                exception);
+        }
+        catch (HttpRequestException exception)
+        {
+            servicesSession.Clear();
+            logger.LogWarning(exception, "Cafeteria Services authentication request could not be sent for {LoginName}", Normalize(loginName));
+            throw new CafeteriaServicesAuthenticationException(
+                "Cafeteria Services could not be reached. Your credentials were not rejected.",
+                exception);
+        }
 
-            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+        using (response)
+        {
+            if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
                 servicesSession.Clear();
+                logger.LogInformation("Cafeteria operator credentials were rejected for {LoginName}", Normalize(loginName));
                 return null;
             }
 
-            response.EnsureSuccessStatusCode();
-            PosAuthenticationResponse? authentication = await response.Content.ReadFromJsonAsync<PosAuthenticationResponse>
-            (
-                cancellationToken: cancellationToken
-            );
+            if (!response.IsSuccessStatusCode)
+            {
+                servicesSession.Clear();
+                string detail = $"Cafeteria Services returned HTTP {(int)response.StatusCode} ({response.StatusCode}) while processing authentication.";
+                logger.LogWarning("{AuthenticationFailure} Login={LoginName}", detail, Normalize(loginName));
+                throw new CafeteriaServicesAuthenticationException(detail + " Your credentials were not reported as invalid.");
+            }
+
+            PosAuthenticationResponse? authentication;
+            try
+            {
+                authentication = await response.Content.ReadFromJsonAsync<PosAuthenticationResponse>
+                (
+                    cancellationToken: cancellationToken
+                );
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                servicesSession.Clear();
+                logger.LogWarning(exception, "Cafeteria Services returned an invalid authentication response for {LoginName}", Normalize(loginName));
+                throw new CafeteriaServicesAuthenticationException(
+                    "Cafeteria Services returned an invalid authentication response. Your credentials were not rejected.",
+                    exception);
+            }
 
             if (authentication is null || string.IsNullOrWhiteSpace(authentication.Token))
             {
                 servicesSession.Clear();
-                return null;
+                throw new CafeteriaServicesAuthenticationException(
+                    "Cafeteria Services returned an incomplete authentication response. Your credentials were not rejected.");
             }
 
             servicesSession.Set(authentication.Token, authentication.ExpiresAt);
@@ -118,17 +184,6 @@ public sealed class ServicesOperatorAuthenticator
                 , authentication.IsManager
                 , DateTimeOffset.UtcNow
             );
-        }
-        catch (Exception exception)
-        {
-            servicesSession.Clear();
-            logger.LogWarning
-            (
-                  exception
-                , "Cafeteria Services authentication failed for {LoginName}"
-                , Normalize(loginName)
-            );
-            return null;
         }
     }
 
