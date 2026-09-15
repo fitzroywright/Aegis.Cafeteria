@@ -132,7 +132,7 @@ public sealed class OperatorLoginForm : Form
             {
                 this.hideStartupProgress?.Invoke();
                 RestoreLoginWindow();
-                status.Text = "Sign-in failed.";
+                status.Text = "Username or password was not accepted.";
                 password.Focus();
                 return;
             }
