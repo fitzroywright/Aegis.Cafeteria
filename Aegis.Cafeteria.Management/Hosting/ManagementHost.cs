@@ -5,9 +5,8 @@ namespace Aegis.Cafeteria.Management;
 internal static class ManagementHost
 {
     internal const string AuthenticationScheme = "AegisManagement";
-    internal const string SessionClaim = "aegis_management_session";
 
-    internal static void Configure(WebApplicationBuilder builder)
+    internal static TimeSpan Configure(WebApplicationBuilder builder)
     {
         int configuredMinutes = builder.Configuration.GetValue<int?>("Authentication:SessionMinutes") ?? 30;
         TimeSpan lifetime = TimeSpan.FromMinutes(Math.Clamp(configuredMinutes, 5, 480));
@@ -16,6 +15,7 @@ internal static class ManagementHost
             .AddAuthentication(AuthenticationScheme)
             .AddCookie(AuthenticationScheme, options => ConfigureCookie(options, lifetime));
         builder.Services.AddAuthorization();
+        return lifetime;
     }
 
     private static void ConfigureCookie(CookieAuthenticationOptions options, TimeSpan lifetime)
