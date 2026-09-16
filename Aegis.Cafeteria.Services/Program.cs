@@ -16,6 +16,7 @@ using Aegis.Cafeteria.Services.Realtime;
 using Aegis.Cafeteria.Services.Workers;
 
 using Aegis.Engineering.Diagnostics;
+using Common.Diagnostics;
 
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Negotiate;
@@ -248,7 +249,17 @@ app.UseAuthorization();
 app.UseCafeteriaAuditTrail();
 AuditTrailEndpoints.Map(app);
 
-app.MapGet("/health", () => Results.Ok(new { status="running", application="Aegis.Cafeteria.Services", timeUtc=DateTimeOffset.UtcNow }));
+app.MapAegisHealth(
+    "Aegis.Cafeteria.Services",
+    async (services, cancellationToken) =>
+    {
+        IDbContextFactory<ServiceDbContext> factory = services.GetRequiredService<IDbContextFactory<ServiceDbContext>>();
+        await using ServiceDbContext db = await factory.CreateDbContextAsync(cancellationToken);
+        bool canConnect = await db.Database.CanConnectAsync(cancellationToken);
+        return canConnect
+            ? AegisHealthAssessment.Healthy("Cafeteria Services and its service database are healthy.")
+            : AegisHealthAssessment.Unhealthy("Cafeteria Services service database is unavailable.");
+    });
 
 app.MapGet("/engineering/login", (HttpContext http) =>
 {
@@ -492,12 +503,12 @@ app.MapPost("/api/management/stipends", async
             , stipend.FundingYear
             , stipend.FundingMonth
         );
-        CafeteriaServiceEventEnvelope serviceEvent = await store.AppendAsync(operationId, CafeteriaServiceEventKind.Stipend, request.CustomerId, processedAt, payload, ct);
-        return Results.Created($"/api/events/{serviceEvent.Sequence}", serviceEvent);
+        CafeteriaServiceEventEnvelope serviceEvent = await store.AppendAsync(operationId,CafeteriaServiceEventKind.Stipend,request.CustomerId,processedAt,payload,ct);
+        return Results.Created($"/api/events/{serviceEvent.Sequence}",serviceEvent);
     }
-    catch (UnauthorizedAccessException){return Results.Forbid();}
-    catch (InvalidOperationException exception){return Results.Conflict(new { error = exception.Message });}
-    catch (ArgumentException exception){return Results.BadRequest(exception.Message);}
+    catch(UnauthorizedAccessException){return Results.Forbid();}
+    catch(InvalidOperationException exception){return Results.Conflict(new { error = exception.Message });}
+    catch(ArgumentException exception){return Results.BadRequest(exception.Message);}
 }).RequireAuthorization("CafeteriaManagement");
 
 app.MapGet("/api/management/funding-policy", async (CafeteriaFundingPolicyStore fundingPolicy, CancellationToken ct)
@@ -508,16 +519,16 @@ app.MapPut("/api/management/funding-policy", async (FundingPolicyRequest request
     if (request.DailyCreditLimitRate <= 0m || request.DailyCompanySubsidyRate <= 0m || request.DailyCompanySubsidyRate > request.DailyCreditLimitRate)
         return Results.BadRequest("Funding rates must be positive and the company subsidy rate cannot exceed the credit-limit rate.");
     string actor = RequireActor(http);
-    return Results.Ok(await fundingPolicy.SetFundingPolicyAsync(request.DailyCreditLimitRate, request.DailyCompanySubsidyRate, actor, ct));
+    return Results.Ok(await fundingPolicy.SetFundingPolicyAsync(request.DailyCreditLimitRate,request.DailyCompanySubsidyRate,actor,ct));
 }).RequireAuthorization("CafeteriaManagement");
 
 app.MapGet("/api/management/payroll-report", async (int year, int month, PayrollDeductionReportSource payroll, CancellationToken ct)
-    => Results.Ok(await payroll.BuildAsync(year, month, ct))).RequireAuthorization("CafeteriaManagement");
+    => Results.Ok(await payroll.BuildAsync(year,month,ct))).RequireAuthorization("CafeteriaManagement");
 
 app.MapPost("/api/management/payroll-report/send", async (int year, int month, bool? force, ScheduledEmailWorker worker, CancellationToken ct) =>
 {
-    PayrollDeductionReportPackage report = await worker.SendPayrollReportAsync(year, month, force ?? false, ct);
-    return Results.Ok(new { report.Year, report.Month, report.EmployeesWithAmountDue, report.TotalEmployeeAmountDue, Forced = force ?? false });
+    PayrollDeductionReportPackage report = await worker.SendPayrollReportAsync(year,month,force ?? false,ct);
+    return Results.Ok(new { report.Year,report.Month,report.EmployeesWithAmountDue,report.TotalEmployeeAmountDue,Forced=force ?? false });
 }).RequireAuthorization("CafeteriaManagement");
 
 app.MapPost("/api/month-opening/run", async (int? year, int? month, MonthOpeningWorker worker, CancellationToken ct) =>
@@ -570,11 +581,11 @@ app.MapPost("/api/ffp/ledger", async (ExternalLedgerEntry entry, IExternalAccoun
     DateTimeOffset? latestResetAt = await store.GetLatestDevelopmentResetAtAsync(ct);
     if (app.Environment.IsDevelopment() && latestResetAt is DateTimeOffset resetAt && entry.OccurredAt <= resetAt)
         return Results.Ok(new { ignored = true, reason = "Entry predates the latest Development reset." });
-    await gateway.PublishLedgerEntryAsync(entry, ct);
+    await gateway.PublishLedgerEntryAsync(entry,ct);
     return Results.Ok();
 }).RequireAuthorization("CafeteriaPos");
 
-await TryRegisterServicesWithConfigurationAsync(app.Configuration, app.Environment, serviceDb, ffpIntegration, app.Lifetime.ApplicationStopping);
+await TryRegisterServicesWithConfigurationAsync(app.Configuration,app.Environment,serviceDb,ffpIntegration,app.Lifetime.ApplicationStopping);
 await app.RunAsync();
 
 static FfpIntegrationOptions BuildTrustedFfpOptions
@@ -606,8 +617,8 @@ static FfpIntegrationOptions BuildTrustedFfpOptions
           DataSource = server
         , InitialCatalog = database
         , IntegratedSecurity = true
-        , Encrypt = section.GetValue("Encrypt", true)
-        , TrustServerCertificate = section.GetValue("TrustServerCertificate", false)
+        , Encrypt = section.GetValue("Encrypt",true)
+        , TrustServerCertificate = section.GetValue("TrustServerCertificate",false)
         , ApplicationName = "Aegis.Cafeteria.Services"
     };
 
@@ -642,8 +653,8 @@ static async Task TryRegisterServicesWithConfigurationAsync(
     string? configurationUrl = configuration["Aegis:Configuration:Url"];
     if (string.IsNullOrWhiteSpace(configurationUrl)) return;
 
-    IApplicationSecretProvider secrets = ApplicationSecretProviderFactory.Create(configuration, environment);
-    string? registrationKey = await secrets.GetSecretAsync(ApplicationSecretNames.ConfigurationRegistrationKey, cancellationToken);
+    IApplicationSecretProvider secrets = ApplicationSecretProviderFactory.Create(configuration,environment);
+    string? registrationKey = await secrets.GetSecretAsync(ApplicationSecretNames.ConfigurationRegistrationKey,cancellationToken);
     if (string.IsNullOrWhiteSpace(registrationKey)) return;
 
     string? siteId = configuration["Deployment:SiteId"];
@@ -658,21 +669,21 @@ static async Task TryRegisterServicesWithConfigurationAsync(
         Description = "Central synchronization, management, reporting, and integration services for Aegis Cafeteria.",
         Requirements = new object[]
         {
-            Requirement("service-database", "Service Database", "Configuration", true,
-                "Stores central Cafeteria Services state.", "ServicePersistence:ConnectionString",
-                !string.IsNullOrWhiteSpace(serviceDb), serviceDb, "Data Source=cafeteria.services.db"),
-            Requirement("service-url", "Service URL", "Configuration", true,
-                "Defines the address exposed by Cafeteria Services.", "urls",
-                !string.IsNullOrWhiteSpace(servicesUrl), servicesUrl, "http://0.0.0.0:5088"),
-            Requirement("ffp-integration", "FFP Integration", "ExternalService", true,
-                "Connects Cafeteria Services to the FFP workforce and accounting data source.", "FfpIntegration:Enabled",
-                ffp.Enabled, ffp.Enabled ? "Enabled" : "Disabled", "Enabled"),
-            Requirement("configuration-url", "System Configuration URL", "ExternalService", true,
-                "Identifies the System Configuration registry.", "Aegis:Configuration:Url",
-                true, configurationUrl, "http://localhost:5101"),
-            Requirement("diagnostics-url", "System Diagnostics URL", "ExternalService", false,
-                "Identifies the System Diagnostics service.", "Aegis:Diagnostics:Url",
-                !string.IsNullOrWhiteSpace(configuration["Aegis:Diagnostics:Url"]), configuration["Aegis:Diagnostics:Url"], "http://localhost:5102")
+            Requirement("service-database","Service Database","Configuration",true,
+                "Stores central Cafeteria Services state.","ServicePersistence:ConnectionString",
+                !string.IsNullOrWhiteSpace(serviceDb),serviceDb,"Data Source=cafeteria.services.db"),
+            Requirement("service-url","Service URL","Configuration",true,
+                "Defines the address exposed by Cafeteria Services.","urls",
+                !string.IsNullOrWhiteSpace(servicesUrl),servicesUrl,"http://0.0.0.0:5088"),
+            Requirement("ffp-integration","FFP Integration","ExternalService",true,
+                "Connects Cafeteria Services to the FFP workforce and accounting data source.","FfpIntegration:Enabled",
+                ffp.Enabled,ffp.Enabled ? "Enabled" : "Disabled","Enabled"),
+            Requirement("configuration-url","System Configuration URL","ExternalService",true,
+                "Identifies the System Configuration registry.","Aegis:Configuration:Url",
+                true,configurationUrl,"http://localhost:5101"),
+            Requirement("diagnostics-url","System Diagnostics URL","ExternalService",false,
+                "Identifies the System Diagnostics service.","Aegis:Diagnostics:Url",
+                !string.IsNullOrWhiteSpace(configuration["Aegis:Diagnostics:Url"]),configuration["Aegis:Diagnostics:Url"],"http://localhost:5102")
         }
     };
 
@@ -680,11 +691,11 @@ static async Task TryRegisterServicesWithConfigurationAsync(
     {
         using HttpClient client = new()
         {
-            BaseAddress = new Uri(configurationUrl.TrimEnd('/') + "/", UriKind.Absolute),
+            BaseAddress = new Uri(configurationUrl.TrimEnd('/') + "/",UriKind.Absolute),
             Timeout = TimeSpan.FromSeconds(3)
         };
-        client.DefaultRequestHeaders.Add("X-Aegis-Registration-Key", registrationKey);
-        using HttpResponseMessage response = await client.PostAsJsonAsync("api/contracts/register", contract, cancellationToken);
+        client.DefaultRequestHeaders.Add("X-Aegis-Registration-Key",registrationKey);
+        using HttpResponseMessage response = await client.PostAsJsonAsync("api/contracts/register",contract,cancellationToken);
         _ = response.IsSuccessStatusCode;
     }
     catch (Exception) when (!cancellationToken.IsCancellationRequested)
