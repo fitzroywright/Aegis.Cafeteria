@@ -31,9 +31,21 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
                 : new JsonObject();
 
             ISecretProvider secrets = CommonSecretProviderFactory.Create(configuration);
-            string registrationSecretPath = $"configuration/registration/{ApplicationId}";
-            string? key = await secrets.GetAsync(registrationSecretPath, cancellationToken);
-            if (string.IsNullOrWhiteSpace(key)) { logger.LogWarning("Aegis.Configuration registration credential is unavailable; Cafeteria Services remains operational and will retry publication."); return false; }
+            string registrationSecretPath = RegistrationCredentialResolver.SecretNameFor(ApplicationId);
+            RegistrationCredentialResolution credential = await RegistrationCredentialResolver.ResolveAsync(
+                () => Environment.GetEnvironmentVariable(RegistrationCredentialResolver.EnvironmentVariableName),
+                token => secrets.GetAsync(registrationSecretPath, token),
+                () => configuration[RegistrationCredentialResolver.AppSettingKey],
+                cancellationToken);
+
+            if (!credential.Succeeded)
+            {
+                if (credential.SecretProviderError is null)
+                    logger.LogWarning("Aegis.Configuration registration credential is unavailable from Environment, SecretProvider, and AppSetting; Cafeteria Services remains operational and will retry publication.");
+                else
+                    logger.LogWarning("Aegis.Configuration registration credential is unavailable from Environment, SecretProvider, and AppSetting. SecretProvider error: {SecretProviderError}; Cafeteria Services remains operational and will retry publication.", credential.SecretProviderError);
+                return false;
+            }
 
             contract["applicationId"] = ApplicationId;
             contract["displayName"] = "Aegis Cafeteria Services";
@@ -43,14 +55,14 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
             contract["description"] = "Central synchronization, management, reporting, and FFP integration services for Aegis Cafeteria.";
             contract["runtimeEnvironment"] = DetectedRuntimeEnvironment.Capture(environment.EnvironmentName, environment.ContentRootPath);
             contract["diagnostics"] = BuildDiagnosticsCapability();
-            contract["requirements"] = await BuildRequirementsAsync(secrets, registrationSecretPath, cancellationToken);
+            contract["requirements"] = await BuildRequirementsAsync(secrets, registrationSecretPath, credential, cancellationToken);
 
             using HttpClient client = new();
             var registrar = new ConfigurationRegistrar(
                 client,
                 new RegistrationOptions(
                     new Uri(baseUrl.TrimEnd('/') + "/", UriKind.Absolute),
-                    key,
+                    credential.Credential,
                     TimeSpan.FromSeconds(10)));
             RegistrationResult result = await registrar.RegisterContractAsync(contract, cancellationToken);
             if (!result.Succeeded)
@@ -59,7 +71,7 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
                 return false;
             }
 
-            logger.LogInformation("Aegis.Cafeteria.Services published its configuration contract heartbeat to Aegis.Configuration with HTTP {StatusCode}.", (int?)result.StatusCode);
+            logger.LogInformation("Aegis.Cafeteria.Services published its configuration contract heartbeat to Aegis.Configuration with HTTP {StatusCode} using registration credential source {CredentialSource}.", (int?)result.StatusCode, credential.Source);
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
@@ -80,7 +92,7 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
         ["supportedLevels"] = new JsonArray()
     };
 
-    private async Task<JsonArray> BuildRequirementsAsync(ISecretProvider secrets, string registrationSecretPath, CancellationToken cancellationToken)
+    private async Task<JsonArray> BuildRequirementsAsync(ISecretProvider secrets, string registrationSecretPath, RegistrationCredentialResolution registrationCredential, CancellationToken cancellationToken)
     {
         JsonArray requirements = [];
         Add(requirements, "public-url", "Aegis:PublicUrl", "Public Service URL", true, false, "Canonical URL used by Aegis.Diagnostics and other Aegis services to reach Cafeteria Services.");
@@ -129,10 +141,35 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
 
         SecretManagerConfigurationContractRequirements.Add(requirements, configuration);
 
-        await AddSecretAsync(requirements, secrets, "configuration-registration-key", "ConfigurationRegistrationKey", "Configuration Registration Credential", false, "Credential used to publish this contract to Aegis.Configuration.", registrationSecretPath, cancellationToken: cancellationToken);
+        AddRegistrationCredentialRequirement(requirements, registrationCredential, registrationSecretPath);
         await AddSecretAsync(requirements, secrets, "openbao-secret-zero", "Secret0", "OpenBao Secret Zero", true, "Bootstrap material used to authenticate to OpenBao. The value is never published.", "bootstrap/OpenBao", directlyProbeable: false, cancellationToken: cancellationToken);
         await AddSecretAsync(requirements, secrets, "smtp-credential", "ScheduledEmail:SmtpCredential", "SMTP Credential", false, "SMTP credential when authenticated SMTP is used.", "cafeteria/smtp", "ScheduledEmail:Enabled=true", cancellationToken: cancellationToken);
         return requirements;
+    }
+
+    private static void AddRegistrationCredentialRequirement(JsonArray requirements, RegistrationCredentialResolution credential, string registrationSecretPath)
+    {
+        requirements.Add(new JsonObject
+        {
+            ["id"] = "configuration-registration-key",
+            ["displayName"] = "Configuration Registration Credential",
+            ["kind"] = "Secret",
+            ["required"] = true,
+            ["purpose"] = "Credential used to publish this contract to Aegis.Configuration.",
+            ["configurationKey"] = RegistrationCredentialResolver.AppSettingKey,
+            ["environmentVariable"] = RegistrationCredentialResolver.EnvironmentVariableName,
+            ["secretName"] = registrationSecretPath,
+            ["sensitive"] = true,
+            ["allowedSources"] = new JsonArray("Environment", "SecretProvider", "AppSetting"),
+            ["resolutionOrder"] = new JsonArray("Environment", "SecretProvider", "AppSetting"),
+            ["effectiveSource"] = credential.Source.ToString(),
+            ["configurationState"] = credential.Succeeded ? "Configured" : "Unresolved",
+            ["isConfigured"] = credential.Succeeded,
+            ["effectiveValueAvailable"] = credential.Succeeded,
+            ["verificationStatus"] = credential.Succeeded ? "Resolved" : "Missing",
+            ["secretProviderError"] = credential.SecretProviderError,
+            ["redacted"] = true
+        });
     }
 
     private void Add(JsonArray array, string id, string key, string name, bool required, bool sensitive, string description, string? defaultValue = null, string? condition = null)
