@@ -6,8 +6,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
 /// <summary>
-/// Selects the runtime secret source. Development may use local configuration;
-/// all other environments require Bitwarden Secrets Manager.
+/// Selects the legacy application secret source. Configuration registration is no longer owned
+/// by this path; the current Cafeteria Services publisher uses Common.Registration and Common.Secrets.
 /// </summary>
 public static class ApplicationSecretProviderFactory
 {
@@ -16,11 +16,11 @@ public static class ApplicationSecretProviderFactory
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(environment);
 
-        if (environment.IsDevelopment())
-            return new ConfigurationSecretProvider(configuration);
+        IApplicationSecretProvider provider = environment.IsDevelopment()
+            ? new ConfigurationSecretProvider(configuration)
+            : new BwsSecretsManagerProvider(CafeteriaRuntimeOptionsResolver.ReadSecretsManagerOptions(configuration));
 
-        var options = CafeteriaRuntimeOptionsResolver.ReadSecretsManagerOptions(configuration);
-        return new BwsSecretsManagerProvider(options);
+        return new LegacyRegistrationSuppressingSecretProvider(provider);
     }
 
     public static string Describe(IHostEnvironment environment)
