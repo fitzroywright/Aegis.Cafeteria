@@ -37,7 +37,7 @@ internal static class LinuxCafeteriaHost
 
     private static CafeteriaRuntimeOptions ResolveRuntime(HostApplicationBuilder builder)
     {
-        IApplicationSecretProvider startupSecrets = ApplicationSecretProviderFactory.Create(builder.Configuration, builder.Environment);
+        IApplicationSecretProvider startupSecrets = ApplicationSecretProviderFactory.Create(builder.Configuration);
         CafeteriaRuntimeOptions runtime = CafeteriaRuntimeOptionsResolver
             .ResolvePosAsync(builder.Configuration, startupSecrets)
             .GetAwaiter()
