@@ -1,4 +1,5 @@
 using Aegis.Cafeteria.Services.Email;
+using Aegis.Cafeteria.Services.Persistence;
 using Aegis.Cafeteria.Services.Realtime;
 
 namespace Aegis.Cafeteria.Services;
