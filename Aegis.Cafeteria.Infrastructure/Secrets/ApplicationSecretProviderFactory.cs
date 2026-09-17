@@ -1,30 +1,28 @@
 namespace Aegis.Cafeteria.Infrastructure.Secrets;
 
 using Aegis.Cafeteria.Application.Abstractions;
-using Aegis.Cafeteria.Infrastructure.Configuration;
+using Common.Secrets;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
 
 /// <summary>
-/// Selects the legacy application secret source. Configuration registration is no longer owned
-/// by this path; the current Cafeteria Services publisher uses Common.Registration and Common.Secrets.
+/// Adapts the provider-neutral Common.Secrets contract to the Cafeteria application abstraction.
+/// Provider selection and provider-specific configuration remain entirely inside Common.Secrets.
 /// </summary>
 public static class ApplicationSecretProviderFactory
 {
-    public static IApplicationSecretProvider Create(IConfiguration configuration, IHostEnvironment environment)
+    public static IApplicationSecretProvider Create(IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
-        ArgumentNullException.ThrowIfNull(environment);
-
-        IApplicationSecretProvider provider = environment.IsDevelopment()
-            ? new ConfigurationSecretProvider(configuration)
-            : new BwsSecretsManagerProvider(CafeteriaRuntimeOptionsResolver.ReadSecretsManagerOptions(configuration));
-
-        return new LegacyRegistrationSuppressingSecretProvider(provider);
+        return new CommonSecretsApplicationSecretProvider(CommonSecretProviderFactory.Create(configuration));
     }
 
-    public static string Describe(IHostEnvironment environment)
-        => environment.IsDevelopment()
-            ? "Development configuration"
-            : "Bitwarden Secrets Manager";
+    public static string Describe() => "Common.Secrets";
+
+    private sealed class CommonSecretsApplicationSecretProvider(ISecretProvider provider) : IApplicationSecretProvider
+    {
+        public Task<string?> GetSecretAsync(
+            string logicalName,
+            CancellationToken cancellationToken = default)
+            => provider.GetAsync(logicalName, cancellationToken);
+    }
 }
