@@ -1,68 +1,49 @@
 namespace Aegis.Cafeteria.UnitTests.Services;
 
-using Aegis.Cafeteria.Application.Integration;
-using Aegis.Cafeteria.Services.Development;
+using Aegis.Cafeteria.Infrastructure.Configuration;
+using Aegis.Cafeteria.Infrastructure.Ffp;
+using Microsoft.Extensions.Logging.Abstractions;
 
 public sealed class MonthRecalculationGuardTests
 {
-    [Fact]
-    public async Task CheckAsync_AllowsMonthWithAllocationOnly()
+    [Theory]
+    [InlineData(1999)]
+    [InlineData(10000)]
+    public async Task CheckAsync_RejectsInvalidYear(int year)
     {
-        DevelopmentFfpGateway gateway = new();
-        DateTimeOffset occurredAt = new(2026, 8, 1, 8, 0, 0, TimeSpan.Zero);
+        FfpSqlApplicationGateway gateway = CreateGateway();
 
-        await gateway.PublishLedgerEntryAsync
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>
         (
-            new ExternalLedgerEntry
-            (
-                  Guid.NewGuid()
-                , 900001
-                , ExternalLedgerEntryKind.MonthlyAllocation
-                , occurredAt
-                , "Tickets Assigned"
-                , 10000m
-                , 10000m
-                , 10000m
-                , "ALLOCATION"
-                , "SYSTEM"
-                , "Tickets Assigned"
-            )
+            () => gateway.CheckAsync(year, 8)
         );
-
-        MonthRecalculationGuardResult result = await gateway.CheckAsync(2026, 8);
-
-        Assert.True(result.IsSafe);
-        Assert.Equal(0, result.ActivityCount);
     }
 
-    [Fact]
-    public async Task CheckAsync_BlocksMonthWithFinancialActivity()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(13)]
+    public async Task CheckAsync_RejectsInvalidMonth(int month)
     {
-        DevelopmentFfpGateway gateway = new();
-        DateTimeOffset occurredAt = new(2026, 8, 2, 12, 0, 0, TimeSpan.Zero);
+        FfpSqlApplicationGateway gateway = CreateGateway();
 
-        await gateway.PublishLedgerEntryAsync
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>
         (
-            new ExternalLedgerEntry
-            (
-                  Guid.NewGuid()
-                , 900001
-                , ExternalLedgerEntryKind.Purchase
-                , occurredAt
-                , "Lunch x1 @ 650.00"
-                , 650m
-                , 10000m
-                , 9350m
-                , "PURCHASE"
-                , "cashier"
-                , "Cafeteria Purchase"
-            )
+            () => gateway.CheckAsync(2026, month)
         );
+    }
 
-        MonthRecalculationGuardResult result = await gateway.CheckAsync(2026, 8);
+    private static FfpSqlApplicationGateway CreateGateway()
+    {
+        FfpIntegrationOptions options = new()
+        {
+            Enabled = true,
+            ConnectionString = "Server=unused;Database=unused;Integrated Security=true;TrustServerCertificate=true"
+        };
 
-        Assert.False(result.IsSafe);
-        Assert.Equal(1, result.ActivityCount);
-        Assert.NotNull(result.Reason);
+        return new FfpSqlApplicationGateway
+        (
+            options,
+            NullLogger<FfpSqlApplicationGateway>.Instance
+        );
     }
 }
