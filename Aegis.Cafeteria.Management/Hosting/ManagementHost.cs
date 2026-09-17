@@ -1,4 +1,5 @@
 using Common.Secrets;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
 namespace Aegis.Cafeteria.Management;
