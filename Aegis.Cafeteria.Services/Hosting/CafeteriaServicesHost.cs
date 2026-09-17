@@ -23,37 +23,27 @@ internal static class CafeteriaServicesHost
         builder.Host.UseWindowsService(options => options.ServiceName = "Aegis.Cafeteria.Services");
         builder.Configuration.AddEnvironmentVariables();
 
-        bool developmentDataEnabled = ReadDevelopmentDataMode(builder);
-        FfpIntegrationOptions ffp = BuildFfpIntegration(builder, developmentDataEnabled);
+        FfpIntegrationOptions ffp = BuildFfpIntegration(builder);
         ManagementApiOptions management = builder.Configuration.GetSection("ManagementApi").Get<ManagementApiOptions>() ?? new();
         MonthOpeningOptions monthOpening = builder.Configuration.GetSection("MonthOpening").Get<MonthOpeningOptions>() ?? new();
         ScheduledEmailOptions scheduledEmail = builder.Configuration.GetSection("ScheduledEmail").Get<ScheduledEmailOptions>() ?? new();
         string serviceDb = CafeteriaServiceDatabase.ResolveConnectionString(builder.Configuration);
 
         RegisterOptions(builder.Services, ffp, management, monthOpening, scheduledEmail);
-        RegisterIntegrationGateways(builder.Services, developmentDataEnabled);
+        RegisterIntegrationGateways(builder.Services);
         RegisterApplicationServices(builder.Services, serviceDb);
-        ConfigureDevelopmentServices(builder, developmentDataEnabled);
+        ConfigureDevelopmentServices(builder);
         ConfigureAuthentication(builder, management);
         RegisterWorkers(builder.Services);
     }
 
-    private static bool ReadDevelopmentDataMode(WebApplicationBuilder builder)
-    {
-        bool enabled = builder.Configuration.GetSection("DevelopmentData").GetValue("Enabled", false);
-        if (enabled && !builder.Environment.IsDevelopment())
-            throw new InvalidOperationException("DevelopmentData can only be enabled in the Development environment.");
-        return enabled;
-    }
-
-    private static FfpIntegrationOptions BuildFfpIntegration(WebApplicationBuilder builder, bool developmentDataEnabled)
+    private static FfpIntegrationOptions BuildFfpIntegration(WebApplicationBuilder builder)
     {
         IConfigurationSection section = builder.Configuration.GetSection("FfpIntegration");
         FfpIntegrationOptions configured = section.Get<FfpIntegrationOptions>() ?? new FfpIntegrationOptions();
-        if (developmentDataEnabled) return configured;
 
         if (!configured.Enabled)
-            throw new InvalidOperationException("Aegis.Cafeteria.Services requires FFP integration in production.");
+            throw new InvalidOperationException("Aegis.Cafeteria.Services requires FFP integration in every runtime environment.");
 
         string server = section["Server"]?.Trim() ?? string.Empty;
         string database = section["Database"]?.Trim() ?? string.Empty;
@@ -94,26 +84,9 @@ internal static class CafeteriaServicesHost
         services.AddSingleton(scheduledEmail);
     }
 
-    private static void RegisterIntegrationGateways(IServiceCollection services, bool developmentDataEnabled)
+    private static void RegisterIntegrationGateways(IServiceCollection services)
     {
         services.AddSingleton<MonthlyAllocationCalculator>();
-        if (developmentDataEnabled)
-        {
-            services.AddSingleton<DevelopmentFfpGateway>();
-            services.AddSingleton<DevelopmentLunchItemBootstrapSource>();
-            services.AddSingleton<DevelopmentFfpMonthImportSource>();
-            services.AddSingleton<IExternalAccountingGateway>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
-            services.AddSingleton<IWorkforceReferenceSource>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
-            services.AddSingleton<ILunchItemBootstrapSource>(sp => sp.GetRequiredService<DevelopmentLunchItemBootstrapSource>());
-            services.AddSingleton<IFfpMonthImportSource>(sp => sp.GetRequiredService<DevelopmentFfpMonthImportSource>());
-            services.AddSingleton<IFundingPolicyCompatibilityGateway>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
-            services.AddSingleton<IMonthRecalculationGuard>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
-            services.AddSingleton<IDevelopmentDataResetGateway>(sp => sp.GetRequiredService<DevelopmentFfpGateway>());
-            services.AddSingleton<DevelopmentPayrollLedgerSource>();
-            services.AddSingleton<IPayrollLedgerSource>(sp => sp.GetRequiredService<DevelopmentPayrollLedgerSource>());
-            return;
-        }
-
         services.AddSingleton<FfpSqlApplicationGateway>();
         services.AddSingleton<FfpLunchItemBootstrapSource>();
         services.AddSingleton<FfpMonthImportSource>();
@@ -149,7 +122,7 @@ internal static class CafeteriaServicesHost
         services.AddSingleton<DevelopmentDataResetService>();
     }
 
-    private static void ConfigureDevelopmentServices(WebApplicationBuilder builder, bool developmentDataEnabled)
+    private static void ConfigureDevelopmentServices(WebApplicationBuilder builder)
     {
         if (!builder.Environment.IsDevelopment()) return;
         builder.Services.AddEndpointsApiExplorer();
@@ -177,8 +150,7 @@ internal static class CafeteriaServicesHost
             options.AddPolicy("EngineeringDiagnostics", policy =>
             {
                 policy.RequireAuthenticatedUser();
-                if (!builder.Environment.IsDevelopment())
-                    policy.RequireAssertion(context => management.AuthorizedGroups.Length == 0 || management.AuthorizedGroups.Any(context.User.IsInRole));
+                policy.RequireAssertion(context => management.AuthorizedGroups.Length == 0 || management.AuthorizedGroups.Any(context.User.IsInRole));
             });
         });
     }
