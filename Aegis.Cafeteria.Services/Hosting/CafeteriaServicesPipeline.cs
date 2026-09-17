@@ -1,3 +1,4 @@
+using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Infrastructure.Logging;
 using Aegis.Cafeteria.Services.Persistence;
 using Common.Diagnostics;
