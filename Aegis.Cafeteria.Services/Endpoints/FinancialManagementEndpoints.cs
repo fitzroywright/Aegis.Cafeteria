@@ -1,9 +1,11 @@
 using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Accounts;
+using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Domain.Accounts;
 using Aegis.Cafeteria.Domain.Customers;
 using Aegis.Cafeteria.Services.Email;
 using Aegis.Cafeteria.Services.Persistence;
+using Aegis.Cafeteria.Services.Workers;
 
 namespace Aegis.Cafeteria.Services;
 
