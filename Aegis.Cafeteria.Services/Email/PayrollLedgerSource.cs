@@ -2,7 +2,6 @@ namespace Aegis.Cafeteria.Services.Email;
 
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Infrastructure.Configuration;
-using Aegis.Cafeteria.Services.Development;
 
 using Microsoft.Data.SqlClient;
 
@@ -91,41 +90,5 @@ GROUP BY EmployeeID;";
         return reader.IsDBNull(index)
             ? 0m
             : Convert.ToDecimal(reader.GetValue(index), CultureInfo.InvariantCulture);
-    }
-}
-
-public sealed class DevelopmentPayrollLedgerSource : IPayrollLedgerSource
-{
-    private readonly DevelopmentFfpGateway gateway;
-
-    public DevelopmentPayrollLedgerSource(DevelopmentFfpGateway gateway)
-    {
-        this.gateway = gateway;
-    }
-
-    public Task<IReadOnlyDictionary<int, PayrollLedgerTotals>> GetMonthlyTotalsAsync
-    (
-          int year
-        , int month
-        , CancellationToken cancellationToken = default
-    )
-    {
-        Dictionary<int, PayrollLedgerTotals> result = this.gateway.GetPublishedLedgerEntries()
-            .Where(entry => entry.OccurredAt.Year == year && entry.OccurredAt.Month == month)
-            .GroupBy(entry => entry.CustomerId)
-            .ToDictionary
-            (
-                  group => group.Key
-                , group => new PayrollLedgerTotals
-                (
-                      group.Where(entry => entry.IdName == "Cafeteria Purchase").Sum(entry => entry.ScanValue)
-                    , group.Where(entry => entry.IdName == "Cafeteria Refund").Sum(entry => Math.Abs(entry.ScanValue))
-                    , group.Where(entry => entry.IdName == "Customer Payment").Sum(entry => entry.ScanValue)
-                    , group.Where(entry => entry.IdName == "Stipend Card Reduction").Sum(entry => entry.ScanValue)
-                )
-            );
-
-        IReadOnlyDictionary<int, PayrollLedgerTotals> totals = result;
-        return Task.FromResult(totals);
     }
 }
