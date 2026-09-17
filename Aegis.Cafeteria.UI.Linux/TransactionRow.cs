@@ -1,4 +1,4 @@
-using Aegis.Cafeteria.Application.Accounts;
+using Aegis.Cafeteria.Application.Reporting;
 
 namespace Aegis.Cafeteria.UI.Linux;
 
