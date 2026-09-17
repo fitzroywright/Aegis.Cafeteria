@@ -1,3 +1,4 @@
+using Common.Secrets;
 using Microsoft.AspNetCore.Authentication.Cookies;
 
 namespace Aegis.Cafeteria.Management;
@@ -8,6 +9,9 @@ internal static class ManagementHost
 
     internal static TimeSpan Configure(WebApplicationBuilder builder)
     {
+        builder.Configuration.AddEnvironmentVariables();
+        builder.Services.AddCommonSecrets(builder.Configuration);
+
         int configuredMinutes = builder.Configuration.GetValue<int?>("Authentication:SessionMinutes") ?? 30;
         TimeSpan lifetime = TimeSpan.FromMinutes(Math.Clamp(configuredMinutes, 5, 480));
         builder.Services.AddSingleton(new ManagementSessionStore(lifetime));
