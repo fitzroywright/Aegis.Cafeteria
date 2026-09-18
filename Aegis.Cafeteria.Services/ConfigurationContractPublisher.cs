@@ -12,17 +12,17 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        string? baseUrl = First(configuration["Aegis:Configuration:Url"], configuration["AegisConfiguration:BaseUrl"]);
-        if (string.IsNullOrWhiteSpace(baseUrl)) { logger.LogInformation("Aegis.Configuration publication is disabled because no Configuration URL is configured."); return; }
+        string? operationsUrl = First(configuration["Aegis:Operations:Url"], configuration["AegisOperations:BaseUrl"]);
+        if (string.IsNullOrWhiteSpace(operationsUrl)) { logger.LogInformation("Application registration is disabled because no Operations URL is configured."); return; }
         string path = configuration["AegisConfiguration:ContractPath"] ?? Path.Combine(environment.ContentRootPath, "configuration", "Aegis.Cafeteria.Services.configuration-contract.json");
         while (!stoppingToken.IsCancellationRequested)
         {
-            await TryPublishAsync(baseUrl, path, stoppingToken);
+            await TryPublishAsync(operationsUrl, path, stoppingToken);
             try { await Task.Delay(publishInterval, stoppingToken); } catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
     }
 
-    private async Task<bool> TryPublishAsync(string baseUrl, string path, CancellationToken cancellationToken)
+    private async Task<bool> TryPublishAsync(string operationsUrl, string path, CancellationToken cancellationToken)
     {
         try
         {
@@ -41,42 +41,25 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
             contract["diagnostics"] = BuildDiagnosticsCapability();
             contract["requirements"] = await BuildRequirementsAsync(secrets, cancellationToken);
 
-            string? operationsUrl = First(configuration["Aegis:Operations:Url"], configuration["AegisOperations:BaseUrl"]);
-            if (string.IsNullOrWhiteSpace(operationsUrl))
-            {
-                logger.LogWarning("Application registration is unavailable because Aegis:Operations:Url is not configured; Cafeteria Services remains operational and will retry.");
-                return false;
-            }
-
             using HttpClient client = new();
             var registration = new ApplicationRegistrationClient(
                 client,
                 new ApplicationRegistrationOptions(
                     new Uri(operationsUrl.TrimEnd('/') + "/", UriKind.Absolute),
                     ApplicationId,
-                    "Aegis Cafeteria Services",
                     contract["instanceId"]?.GetValue<string>() ?? Environment.MachineName,
-                    configuration["Aegis:Registration:CredentialPath"],
+                    RegistrationCredentialResolver.EnvironmentVariableName,
                     TimeSpan.FromSeconds(10)));
 
-            ApplicationRegistrationStatus status = await registration.PublishContractAsync(contract, cancellationToken);
+            ApplicationRegistrationStatus status = await registration.RegisterAsync(contract, cancellationToken);
             if (status.IsRegistered)
             {
                 logger.LogInformation("Aegis.Cafeteria.Services registration is valid and its configuration contract was published.");
                 return true;
             }
 
-            if (status.State == ApplicationRegistrationState.Pending)
-            {
-                logger.LogWarning(
-                    "Aegis.Cafeteria.Services registration is pending approval. RegistrationId={RegistrationId}; PIN={RegistrationPin}. The service remains operational and will retry.",
-                    status.RegistrationId,
-                    status.Pin);
-                return false;
-            }
-
             logger.LogWarning(
-                "Aegis.Cafeteria.Services registration state is {RegistrationState}: {RegistrationError}; service remains operational and will retry.",
+                "Aegis.Cafeteria.Services registration state is {RegistrationState}: {RegistrationError}; service remains operational. Registration bootstrap must be completed in Operations when the key is missing, invalid, or revoked.",
                 status.State,
                 status.Error ?? "No additional detail.");
             return false;
