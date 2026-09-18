@@ -49,7 +49,8 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
                     ApplicationId,
                     contract["instanceId"]?.GetValue<string>() ?? Environment.MachineName,
                     RegistrationCredentialResolver.EnvironmentVariableName,
-                    TimeSpan.FromSeconds(10)));
+                    TimeSpan.FromSeconds(10)),
+                logger: logger);
 
             ApplicationRegistrationStatus status = await registration.RegisterAsync(contract, cancellationToken);
             if (status.IsRegistered)
@@ -65,7 +66,18 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
             return false;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-        catch (Exception exception) { logger.LogWarning(exception, "Unable to register Aegis.Cafeteria.Services; service remains operational and will retry."); return false; }
+        catch (Exception exception)
+        {
+            using IDisposable? scope = logger.BeginScope(new Dictionary<string, object?>
+            {
+                ["Activity"] = "Registration",
+                ["Application"] = ApplicationId,
+                ["RegistrationAttemptId"] = Guid.NewGuid().ToString("N"),
+                ["Stage"] = "UnhandledFailure"
+            });
+            logger.LogWarning(exception, "Unable to register Aegis.Cafeteria.Services; service remains operational and will retry.");
+            return false;
+        }
     }
 
     private static JsonObject BuildDiagnosticsCapability() => new()
