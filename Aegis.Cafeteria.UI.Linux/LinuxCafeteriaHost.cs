@@ -39,7 +39,11 @@ internal static class LinuxCafeteriaHost
     {
         IApplicationSecretProvider startupSecrets = ApplicationSecretProviderFactory.Create(builder.Configuration);
         CafeteriaRuntimeOptions runtime = CafeteriaRuntimeOptionsResolver
-            .ResolvePosAsync(builder.Configuration, startupSecrets)
+            .ResolvePosAsync(
+                builder.Configuration,
+                startupSecrets,
+                "Aegis.Cafeteria.LinuxUI",
+                "Aegis Cafeteria Linux UI")
             .GetAwaiter()
             .GetResult();
         RuntimePathInitializer.EnsureDirectories(runtime);
