@@ -10,6 +10,7 @@
     <ProjectReference Include="..\Aegis.Cafeteria.Application\Aegis.Cafeteria.Application.csproj" />
     <ProjectReference Include="$(CommonRoot)\Common.Security\Common.Security.csproj" />
     <ProjectReference Include="$(CommonRoot)\Common.Secrets\Common.Secrets.csproj" />
+    <ProjectReference Include="$(CommonRoot)\Common.Registration\Common.Registration.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
