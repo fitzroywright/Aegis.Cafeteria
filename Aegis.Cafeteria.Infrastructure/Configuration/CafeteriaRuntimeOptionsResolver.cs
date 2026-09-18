@@ -34,7 +34,7 @@ public static class CafeteriaRuntimeOptionsResolver
             cancellationToken);
 
         string? siteId = NullIfWhiteSpace(configuration["Deployment:SiteId"]);
-        await CafeteriaConfigurationRegistration.TryPublishPosAsync(configuration, secrets, runtime, siteId, cancellationToken);
+        await CafeteriaConfigurationRegistration.TryPublishPosAsync(configuration, runtime, siteId, cancellationToken);
         return runtime;
     }
 
