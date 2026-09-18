@@ -18,13 +18,15 @@ public static class CafeteriaConfigurationRegistration
         IConfiguration configuration,
         CafeteriaRuntimeOptions runtime,
         string? siteId,
+        string applicationId = "Aegis.Cafeteria.POS",
+        string displayName = "Aegis Cafeteria POS",
         CancellationToken cancellationToken = default)
     {
         string? operationsUrl = configuration["Aegis:Operations:Url"] ?? configuration["AegisOperations:BaseUrl"];
         if (string.IsNullOrWhiteSpace(operationsUrl))
             return;
 
-        object rawContract = BuildPosContract(runtime, siteId);
+        object rawContract = BuildPosContract(runtime, siteId, applicationId, displayName);
         JsonObject contract = JsonSerializer.SerializeToNode(rawContract)?.AsObject()
             ?? throw new InvalidOperationException("POS configuration contract could not be serialized.");
 
@@ -35,7 +37,7 @@ public static class CafeteriaConfigurationRegistration
                 client,
                 new ApplicationRegistrationOptions(
                     new Uri(operationsUrl.TrimEnd('/') + "/", UriKind.Absolute),
-                    "Cafeteria",
+                    applicationId,
                     runtime.Persistence.TerminalId,
                     RegistrationCredentialResolver.EnvironmentVariableName,
                     TimeSpan.FromSeconds(10)));
@@ -48,7 +50,7 @@ public static class CafeteriaConfigurationRegistration
         }
     }
 
-    private static object BuildPosContract(CafeteriaRuntimeOptions runtime, string? siteId)
+    private static object BuildPosContract(CafeteriaRuntimeOptions runtime, string? siteId, string applicationId, string displayName)
     {
         string sqlite = runtime.Persistence.LocalSqliteConnectionString;
         string terminalId = runtime.Persistence.TerminalId;
@@ -56,8 +58,8 @@ public static class CafeteriaConfigurationRegistration
 
         return new
         {
-            ApplicationId = "Cafeteria",
-            DisplayName = "Aegis Cafeteria POS",
+            ApplicationId = applicationId,
+            DisplayName = displayName,
             Version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown",
             SiteId = Clean(siteId),
             InstanceId = Clean(terminalId),
