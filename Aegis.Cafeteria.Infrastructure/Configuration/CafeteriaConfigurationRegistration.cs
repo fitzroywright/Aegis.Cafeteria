@@ -1,4 +1,6 @@
-using System.Net.Http.Json;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Common.Registration;
 using System.Reflection;
 using Aegis.Cafeteria.Application.Abstractions;
 using Microsoft.Extensions.Configuration;
@@ -14,49 +16,41 @@ public static class CafeteriaConfigurationRegistration
 {
     public static async Task TryPublishPosAsync(
         IConfiguration configuration,
-        IApplicationSecretProvider secrets,
         CafeteriaRuntimeOptions runtime,
         string? siteId,
+        string applicationId = "Aegis.Cafeteria.POS",
+        string displayName = "Aegis Cafeteria POS",
         CancellationToken cancellationToken = default)
     {
-        string? configurationUrl = configuration["Aegis:Configuration:Url"];
-        string? registrationKey = await secrets.GetSecretAsync(
-            ApplicationSecretNames.ConfigurationRegistrationKey,
-            cancellationToken);
-
-        if (string.IsNullOrWhiteSpace(configurationUrl) || string.IsNullOrWhiteSpace(registrationKey))
-        {
+        string? operationsUrl = configuration["Aegis:Operations:Url"] ?? configuration["AegisOperations:BaseUrl"];
+        if (string.IsNullOrWhiteSpace(operationsUrl))
             return;
-        }
 
-        object contract = BuildPosContract(runtime, siteId);
+        object rawContract = BuildPosContract(runtime, siteId, applicationId, displayName);
+        JsonObject contract = JsonSerializer.SerializeToNode(rawContract)?.AsObject()
+            ?? throw new InvalidOperationException("POS configuration contract could not be serialized.");
 
         try
         {
-            using HttpClient client = new()
-            {
-                BaseAddress = new Uri(configurationUrl.TrimEnd('/') + "/", UriKind.Absolute),
-                Timeout = TimeSpan.FromSeconds(3)
-            };
-            client.DefaultRequestHeaders.Add("X-Aegis-Registration-Key", registrationKey);
+            using HttpClient client = new();
+            var registration = new ApplicationRegistrationClient(
+                client,
+                new ApplicationRegistrationOptions(
+                    new Uri(operationsUrl.TrimEnd('/') + "/", UriKind.Absolute),
+                    applicationId,
+                    runtime.Persistence.TerminalId,
+                    RegistrationCredentialResolver.EnvironmentVariableName,
+                    TimeSpan.FromSeconds(10)));
 
-            using HttpResponseMessage response = await client.PostAsJsonAsync(
-                "api/contracts/register",
-                contract,
-                cancellationToken);
-
-            // Registration must not become a runtime dependency. A rejected or
-            // unavailable registry is intentionally ignored here and can be
-            // corrected from the Configuration side without stopping the POS.
-            _ = response.IsSuccessStatusCode;
+            _ = await registration.RegisterAsync(contract, cancellationToken);
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
-            // Best-effort publication by design.
+            // Registration is observational and must not block POS operation.
         }
     }
 
-    private static object BuildPosContract(CafeteriaRuntimeOptions runtime, string? siteId)
+    private static object BuildPosContract(CafeteriaRuntimeOptions runtime, string? siteId, string applicationId, string displayName)
     {
         string sqlite = runtime.Persistence.LocalSqliteConnectionString;
         string terminalId = runtime.Persistence.TerminalId;
@@ -64,8 +58,8 @@ public static class CafeteriaConfigurationRegistration
 
         return new
         {
-            ApplicationId = "Cafeteria",
-            DisplayName = "Aegis Cafeteria POS",
+            ApplicationId = applicationId,
+            DisplayName = displayName,
             Version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown",
             SiteId = Clean(siteId),
             InstanceId = Clean(terminalId),

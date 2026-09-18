@@ -12,6 +12,7 @@ internal static class ManagementHost
     {
         builder.Configuration.AddEnvironmentVariables();
         builder.Services.AddCommonSecrets(builder.Configuration);
+        builder.Services.AddHostedService<ManagementRegistrationHostedService>();
 
         int configuredMinutes = builder.Configuration.GetValue<int?>("Authentication:SessionMinutes") ?? 30;
         TimeSpan lifetime = TimeSpan.FromMinutes(Math.Clamp(configuredMinutes, 5, 480));

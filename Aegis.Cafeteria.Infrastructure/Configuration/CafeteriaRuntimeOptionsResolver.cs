@@ -24,6 +24,8 @@ public static class CafeteriaRuntimeOptionsResolver
     public static async Task<CafeteriaRuntimeOptions> ResolvePosAsync(
         IConfiguration configuration,
         IApplicationSecretProvider secrets,
+        string registrationApplicationId = "Aegis.Cafeteria.POS",
+        string registrationDisplayName = "Aegis Cafeteria POS",
         CancellationToken cancellationToken = default)
     {
         CafeteriaRuntimeOptions runtime = await ResolveCoreAsync(
@@ -34,7 +36,13 @@ public static class CafeteriaRuntimeOptionsResolver
             cancellationToken);
 
         string? siteId = NullIfWhiteSpace(configuration["Deployment:SiteId"]);
-        await CafeteriaConfigurationRegistration.TryPublishPosAsync(configuration, secrets, runtime, siteId, cancellationToken);
+        await CafeteriaConfigurationRegistration.TryPublishPosAsync(
+            configuration,
+            runtime,
+            siteId,
+            registrationApplicationId,
+            registrationDisplayName,
+            cancellationToken);
         return runtime;
     }
 
