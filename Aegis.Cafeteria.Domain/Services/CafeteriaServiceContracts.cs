@@ -52,7 +52,8 @@ public sealed record MonthlyAllocationServiceEvent(
     decimal CreditLimitPrice,
     decimal SubsidyCost,
     DateTimeOffset CalculatedAt,
-    string EmployeeName);
+    string EmployeeName,
+    string AllocationReason = "LegacyOrUnspecified");
 
 public sealed record MonthlyAllocationRecalculationServiceEvent
 (
