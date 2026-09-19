@@ -78,9 +78,9 @@ public sealed class CafeteriaOperationsFlowPublisher(
                 {
                     new { name = "POS", state = "Unknown", error = (string?)null },
                     new { name = "LocalStore", state = "Unknown", error = (string?)null },
-                    new { name = "Services", state = "Completed", startedAtUtc = item.OccurredAt, completedAtUtc = now, warningAfterSeconds = 5, criticalAfterSeconds = 30, error = (string?)null },
-                    new { name = "Processing", state = "Completed", startedAtUtc = item.OccurredAt, completedAtUtc = now, warningAfterSeconds = 5, criticalAfterSeconds = 30, error = (string?)null },
-                    new { name = "Database", state = "Completed", startedAtUtc = item.OccurredAt, completedAtUtc = now, warningAfterSeconds = 5, criticalAfterSeconds = 30, error = (string?)null },
+                    new { name = "Services", state = "Completed", startedAtUtc = (DateTimeOffset?)null, completedAtUtc = (DateTimeOffset?)null, warningAfterSeconds = 5, criticalAfterSeconds = 30, error = (string?)null },
+                    new { name = "Processing", state = "Completed", startedAtUtc = (DateTimeOffset?)null, completedAtUtc = (DateTimeOffset?)null, warningAfterSeconds = 5, criticalAfterSeconds = 30, error = (string?)null },
+                    new { name = "Database", state = "Completed", startedAtUtc = (DateTimeOffset?)null, completedAtUtc = (DateTimeOffset?)null, warningAfterSeconds = 5, criticalAfterSeconds = 30, error = (string?)null },
                     new { name = "Acknowledged", state = "Completed", startedAtUtc = now, completedAtUtc = now, warningAfterSeconds = 5, criticalAfterSeconds = 30, error = (string?)null }
                 }
             };
