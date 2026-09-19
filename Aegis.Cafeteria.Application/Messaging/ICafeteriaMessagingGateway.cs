@@ -15,4 +15,5 @@ public sealed record CafeteriaEmployeeMessage(
     string Category,
     string Subject,
     string TextBody,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string? CorrelationId = null);
