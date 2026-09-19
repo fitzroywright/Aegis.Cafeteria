@@ -20,7 +20,9 @@ public sealed class WeeklyCustomerSummaryServiceTests
 
         Assert.Equal(1, await sut.SendWeekAsync(start, end));
         Assert.Equal(0, await sut.SendWeekAsync(start, end));
-        Assert.Equal(77, Assert.Single(gateway.Items).EmployeeId);
+        CafeteriaEmployeeMessage message = Assert.Single(gateway.Items);
+        Assert.Equal(77, message.EmployeeId);
+        Assert.Equal(message.MessageId.ToString("D"), message.CorrelationId);
     }
 
     private sealed class Query(IReadOnlyList<WeeklyTransactionSummary> x) : IWeeklyTransactionSummaryQuery
