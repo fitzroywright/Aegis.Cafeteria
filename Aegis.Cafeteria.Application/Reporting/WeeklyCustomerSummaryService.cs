@@ -34,7 +34,8 @@ public sealed class WeeklyCustomerSummaryService(
                 "Cafeteria.WeeklySummary",
                 $"Cafeteria transactions: {weekStart:yyyy-MM-dd} to {weekEnd:yyyy-MM-dd}",
                 body,
-                DateTimeOffset.UtcNow), cancellationToken);
+                DateTimeOffset.UtcNow,
+                messageId.ToString("D")), cancellationToken);
             await dispatchStore.MarkSentAsync(summary.CustomerId, weekStart, messageId, DateTimeOffset.UtcNow, cancellationToken);
             sent++;
         }
