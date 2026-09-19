@@ -77,6 +77,12 @@ public sealed class OperationsTelemetryPublisher(
                             "Operations heartbeat returned HTTP {StatusCode}; application remains operational.",
                             (int)response.StatusCode);
                     }
+
+                    await PublishFlowDefinitionAsync(
+                        client,
+                        operationsUrl,
+                        identity,
+                        stoppingToken);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -92,4 +98,45 @@ public sealed class OperationsTelemetryPublisher(
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
     }
+
+    private static async Task PublishFlowDefinitionAsync(
+        HttpClient client,
+        string operationsUrl,
+        RegistrationIdentityDocument identity,
+        CancellationToken ct)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            operationsUrl.TrimEnd('/') + "/api/operations/flow-definitions")
+        {
+            Content = JsonContent.Create(new
+            {
+                applicationId = ApplicationId,
+                flowType = "CafeteriaPurchase",
+                displayName = "Cafeteria Purchase",
+                stages = new object[]
+                {
+                new { name = "POS", parentStage = (string?)null, branch = (string?)null, warningAfterSeconds = 2, criticalAfterSeconds = 30 },
+                new { name = "LocalStore", parentStage = "POS", branch = (string?)null, warningAfterSeconds = 2, criticalAfterSeconds = 30 },
+                new { name = "Services", parentStage = "LocalStore", branch = (string?)null, warningAfterSeconds = 5, criticalAfterSeconds = 30 },
+                new { name = "Processing", parentStage = "Services", branch = (string?)null, warningAfterSeconds = 5, criticalAfterSeconds = 30 },
+                new { name = "Database", parentStage = "Processing", branch = (string?)null, warningAfterSeconds = 5, criticalAfterSeconds = 30 },
+                new { name = "Acknowledgement", parentStage = "Database", branch = (string?)null, warningAfterSeconds = 5, criticalAfterSeconds = 30 }
+                },
+                updatedAtUtc = DateTimeOffset.UtcNow
+            })
+        };
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", identity.Credential);
+        request.Headers.TryAddWithoutValidation("X-Aegis-Application-Id", identity.ApplicationId);
+        request.Headers.TryAddWithoutValidation("X-Aegis-Instance-Id", identity.InstanceId);
+        request.Headers.TryAddWithoutValidation("X-Aegis-Installation-Id", identity.InstallationId);
+        request.Headers.TryAddWithoutValidation("X-Aegis-Correlation-Id", Guid.NewGuid().ToString("N"));
+
+        using HttpResponseMessage response = await client.SendAsync(request, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            // Flow metadata is advisory to Operations and must never affect application availability.
+        }
+    }
+
 }
