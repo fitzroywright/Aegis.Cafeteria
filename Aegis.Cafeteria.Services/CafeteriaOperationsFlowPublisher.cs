@@ -1,21 +1,45 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Threading.Channels;
 using Common.Registration;
 
 namespace Aegis.Cafeteria.Services;
 
+public sealed record CafeteriaFlowTelemetryItem(
+    Guid OperationId,
+    string FlowType,
+    string? BusinessId,
+    DateTimeOffset OccurredAt);
+
 public sealed class CafeteriaOperationsFlowPublisher(
     IConfiguration configuration,
     IHostEnvironment environment,
-    ILogger<CafeteriaOperationsFlowPublisher> logger)
+    ILogger<CafeteriaOperationsFlowPublisher> logger) : BackgroundService
 {
     private const string ApplicationId = "Aegis.Cafeteria.Services";
+    private readonly Channel<CafeteriaFlowTelemetryItem> queue =
+        Channel.CreateBounded<CafeteriaFlowTelemetryItem>(new BoundedChannelOptions(1000)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
+            SingleWriter = false
+        });
 
-    public async Task PublishCommittedAsync(
+    public bool TryEnqueueCommitted(
         Guid operationId,
         string flowType,
         string? businessId,
-        DateTimeOffset occurredAt,
+        DateTimeOffset occurredAt)
+        => queue.Writer.TryWrite(new(operationId, flowType, businessId, occurredAt));
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await foreach (CafeteriaFlowTelemetryItem item in queue.Reader.ReadAllAsync(stoppingToken))
+            await PublishCommittedAsync(item, stoppingToken);
+    }
+
+    private async Task PublishCommittedAsync(
+        CafeteriaFlowTelemetryItem item,
         CancellationToken cancellationToken)
     {
         string? operationsUrl = configuration["Aegis:Operations:Url"];
@@ -41,22 +65,22 @@ public sealed class CafeteriaOperationsFlowPublisher(
             DateTimeOffset now = DateTimeOffset.UtcNow;
             var payload = new
             {
-                correlationId = operationId.ToString("D"),
+                correlationId = item.OperationId.ToString("D"),
                 applicationId = ApplicationId,
-                flowType,
+                flowType = item.FlowType,
                 instanceId,
-                startedAtUtc = occurredAt,
+                startedAtUtc = item.OccurredAt,
                 observedAtUtc = now,
                 currentStage = "Acknowledged",
-                relatedBusinessId = businessId,
+                relatedBusinessId = item.BusinessId,
                 runbook = "Cafeteria Services / POS transaction processing",
                 stages = new object[]
                 {
                     new { name = "POS", state = "Unknown", error = (string?)null },
                     new { name = "LocalStore", state = "Unknown", error = (string?)null },
-                    new { name = "Services", state = "Completed", startedAtUtc = occurredAt, completedAtUtc = now, warningAfterSeconds = 5, criticalAfterSeconds = 30, error = (string?)null },
-                    new { name = "Processing", state = "Completed", startedAtUtc = occurredAt, completedAtUtc = now, warningAfterSeconds = 5, criticalAfterSeconds = 30, error = (string?)null },
-                    new { name = "Database", state = "Completed", startedAtUtc = occurredAt, completedAtUtc = now, warningAfterSeconds = 5, criticalAfterSeconds = 30, error = (string?)null },
+                    new { name = "Services", state = "Completed", startedAtUtc = item.OccurredAt, completedAtUtc = now, warningAfterSeconds = 5, criticalAfterSeconds = 30, error = (string?)null },
+                    new { name = "Processing", state = "Completed", startedAtUtc = item.OccurredAt, completedAtUtc = now, warningAfterSeconds = 5, criticalAfterSeconds = 30, error = (string?)null },
+                    new { name = "Database", state = "Completed", startedAtUtc = item.OccurredAt, completedAtUtc = now, warningAfterSeconds = 5, criticalAfterSeconds = 30, error = (string?)null },
                     new { name = "Acknowledged", state = "Completed", startedAtUtc = now, completedAtUtc = now, warningAfterSeconds = 5, criticalAfterSeconds = 30, error = (string?)null }
                 }
             };
@@ -72,7 +96,7 @@ public sealed class CafeteriaOperationsFlowPublisher(
             request.Headers.TryAddWithoutValidation("X-Aegis-Application-Id", identity.ApplicationId);
             request.Headers.TryAddWithoutValidation("X-Aegis-Instance-Id", identity.InstanceId);
             request.Headers.TryAddWithoutValidation("X-Aegis-Installation-Id", identity.InstallationId);
-            request.Headers.TryAddWithoutValidation("X-Aegis-Correlation-Id", operationId.ToString("N"));
+            request.Headers.TryAddWithoutValidation("X-Aegis-Correlation-Id", item.OperationId.ToString("N"));
 
             using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
             if (!response.IsSuccessStatusCode)
