@@ -143,4 +143,10 @@ public static class CafeteriaConfigurationRegistration
 
     private static string? Clean(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static string SanitizePathSegment(string value)
+    {
+        char[] invalid = Path.GetInvalidFileNameChars();
+        return new string(value.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray());
+    }
 }
