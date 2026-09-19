@@ -69,6 +69,7 @@ public static class CafeteriaInfrastructure
 
         services.AddSingleton<PersistenceInitializer>();
         services.AddHostedService<CafeteriaHeartbeatWorker>();
+        services.AddHostedService<CafeteriaPosOperationsPublisher>();
         return services;
     }
 
