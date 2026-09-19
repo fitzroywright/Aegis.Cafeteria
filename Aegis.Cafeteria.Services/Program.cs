@@ -2,6 +2,7 @@ using Aegis.Cafeteria.Services;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 CafeteriaServicesHost.Configure(builder);
+builder.Services.AddHostedService<Aegis.Cafeteria.Services.OperationsTelemetryPublisher>();
 
 WebApplication app = builder.Build();
 CafeteriaServicesPipeline.ConfigureLogging(app);
