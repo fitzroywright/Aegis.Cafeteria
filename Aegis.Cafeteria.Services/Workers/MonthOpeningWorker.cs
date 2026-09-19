@@ -55,7 +55,10 @@ public sealed class MonthOpeningWorker : BackgroundService
             {
                 DateTime now = DateTime.Now;
                 if (now.Hour >= this.options.RunHourLocal)
-                    await EnsureMonthAsync(now.Year, now.Month, stoppingToken);
+                {
+                    string trigger = now.Day == 1 ? "MonthStart" : "NightlyReconciliation";
+                    await EnsureCurrentPeriodAllocationsAsync(now.Year, now.Month, trigger, stoppingToken);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -70,11 +73,51 @@ public sealed class MonthOpeningWorker : BackgroundService
         }
     }
 
-    internal async Task<int> EnsureMonthAsync(int year, int month, CancellationToken cancellationToken)
+    internal Task<int> EnsureMonthAsync(int year, int month, CancellationToken cancellationToken)
+        => EnsureCurrentPeriodAllocationsAsync(year, month, "ManualMonthOpening", cancellationToken);
+
+    internal async Task<int> EnsureCurrentPeriodAllocationsAsync(
+        int year,
+        int month,
+        string allocationReason,
+        CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(allocationReason))
+            throw new ArgumentException("An allocation reason is required.", nameof(allocationReason));
+
+        this.logger.LogInformation(
+            "Allocation lifecycle {Stage}: {Year}-{Month:D2}; trigger {AllocationReason}",
+            "Started",
+            year,
+            month,
+            allocationReason);
+
         IReadOnlyList<ExternalCustomerSnapshot> employees = await this.workforce.GetCustomersAsync(cancellationToken);
+        this.logger.LogInformation(
+            "Allocation lifecycle {Stage}: loaded {EmployeeCount} workforce records for {Year}-{Month:D2}; trigger {AllocationReason}",
+            "EmployeesLoaded",
+            employees.Count,
+            year,
+            month,
+            allocationReason);
+
         IReadOnlyCollection<DateOnly> holidays = await this.workforce.GetHolidaysAsync(year, month, cancellationToken);
+        this.logger.LogInformation(
+            "Allocation lifecycle {Stage}: loaded {HolidayCount} calendar exclusions for {Year}-{Month:D2}; trigger {AllocationReason}",
+            "CalendarLoaded",
+            holidays.Count,
+            year,
+            month,
+            allocationReason);
+
         CafeteriaFundingPolicySnapshot policy = await this.fundingPolicy.GetFundingPolicyAsync(cancellationToken);
+        this.logger.LogInformation(
+            "Allocation lifecycle {Stage}: funding policy loaded for {Year}-{Month:D2}; trigger {AllocationReason}",
+            "RatesLoaded",
+            year,
+            month,
+            allocationReason);
+
         int created = 0;
 
         foreach (ExternalCustomerSnapshot employee in employees.Where(employee => employee.IsActive && employee.IsEligibleForCafeteriaCredit))
@@ -97,7 +140,7 @@ public sealed class MonthOpeningWorker : BackgroundService
                 policy.DailyCompanySubsidyRate,
                 DateTimeOffset.UtcNow);
 
-            MonthlyAllocationServiceEvent payload = ToServiceEvent(operationId, employee.Name, allocation);
+            MonthlyAllocationServiceEvent payload = ToServiceEvent(operationId, employee.Name, allocation, allocationReason);
             await this.events.AppendAsync(
                 operationId,
                 CafeteriaServiceEventKind.MonthlyAllocation,
@@ -112,10 +155,22 @@ public sealed class MonthOpeningWorker : BackgroundService
         if (created > 0)
         {
             this.logger.LogInformation(
-                "Created {Count} Cafeteria month-opening allocation events for {Year}-{Month:D2}",
+                "Allocation lifecycle {Stage}: created {Count} allocation events for {Year}-{Month:D2}; trigger {AllocationReason}",
+                "Completed",
                 created,
                 year,
-                month);
+                month,
+                allocationReason);
+        }
+
+        if (created == 0)
+        {
+            this.logger.LogInformation(
+                "Allocation lifecycle {Stage}: no new allocations required for {Year}-{Month:D2}; trigger {AllocationReason}",
+                "CompletedIdempotent",
+                year,
+                month,
+                allocationReason);
         }
 
         return created;
@@ -208,7 +263,8 @@ public sealed class MonthOpeningWorker : BackgroundService
                     policy.DailyCreditLimitRate,
                     policy.DailyCompanySubsidyRate),
                 employee.Name,
-                replacementAllocation);
+                replacementAllocation,
+                "ManagementRecalculation");
 
             if (Equivalent(previous, replacement))
             {
@@ -260,7 +316,11 @@ public sealed class MonthOpeningWorker : BackgroundService
             recalculatedBy.Trim());
     }
 
-    private static MonthlyAllocationServiceEvent ToServiceEvent(Guid operationId, string employeeName, MonthlyCreditAllocation allocation)
+    private static MonthlyAllocationServiceEvent ToServiceEvent(
+        Guid operationId,
+        string employeeName,
+        MonthlyCreditAllocation allocation,
+        string allocationReason)
         => new(
             operationId,
             allocation.CustomerId,
@@ -271,7 +331,8 @@ public sealed class MonthOpeningWorker : BackgroundService
             allocation.CreditLimitPrice,
             allocation.SubsidyCost,
             allocation.CalculatedAt,
-            employeeName);
+            employeeName,
+            allocationReason);
 
     private static MonthlyCreditAllocation ToAllocation(MonthlyAllocationServiceEvent allocation)
         => new(
