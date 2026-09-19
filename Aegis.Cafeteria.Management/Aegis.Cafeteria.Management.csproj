@@ -6,8 +6,8 @@
     <CommonRoot Condition="'$(CommonRoot)' == ''">$(MSBuildThisFileDirectory)..\..\Common</CommonRoot>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="$(CommonRoot)\Common.Secrets\Common.Secrets.csproj" />
-    <ProjectReference Include="$(CommonRoot)\Common.Registration\Common.Registration.csproj" />
+    <ProjectReference Include="$(CommonRoot)\Common.Secrets\Common.Secrets.csproj" AdditionalProperties="Configuration=$(Configuration)" />
+    <ProjectReference Include="$(CommonRoot)\Common.Registration\Common.Registration.csproj" AdditionalProperties="Configuration=$(Configuration)" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.12" />
