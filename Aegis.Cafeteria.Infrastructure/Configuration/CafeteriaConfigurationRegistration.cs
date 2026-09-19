@@ -22,8 +22,8 @@ public static class CafeteriaConfigurationRegistration
         string displayName = "Aegis Cafeteria POS",
         CancellationToken cancellationToken = default)
     {
-        string? operationsUrl = configuration["Aegis:Operations:Url"] ?? configuration["AegisOperations:BaseUrl"];
-        if (string.IsNullOrWhiteSpace(operationsUrl))
+        string? configurationUrl = configuration["Aegis:Configuration:Url"];
+        if (string.IsNullOrWhiteSpace(configurationUrl))
             return;
 
         object rawContract = BuildPosContract(runtime, siteId, applicationId, displayName);
@@ -32,17 +32,48 @@ public static class CafeteriaConfigurationRegistration
 
         try
         {
+            string instanceId =
+                Clean(runtime.Persistence.TerminalId)
+                ?? Environment.MachineName;
+
+            string identityFile =
+                configuration["Aegis:Registration:IdentityFile"]
+                ?? (OperatingSystem.IsWindows()
+                    ? Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                        "Aegis",
+                        "Cafeteria.POS",
+                        instanceId,
+                        "registration-identity.json")
+                    : Path.Combine(
+                        "/var/lib/aegis/cafeteria-pos",
+                        SanitizePathSegment(instanceId),
+                        "registration-identity.json"));
+
             using HttpClient client = new();
-            var registration = new ApplicationRegistrationClient(
+            var registration = new RegistrationLifecycleClient(
                 client,
-                new ApplicationRegistrationOptions(
-                    new Uri(operationsUrl.TrimEnd('/') + "/", UriKind.Absolute),
+                new RegistrationLifecycleOptions(
+                    new Uri(configurationUrl.TrimEnd('/') + "/", UriKind.Absolute),
                     applicationId,
-                    runtime.Persistence.TerminalId,
-                    RegistrationCredentialResolver.EnvironmentVariableName,
+                    instanceId,
+                    identityFile,
                     TimeSpan.FromSeconds(10)));
 
-            _ = await registration.RegisterAsync(contract, cancellationToken);
+            RegistrationLifecycleStatus status =
+                await registration.StepAsync(
+                    new JsonObject
+                    {
+                        ["displayName"] = displayName,
+                        ["terminalId"] = instanceId,
+                        ["siteId"] = Clean(siteId),
+                        ["servicesUrl"] = runtime.Services.BaseUrl,
+                        ["hostname"] = Environment.MachineName
+                    },
+                    cancellationToken);
+
+            if (status.IsRegistered)
+                _ = await registration.PublishConfigurationContractAsync(contract, cancellationToken);
         }
         catch (Exception) when (!cancellationToken.IsCancellationRequested)
         {
