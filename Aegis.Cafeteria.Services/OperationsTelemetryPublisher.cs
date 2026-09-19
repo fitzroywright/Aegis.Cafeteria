@@ -1,3 +1,4 @@
+using Aegis.Engineering.Diagnostics;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Reflection;
@@ -8,6 +9,7 @@ namespace Aegis.Cafeteria.Services;
 public sealed class OperationsTelemetryPublisher(
     IConfiguration configuration,
     IHostEnvironment environment,
+    CafeteriaEngineeringDiagnosticService diagnostics,
     ILogger<OperationsTelemetryPublisher> logger) : BackgroundService
 {
     private const string ApplicationId = "Aegis.Cafeteria.Services";
@@ -44,6 +46,24 @@ public sealed class OperationsTelemetryPublisher(
                 }
                 else
                 {
+                    EngineeringDiagnosticRun? diagnosticRun = null;
+                    try
+                    {
+                        diagnosticRun = await diagnostics.RunAsync(
+                            EngineeringDiagnosticLevel.Level4Analysis,
+                            "Aegis.Operations",
+                            null,
+                            stoppingToken);
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        logger.LogDebug(ex, "Cafeteria diagnostic publication could not collect current evidence.");
+                    }
+
+                    string operationalState = diagnosticRun is null
+                        ? "Unknown"
+                        : ToOperationalState(diagnosticRun.Status);
+
                     using HttpClient client = new() { Timeout = TimeSpan.FromSeconds(10) };
                     using var request = new HttpRequestMessage(
                         HttpMethod.Post,
@@ -57,11 +77,13 @@ public sealed class OperationsTelemetryPublisher(
                             environment = environment.EnvironmentName,
                             version = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown",
                             registrationStatus = "Registered",
-                            state = "Unknown",
+                            state = operationalState,
                             observedAtUtc = DateTimeOffset.UtcNow,
                             configurationStatus = "Published",
                             dependencies = Array.Empty<string>(),
-                            reason = "Process heartbeat received; aggregate health requires specialized diagnostic evidence."
+                            reason = diagnosticRun is null
+                                ? "Process heartbeat received but diagnostic evidence could not be collected."
+                                : $"Aggregate state is based on Common.Diagnostics Level 4 run {diagnosticRun.RunId}."
                         })
                     };
                     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", identity.Credential);
@@ -83,6 +105,16 @@ public sealed class OperationsTelemetryPublisher(
                         operationsUrl,
                         identity,
                         stoppingToken);
+
+                    if (diagnosticRun is not null)
+                    {
+                        await PublishDiagnosticsAsync(
+                            client,
+                            operationsUrl,
+                            identity,
+                            diagnosticRun,
+                            stoppingToken);
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -136,6 +168,56 @@ public sealed class OperationsTelemetryPublisher(
         if (!response.IsSuccessStatusCode)
         {
             // Flow metadata is advisory to Operations and must never affect application availability.
+        }
+    }
+
+
+    private static string ToOperationalState(EngineeringDiagnosticStatus status) =>
+        status.ToString() switch
+        {
+            "Passed" => "Healthy",
+            "Warning" => "Warning",
+            "Failed" => "Failed",
+            "InterventionRequired" => "Degraded",
+            _ => "Unknown"
+        };
+
+    private static async Task PublishDiagnosticsAsync(
+        HttpClient client,
+        string operationsUrl,
+        RegistrationIdentityDocument identity,
+        EngineeringDiagnosticRun run,
+        CancellationToken ct)
+    {
+        foreach (EngineeringDiagnosticCheckResult check in run.Checks)
+        {
+            using var request = new HttpRequestMessage(
+                HttpMethod.Post,
+                operationsUrl.TrimEnd('/') + "/api/operations/diagnostics/observe")
+            {
+                Content = JsonContent.Create(new
+                {
+                    diagnosticId = ApplicationId + ":" + check.CheckId,
+                    applicationId = ApplicationId,
+                    component = check.Name,
+                    category = "Health",
+                    state = ToOperationalState(check.Status),
+                    summary = check.Summary,
+                    observedAtUtc = run.CompletedAt,
+                    detail = check.Evidence,
+                    correlationId = run.RunId.ToString("D"),
+                    runbook = "Cafeteria Services / Diagnostics"
+                })
+            };
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", identity.Credential);
+            request.Headers.TryAddWithoutValidation("X-Aegis-Application-Id", identity.ApplicationId);
+            request.Headers.TryAddWithoutValidation("X-Aegis-Instance-Id", identity.InstanceId);
+            request.Headers.TryAddWithoutValidation("X-Aegis-Installation-Id", identity.InstallationId);
+            request.Headers.TryAddWithoutValidation("X-Aegis-Correlation-Id", run.RunId.ToString("N"));
+
+            using HttpResponseMessage response = await client.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode)
+                break;
         }
     }
 
