@@ -58,7 +58,8 @@ public static class CafeteriaConfigurationRegistration
                     applicationId,
                     instanceId,
                     identityFile,
-                    TimeSpan.FromSeconds(10)));
+                    TimeSpan.FromSeconds(10),
+                    RunbookReference: "docs/RUNBOOK.md"));
 
             RegistrationLifecycleStatus status =
                 await registration.StepAsync(
@@ -95,6 +96,7 @@ public static class CafeteriaConfigurationRegistration
             SiteId = Clean(siteId),
             InstanceId = Clean(terminalId),
             Description = "Local-first cafeteria point-of-sale terminal.",
+            RunbookReference = "docs/RUNBOOK.md",
             Requirements = new object[]
             {
                 Requirement("local-sqlite", "Local SQLite Database", "Configuration", true,
