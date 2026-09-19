@@ -106,6 +106,8 @@ internal static class CafeteriaServicesHost
         services.AddDbContextFactory<ServiceDbContext>(options => options.UseSqlite(serviceDb));
         services.AddSignalR();
         services.AddSingleton<ServiceEventRealtimePublisher>();
+        services.AddSingleton<CafeteriaOperationsFlowPublisher>();
+        services.AddHostedService(sp => sp.GetRequiredService<CafeteriaOperationsFlowPublisher>());
         services.AddSingleton<ServiceEventStore>();
         services.AddSingleton<CustomerCreditPolicyStore>();
         services.AddSingleton<CafeteriaFundingPolicyStore>();
