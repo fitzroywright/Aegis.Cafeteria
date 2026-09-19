@@ -1,3 +1,4 @@
+using System.Net;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using Common.Registration;
@@ -6,7 +7,6 @@ namespace Aegis.Cafeteria.Management;
 
 internal sealed class ManagementRegistrationHostedService(
     IConfiguration configuration,
-    IWebHostEnvironment environment,
     ILogger<ManagementRegistrationHostedService> logger) : BackgroundService
 {
     private const string ApplicationId = "Aegis.Cafeteria.Management";
@@ -14,24 +14,32 @@ internal sealed class ManagementRegistrationHostedService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        string? operationsUrl = configuration["Aegis:Operations:Url"] ?? configuration["AegisOperations:BaseUrl"];
-        if (string.IsNullOrWhiteSpace(operationsUrl))
+        string? configurationUrl = configuration["Aegis:Configuration:Url"];
+        if (string.IsNullOrWhiteSpace(configurationUrl))
         {
-            logger.LogInformation("Application registration is disabled because no Operations URL is configured.");
+            logger.LogInformation("Application registration is disabled because no Configuration URL is configured.");
             return;
         }
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            if (await TryRegisterAsync(operationsUrl, stoppingToken))
-                return;
+            RegistrationLifecycleState state =
+                await TryRegisterAsync(configurationUrl, stoppingToken);
 
-            try { await Task.Delay(RetryDelay, stoppingToken); }
+            TimeSpan delay = state switch
+            {
+                RegistrationLifecycleState.Registered => TimeSpan.FromMinutes(5),
+                RegistrationLifecycleState.Pending or RegistrationLifecycleState.RecoveryPending => TimeSpan.FromSeconds(10),
+                RegistrationLifecycleState.IdentityConflict or RegistrationLifecycleState.Rejected or RegistrationLifecycleState.Revoked => TimeSpan.FromMinutes(1),
+                _ => RetryDelay
+            };
+
+            try { await Task.Delay(delay, stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
     }
 
-    private async Task<bool> TryRegisterAsync(string operationsUrl, CancellationToken cancellationToken)
+    private async Task<RegistrationLifecycleState> TryRegisterAsync(string configurationUrl, CancellationToken cancellationToken)
     {
         try
         {
@@ -54,34 +62,69 @@ internal sealed class ManagementRegistrationHostedService(
                 }
             };
 
+            string identityFile =
+                configuration["Aegis:Registration:IdentityFile"]
+                ?? (OperatingSystem.IsWindows()
+                    ? Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                        "Aegis",
+                        "Cafeteria.Management",
+                        "registration-identity.json")
+                    : "/var/lib/aegis/cafeteria-management/registration-identity.json");
+
             using HttpClient client = new();
-            var registration = new ApplicationRegistrationClient(
+            var registration = new RegistrationLifecycleClient(
                 client,
-                new ApplicationRegistrationOptions(
-                    new Uri(operationsUrl.TrimEnd('/') + "/", UriKind.Absolute),
+                new RegistrationLifecycleOptions(
+                    new Uri(configurationUrl.TrimEnd('/') + "/", UriKind.Absolute),
                     ApplicationId,
                     instanceId,
-                    RegistrationCredentialResolver.EnvironmentVariableName,
-                    TimeSpan.FromSeconds(10)));
+                    identityFile,
+                    TimeSpan.FromSeconds(10)),
+                logger: logger);
 
-            ApplicationRegistrationStatus result = await registration.RegisterAsync(contract, cancellationToken);
+            RegistrationLifecycleStatus result =
+                await registration.StepAsync(
+                    new JsonObject
+                    {
+                        ["displayName"] = "Aegis Cafeteria Management",
+                        ["publicUrl"] = publicUrl,
+                        ["servicesUrl"] = servicesUrl,
+                        ["hostname"] = Environment.MachineName
+                    },
+                    cancellationToken);
+
             if (!result.IsRegistered)
             {
-                logger.LogWarning(
-                    "Aegis.Cafeteria.Management registration state is {RegistrationState}: {RegistrationError}; Management remains operational. Bootstrap must be repeated in Operations when the key is missing, invalid, or revoked.",
+                logger.LogInformation(
+                    "Aegis.Cafeteria.Management registration state is {RegistrationState}: {RegistrationError}; Management remains operational.",
                     result.State,
                     result.Error ?? "No additional detail.");
-                return false;
+                return result.State;
             }
 
-            logger.LogInformation("Aegis.Cafeteria.Management registration is valid and its configuration contract was published.");
-            return true;
+            HttpStatusCode contractStatus =
+                await registration.PublishConfigurationContractAsync(contract, cancellationToken);
+
+            if ((int)contractStatus is < 200 or >= 300)
+            {
+                logger.LogWarning(
+                    "Aegis.Cafeteria.Management is registered, but Configuration contract publication returned HTTP {StatusCode}.",
+                    (int)contractStatus);
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Aegis.Cafeteria.Management registration is valid and its configuration contract was published.");
+            }
+
+            return result.State;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception exception)
         {
             logger.LogWarning(exception, "Unable to register Aegis.Cafeteria.Management; Management remains operational and will retry.");
-            return false;
+            return RegistrationLifecycleState.Error;
         }
     }
 
