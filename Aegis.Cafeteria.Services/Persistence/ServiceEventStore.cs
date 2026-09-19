@@ -14,15 +14,18 @@ public sealed class ServiceEventStore
     private readonly IDbContextFactory<ServiceDbContext> factory;
     private readonly ServiceEventRealtimePublisher realtimePublisher;
     private readonly AuditTrailService auditTrail;
+    private readonly CafeteriaOperationsFlowPublisher operationsFlowPublisher;
 
     public ServiceEventStore
     (
           IDbContextFactory<ServiceDbContext> factory
         , ServiceEventRealtimePublisher realtimePublisher
+        , CafeteriaOperationsFlowPublisher operationsFlowPublisher
     )
     {
         this.factory = factory;
         this.realtimePublisher = realtimePublisher;
+        this.operationsFlowPublisher = operationsFlowPublisher;
         this.auditTrail = new AuditTrailService(factory);
     }
 
@@ -93,6 +96,12 @@ public sealed class ServiceEventStore
             // The business event has already been durably committed. Audit transport/storage
             // failures must not roll back or duplicate a financial operation.
         }
+
+        this.operationsFlowPublisher.TryEnqueueCommitted(
+            operationId,
+            kind.ToString(),
+            row.Sequence.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            occurredAt);
 
         return envelope;
     }
