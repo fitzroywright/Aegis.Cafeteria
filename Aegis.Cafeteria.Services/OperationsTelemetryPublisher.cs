@@ -206,7 +206,7 @@ public sealed class OperationsTelemetryPublisher(
                     observedAtUtc = run.CompletedAt,
                     detail = check.Evidence,
                     correlationId = run.RunId.ToString("D"),
-                    runbook = "Cafeteria Services / Diagnostics"
+                    runbook = "docs/RUNBOOK.md"
                 })
             };
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", identity.Credential);
