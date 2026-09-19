@@ -73,7 +73,7 @@ public sealed class CafeteriaOperationsFlowPublisher(
                 observedAtUtc = now,
                 currentStage = "Acknowledged",
                 relatedBusinessId = item.BusinessId,
-                runbook = "Cafeteria Services / POS transaction processing",
+                runbook = "docs/RUNBOOK.md",
                 stages = new object[]
                 {
                     new { name = "POS", state = "Unknown", error = (string?)null },
