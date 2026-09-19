@@ -4,6 +4,15 @@ using Aegis.Cafeteria.Infrastructure.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
+public sealed record PosSynchronizationSnapshot(
+    int Pending,
+    int Failed,
+    DateTimeOffset? OldestPendingAtUtc,
+    DateTimeOffset? LastAttemptAtUtc,
+    DateTimeOffset? LastSuccessfulAtUtc,
+    bool LocalStoreHealthy,
+    DateTimeOffset ObservedAtUtc);
+
 public sealed class LocalPersistenceStore(
     IDbContextFactory<LocalCafeteriaDbContext> factory,
     ILogger<LocalPersistenceStore> logger)
@@ -62,6 +71,42 @@ public sealed class LocalPersistenceStore(
             row.NextAttemptAt = nextAttemptAt;
             row.LastError = string.IsNullOrWhiteSpace(error) ? "Unknown publication error." : error[..Math.Min(error.Length, 2000)];
         }, ct);
+
+    public async Task<PosSynchronizationSnapshot> GetPosSynchronizationSnapshotAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await using LocalCafeteriaDbContext db = await factory.CreateDbContextAsync(ct);
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            int pending = await db.PosTransactionOutbox.CountAsync(x => x.PublishedAt == null, ct);
+            int failed = await db.PosTransactionOutbox.CountAsync(x => x.PublishedAt == null && x.LastError != null, ct);
+            DateTimeOffset? oldestPending = await db.PosTransactionOutbox
+                .Where(x => x.PublishedAt == null)
+                .OrderBy(x => x.CreatedAt)
+                .Select(x => (DateTimeOffset?)x.CreatedAt)
+                .FirstOrDefaultAsync(ct);
+            DateTimeOffset? lastAttempt = await db.PosTransactionOutbox
+                .Where(x => x.LastAttemptAt != null)
+                .OrderByDescending(x => x.LastAttemptAt)
+                .Select(x => x.LastAttemptAt)
+                .FirstOrDefaultAsync(ct);
+            DateTimeOffset? lastSuccess = await db.PosTransactionOutbox
+                .Where(x => x.PublishedAt != null)
+                .OrderByDescending(x => x.PublishedAt)
+                .Select(x => x.PublishedAt)
+                .FirstOrDefaultAsync(ct);
+
+            return new(pending, failed, oldestPending, lastAttempt, lastSuccess, true, now);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return new(0, 0, null, null, null, false, DateTimeOffset.UtcNow);
+        }
+    }
 
     private async Task SaveAsync(Func<LocalCafeteriaDbContext,Task> action,CancellationToken ct)
     { await using var db=await factory.CreateDbContextAsync(ct); await using var tx=await db.Database.BeginTransactionAsync(ct); await action(db); await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); logger.LogDebug("Local cafeteria state committed"); }
