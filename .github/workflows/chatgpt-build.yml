@@ -71,8 +71,14 @@ jobs:
       - name: Restore
         run: dotnet restore Aegis.Cafeteria.slnx
 
-      - name: Build
+      - name: Build Debug
+        run: dotnet build Aegis.Cafeteria.slnx --no-restore --configuration Debug
+
+      - name: Test Debug
+        run: dotnet test Aegis.Cafeteria.slnx --no-build --configuration Debug
+
+      - name: Build Release
         run: dotnet build Aegis.Cafeteria.slnx --no-restore --configuration Release
 
-      - name: Test
+      - name: Test Release
         run: dotnet test Aegis.Cafeteria.slnx --no-build --configuration Release
