@@ -46,6 +46,12 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
             contract["siteId"] = NullIfBlank(First(configuration["Deployment:SiteId"], configuration["Site:Id"]));
             contract["instanceId"] = NullIfBlank(First(configuration["Service:Identity"], Environment.MachineName));
             contract["description"] = "Central synchronization, management, reporting, and FFP integration services for Aegis Cafeteria.";
+            contract["presentation"] = new JsonObject
+            {
+                ["iconUrl"] = configuration["Aegis:Presentation:IconUrl"],
+                ["shortName"] = "Cafeteria",
+                ["accent"] = configuration["Aegis:Presentation:Accent"] ?? "gold"
+            };
             contract["runtimeEnvironment"] = DetectedRuntimeEnvironment.Capture(environment.EnvironmentName, environment.ContentRootPath);
             contract["diagnostics"] = BuildDiagnosticsCapability();
             contract["requirements"] = await BuildRequirementsAsync(secrets, cancellationToken);
@@ -80,6 +86,12 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
                     new JsonObject
                     {
                         ["displayName"] = "Aegis Cafeteria Services",
+                        ["presentation"] = new JsonObject
+                        {
+                            ["iconUrl"] = configuration["Aegis:Presentation:IconUrl"],
+                            ["shortName"] = "Cafeteria",
+                            ["accent"] = configuration["Aegis:Presentation:Accent"] ?? "gold"
+                        },
                         ["siteId"] = contract["siteId"]?.DeepClone(),
                         ["publicUrl"] = configuration["Aegis:PublicUrl"],
                         ["hostname"] = Environment.MachineName,
