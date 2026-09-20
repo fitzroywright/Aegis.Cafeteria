@@ -14,12 +14,11 @@ internal sealed class ManagementRegistrationHostedService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        string? configurationUrl = configuration["Aegis:Configuration:Url"];
-        if (string.IsNullOrWhiteSpace(configurationUrl))
-        {
-            logger.LogInformation("Application registration is disabled because no Configuration URL is configured.");
-            return;
-        }
+        string configurationUrl = AegisControlPlaneEndpoints.ResolvePublic(
+            configuration,
+            AegisControlPlaneService.Configuration,
+            logger,
+            configurationKey: "Aegis:Configuration:Url");
 
         while (!stoppingToken.IsCancellationRequested)
         {
