@@ -13,12 +13,11 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        string? configurationUrl = configuration["Aegis:Configuration:Url"];
-        if (string.IsNullOrWhiteSpace(configurationUrl))
-        {
-            logger.LogInformation("Application registration is disabled because no Configuration URL is configured.");
-            return;
-        }
+        string configurationUrl = AegisControlPlaneEndpoints.ResolvePublic(
+            configuration,
+            AegisControlPlaneService.Configuration,
+            logger,
+            configurationKey: "Aegis:Configuration:Url");
 
         string path = configuration["AegisConfiguration:ContractPath"]
             ?? Path.Combine(environment.ContentRootPath, "configuration", "Aegis.Cafeteria.Services.configuration-contract.json");
