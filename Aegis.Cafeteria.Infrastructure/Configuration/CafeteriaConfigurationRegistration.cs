@@ -22,9 +22,10 @@ public static class CafeteriaConfigurationRegistration
         string displayName = "Aegis Cafeteria POS",
         CancellationToken cancellationToken = default)
     {
-        string? configurationUrl = configuration["Aegis:Configuration:Url"];
-        if (string.IsNullOrWhiteSpace(configurationUrl))
-            return;
+        string configurationUrl = AegisControlPlaneEndpoints.ResolvePublic(
+            configuration,
+            AegisControlPlaneService.Configuration,
+            configurationKey: "Aegis:Configuration:Url");
 
         object rawContract = BuildPosContract(runtime, siteId, applicationId, displayName);
         JsonObject contract = JsonSerializer.SerializeToNode(rawContract)?.AsObject()
