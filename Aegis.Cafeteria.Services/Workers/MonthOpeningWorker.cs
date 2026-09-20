@@ -23,6 +23,7 @@ public sealed class MonthOpeningWorker : BackgroundService
     private readonly IMonthRecalculationGuard recalculationGuard;
     private readonly MonthOpeningOptions options;
     private readonly ILogger<MonthOpeningWorker> logger;
+    private DateOnly? lastScheduledReconciliation;
 
     public MonthOpeningWorker(
         IWorkforceReferenceSource workforce,
@@ -54,10 +55,12 @@ public sealed class MonthOpeningWorker : BackgroundService
             try
             {
                 DateTime now = DateTime.Now;
-                if (now.Hour >= this.options.RunHourLocal)
+                DateOnly today = DateOnly.FromDateTime(now);
+                if (now.Hour >= this.options.RunHourLocal && this.lastScheduledReconciliation != today)
                 {
                     string trigger = now.Day == 1 ? "MonthStart" : "NightlyReconciliation";
                     await EnsureCurrentPeriodAllocationsAsync(now.Year, now.Month, trigger, stoppingToken);
+                    this.lastScheduledReconciliation = today;
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
