@@ -1,13 +1,20 @@
 {
+  "$schema": "http://json.schemastore.org/launchsettings.json",
   "profiles": {
-    "Cafeteria Services Development": {
+    "Cafeteria Services - Local Development": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
       "launchUrl": "swagger",
       "applicationUrl": "http://localhost:5088",
       "environmentVariables": {
-        "DOTNET_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "DOTNET_ENVIRONMENT": "Development",
+        "Service__Identity": "CAFETERIA-SERVICES-DEV",
+        "Aegis__PublicUrl": "http://localhost:5088",
+        "Aegis__Configuration__Url": "https://config.ffpja.org",
+        "Aegis__Diagnostics__Url": "https://diagnostics.ffpja.org",
+        "Aegis__Operations__Url": "https://operations.ffpja.org"
       }
     }
   }
