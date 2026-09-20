@@ -18,12 +18,11 @@ public sealed class OperationsTelemetryPublisher(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        string? operationsUrl = configuration["Aegis:Operations:Url"];
-        if (string.IsNullOrWhiteSpace(operationsUrl))
-        {
-            logger.LogInformation("Operations telemetry is disabled because Aegis:Operations:Url is not configured.");
-            return;
-        }
+        string operationsUrl = AegisControlPlaneEndpoints.ResolvePublic(
+            configuration,
+            AegisControlPlaneService.Operations,
+            logger,
+            configurationKey: "Aegis:Operations:Url");
 
         string instanceId = configuration["Service:Identity"]?.Trim() ?? Environment.MachineName;
         string identityFile = configuration["Aegis:Registration:IdentityFile"]
