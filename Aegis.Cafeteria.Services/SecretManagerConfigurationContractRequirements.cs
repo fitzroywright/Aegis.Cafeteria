@@ -14,11 +14,10 @@ internal static class SecretManagerConfigurationContractRequirements
     public static void Add(JsonArray requirements, IConfiguration configuration)
     {
         CommonSecretsOptions common = configuration.GetSection("CommonSecrets").Get<CommonSecretsOptions>() ?? new();
-        OpenBaoOptions openBao = configuration.GetSection("CommonSecrets:OpenBao").Get<OpenBaoOptions>() ?? new();
-        BitwardenSecretsManagerOptions bitwarden = configuration.GetSection("CommonSecrets:Bitwarden").Get<BitwardenSecretsManagerOptions>() ?? new();
-        BitwardenPasswordManagerOptions passwordManager = configuration.GetSection("CommonSecrets:BitwardenPasswordManager").Get<BitwardenPasswordManagerOptions>() ?? new();
+        IReadOnlyDictionary<string, SecretProviderDefinition> providers =
+            SecretProviderConfiguration.ReadProviders(configuration);
 
-        string[] providerOrder = CommonSecretsPolicy.ResolveProviderOrder(common);
+        string[] providerOrder = CommonSecretsPolicy.ResolveProviderOrder(common, providers);
         string providerSummary = string.Join(" -> ", providerOrder);
 
         AddMetadata(requirements,
@@ -37,57 +36,74 @@ internal static class SecretManagerConfigurationContractRequirements
             "Ordered secret providers the application will consult.",
             common.ProviderOrder is null ? "Common.Secrets policy default" : "Configured");
 
-        foreach (string provider in providerOrder)
+        foreach (string providerName in providerOrder)
         {
-            string normalized = Normalize(provider);
+            SecretProviderDefinition definition = providers[providerName];
+            string normalized = Normalize(definition.Type);
+
             switch (normalized)
             {
                 case "OpenBao":
-                    AddOpenBao(requirements, openBao);
+                    AddOpenBao(
+                        requirements,
+                        providerName,
+                        definition.Settings.Get<OpenBaoOptions>() ?? new OpenBaoOptions());
                     break;
                 case "BitwardenSecretsManager":
-                    AddBitwardenSecretsManager(requirements, bitwarden);
+                    AddBitwardenSecretsManager(
+                        requirements,
+                        providerName,
+                        definition.Settings.Get<BitwardenSecretsManagerOptions>() ?? new BitwardenSecretsManagerOptions());
                     break;
                 case "BitwardenPasswordManager":
-                    AddBitwardenPasswordManager(requirements, passwordManager);
+                    AddBitwardenPasswordManager(
+                        requirements,
+                        providerName,
+                        definition.Settings.Get<BitwardenPasswordManagerOptions>() ?? new BitwardenPasswordManagerOptions());
                     break;
                 case "Environment":
-                    AddProviderIdentity(requirements, "environment", "Environment Variables", "Built-in process environment source");
+                    AddProviderIdentity(requirements, ProviderId(providerName), providerName, "Built-in process environment source");
                     break;
                 case "Configuration":
-                    AddProviderIdentity(requirements, "configuration", "Application Configuration", "IConfiguration fallback source");
+                    AddProviderIdentity(requirements, ProviderId(providerName), providerName, "Application configuration source");
                     break;
             }
         }
     }
 
-    private static void AddOpenBao(JsonArray requirements, OpenBaoOptions options)
+    private static void AddOpenBao(JsonArray requirements, string providerName, OpenBaoOptions options)
     {
-        AddProviderIdentity(requirements, "openbao", "OpenBao", "Common.Secrets OpenBao provider");
-        AddMetadata(requirements, "secrets-openbao-enabled", "OpenBao Enabled", "CommonSecrets:OpenBao:Enabled", Bool(options.Enabled), "Whether the OpenBao provider is enabled.", "Resolved Common.Secrets options");
-        AddMetadata(requirements, "secrets-openbao-address", "OpenBao Address", "CommonSecrets:OpenBao:Address", SafeText(options.Address), "OpenBao server endpoint used by the application.", "Resolved Common.Secrets options");
-        AddMetadata(requirements, "secrets-openbao-endpoint-scope", "OpenBao Endpoint Scope", null, DescribeEndpointScope(options.Address), "What the application can safely infer about where the configured OpenBao endpoint is hosted.", "Derived from configured endpoint");
-        AddMetadata(requirements, "secrets-openbao-mount", "OpenBao Secret Mount", "CommonSecrets:OpenBao:MountPath", options.MountPath, "KV mount used for application secrets.", "Resolved Common.Secrets options");
-        AddMetadata(requirements, "secrets-openbao-base-path", "OpenBao Base Path", "CommonSecrets:OpenBao:BasePath", options.BasePath, "Base namespace used by this application in OpenBao.", "Resolved Common.Secrets options");
-        AddMetadata(requirements, "secrets-openbao-auth-mount", "OpenBao Authentication Mount", "CommonSecrets:OpenBao:AuthMountPath", options.AuthMountPath, "Authentication mount name only; no role IDs or bootstrap credentials are published.", "Resolved Common.Secrets options");
-        AddMetadata(requirements, "secrets-openbao-https", "OpenBao Requires HTTPS", "CommonSecrets:OpenBao:RequireHttps", Bool(options.RequireHttps), "Whether Common.Secrets requires HTTPS for the OpenBao endpoint.", "Resolved Common.Secrets options");
+        string prefix = $"CommonSecrets:Providers:{providerName}:Settings";
+        string id = ProviderId(providerName);
+        AddProviderIdentity(requirements, id, providerName, "Common.Secrets OpenBao provider instance");
+        AddMetadata(requirements, $"secrets-{id}-enabled", $"{providerName} Enabled", $"{prefix}:Enabled", Bool(options.Enabled), "Whether this OpenBao provider instance is enabled.", "Resolved provider instance settings");
+        AddMetadata(requirements, $"secrets-{id}-address", $"{providerName} Address", $"{prefix}:Address", SafeText(options.Address), "OpenBao server endpoint used by the application.", "Resolved provider instance settings");
+        AddMetadata(requirements, $"secrets-{id}-endpoint-scope", $"{providerName} Endpoint Scope", null, DescribeEndpointScope(options.Address), "What the application can safely infer about where the configured OpenBao endpoint is hosted.", "Derived from configured endpoint");
+        AddMetadata(requirements, $"secrets-{id}-mount", $"{providerName} Secret Mount", $"{prefix}:MountPath", options.MountPath, "KV mount used for application secrets.", "Resolved provider instance settings");
+        AddMetadata(requirements, $"secrets-{id}-base-path", $"{providerName} Base Path", $"{prefix}:BasePath", options.BasePath, "Base namespace used by this application in OpenBao.", "Resolved provider instance settings");
+        AddMetadata(requirements, $"secrets-{id}-auth-mount", $"{providerName} Authentication Mount", $"{prefix}:AuthMountPath", options.AuthMountPath, "Authentication mount name only; no role IDs or bootstrap credentials are published.", "Resolved provider instance settings");
+        AddMetadata(requirements, $"secrets-{id}-https", $"{providerName} Requires HTTPS", $"{prefix}:RequireHttps", Bool(options.RequireHttps), "Whether Common.Secrets requires HTTPS for this OpenBao endpoint.", "Resolved provider instance settings");
     }
 
-    private static void AddBitwardenSecretsManager(JsonArray requirements, BitwardenSecretsManagerOptions options)
+    private static void AddBitwardenSecretsManager(JsonArray requirements, string providerName, BitwardenSecretsManagerOptions options)
     {
-        AddProviderIdentity(requirements, "bitwarden-secrets-manager", "Bitwarden Secrets Manager", "Common.Secrets Bitwarden Secrets Manager provider");
-        AddMetadata(requirements, "secrets-bitwarden-enabled", "Bitwarden Secrets Manager Enabled", "CommonSecrets:Bitwarden:Enabled", Bool(options.Enabled), "Whether the Bitwarden Secrets Manager provider is enabled.", "Resolved Common.Secrets options");
+        string prefix = $"CommonSecrets:Providers:{providerName}:Settings";
+        string id = ProviderId(providerName);
+        AddProviderIdentity(requirements, id, providerName, "Common.Secrets Bitwarden Secrets Manager provider instance");
+        AddMetadata(requirements, $"secrets-{id}-enabled", $"{providerName} Enabled", $"{prefix}:Enabled", Bool(options.Enabled), "Whether this Bitwarden Secrets Manager provider instance is enabled.", "Resolved provider instance settings");
         string endpoint = string.IsNullOrWhiteSpace(options.ServerUrl) ? "Bitwarden default service" : options.ServerUrl.Trim();
-        AddMetadata(requirements, "secrets-bitwarden-server", "Bitwarden Server", "CommonSecrets:Bitwarden:ServerUrl", endpoint, "Bitwarden service endpoint. A blank configured URL means the provider's default Bitwarden service.", "Resolved Common.Secrets options");
-        AddMetadata(requirements, "secrets-bitwarden-endpoint-scope", "Bitwarden Endpoint Scope", null, string.IsNullOrWhiteSpace(options.ServerUrl) ? "Vendor/default service" : DescribeEndpointScope(options.ServerUrl), "What the application can safely infer about where the configured Bitwarden endpoint is hosted.", "Derived from configured endpoint");
+        AddMetadata(requirements, $"secrets-{id}-server", $"{providerName} Server", $"{prefix}:ServerUrl", endpoint, "Bitwarden service endpoint. A blank configured URL means the provider's default Bitwarden service.", "Resolved provider instance settings");
+        AddMetadata(requirements, $"secrets-{id}-endpoint-scope", $"{providerName} Endpoint Scope", null, string.IsNullOrWhiteSpace(options.ServerUrl) ? "Vendor/default service" : DescribeEndpointScope(options.ServerUrl), "What the application can safely infer about where the configured Bitwarden endpoint is hosted.", "Derived from configured endpoint");
     }
 
-    private static void AddBitwardenPasswordManager(JsonArray requirements, BitwardenPasswordManagerOptions options)
+    private static void AddBitwardenPasswordManager(JsonArray requirements, string providerName, BitwardenPasswordManagerOptions options)
     {
-        AddProviderIdentity(requirements, "bitwarden-password-manager", "Bitwarden Password Manager", "Common.Secrets Bitwarden Password Manager provider");
-        AddMetadata(requirements, "secrets-bitwarden-pm-enabled", "Bitwarden Password Manager Enabled", "CommonSecrets:BitwardenPasswordManager:Enabled", Bool(options.Enabled), "Whether the Bitwarden Password Manager provider is enabled.", "Resolved Common.Secrets options");
-        AddMetadata(requirements, "secrets-bitwarden-pm-url", "Bitwarden Password Manager URL", "CommonSecrets:BitwardenPasswordManager:BaseUrl", SafeText(options.BaseUrl), "Local/helper API endpoint used by the provider.", "Resolved Common.Secrets options");
-        AddMetadata(requirements, "secrets-bitwarden-pm-endpoint-scope", "Bitwarden Password Manager Endpoint Scope", null, DescribeEndpointScope(options.BaseUrl), "What the application can safely infer about where the configured Password Manager helper endpoint is hosted.", "Derived from configured endpoint");
+        string prefix = $"CommonSecrets:Providers:{providerName}:Settings";
+        string id = ProviderId(providerName);
+        AddProviderIdentity(requirements, id, providerName, "Common.Secrets Bitwarden Password Manager provider instance");
+        AddMetadata(requirements, $"secrets-{id}-enabled", $"{providerName} Enabled", $"{prefix}:Enabled", Bool(options.Enabled), "Whether this Bitwarden Password Manager provider instance is enabled.", "Resolved provider instance settings");
+        AddMetadata(requirements, $"secrets-{id}-url", $"{providerName} URL", $"{prefix}:BaseUrl", SafeText(options.BaseUrl), "Local/helper API endpoint used by the provider.", "Resolved provider instance settings");
+        AddMetadata(requirements, $"secrets-{id}-endpoint-scope", $"{providerName} Endpoint Scope", null, DescribeEndpointScope(options.BaseUrl), "What the application can safely infer about where the configured Password Manager helper endpoint is hosted.", "Derived from configured endpoint");
     }
 
     private static void AddProviderIdentity(JsonArray requirements, string idSuffix, string name, string description)
@@ -116,10 +132,13 @@ internal static class SecretManagerConfigurationContractRequirements
         });
     }
 
-    private static string Normalize(string provider)
-        => string.Equals(provider, "Bitwarden", StringComparison.OrdinalIgnoreCase)
-            ? "BitwardenSecretsManager"
-            : provider.Trim();
+    private static string Normalize(string providerType)
+        => providerType.Trim();
+
+    private static string ProviderId(string providerName)
+        => new string(providerName.Trim().ToLowerInvariant()
+            .Select(ch => char.IsLetterOrDigit(ch) ? ch : '-')
+            .ToArray()).Trim('-');
 
     private static string Bool(bool value) => value ? "true" : "false";
     private static string? SafeText(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
