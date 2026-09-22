@@ -53,6 +53,8 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
             };
             contract["runtimeEnvironment"] = DetectedRuntimeEnvironment.Capture(environment.EnvironmentName, environment.ContentRootPath);
             contract["diagnostics"] = BuildDiagnosticsCapability();
+            if (contract["diagnostics"] is JsonObject diagnostics)
+                diagnostics["baseUrl"] = NullIfBlank(configuration["Aegis:PublicUrl"]);
             contract["requirements"] = await BuildRequirementsAsync(secrets, cancellationToken);
 
             string instanceId =
@@ -139,7 +141,6 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
 
     private static JsonObject BuildDiagnosticsCapability() => new()
     {
-        ["baseUrlConfigurationKey"] = "Aegis:PublicUrl",
         ["healthPath"] = "/health",
         ["diagnosticsRunPath"] = "/api/engineering/diagnostics/run",
         ["diagnosticsRunsPath"] = "/api/engineering/diagnostics/runs",
