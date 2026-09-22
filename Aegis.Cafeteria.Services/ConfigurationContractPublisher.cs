@@ -244,6 +244,7 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
             ["configurationState"] = state,
             ["isConfigured"] = explicitlyConfigured,
             ["effectiveValueAvailable"] = effectiveValueAvailable,
+            ["displayValue"] = id == "public-url" && !sensitive ? scalarValue ?? defaultValue : null,
             ["hasDefault"] = hasDefault
         });
     }
