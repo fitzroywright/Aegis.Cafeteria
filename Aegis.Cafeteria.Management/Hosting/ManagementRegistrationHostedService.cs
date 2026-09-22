@@ -54,6 +54,15 @@ internal sealed class ManagementRegistrationHostedService(
                 ["siteId"] = NullIfBlank(configuration["Deployment:SiteId"] ?? configuration["Site:Id"]),
                 ["instanceId"] = instanceId,
                 ["description"] = "Independent management web interface for Aegis Cafeteria.",
+                ["diagnostics"] = new JsonObject
+                {
+                    ["baseUrl"] = NullIfBlank(publicUrl),
+                    ["healthPath"] = "/health",
+                    ["supportsRemoteDiagnostics"] = false,
+                    ["supportsOperationalTelemetry"] = false,
+                    ["authenticationScheme"] = "None",
+                    ["supportedLevels"] = new JsonArray()
+                },
                 ["requirements"] = new JsonArray
                 {
                     Requirement("public-url", "Public URL", "Aegis:PublicUrl", true, publicUrl),
@@ -140,6 +149,7 @@ internal sealed class ManagementRegistrationHostedService(
             ["configurationKey"] = key,
             ["isConfigured"] = configured,
             ["effectiveValueAvailable"] = configured,
+            ["displayValue"] = configured ? value!.Trim() : null,
             ["configurationState"] = configured ? "Configured" : "Missing"
         };
     }
