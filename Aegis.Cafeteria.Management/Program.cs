@@ -1,3 +1,4 @@
+using Common.Diagnostics;
 using Aegis.Cafeteria.Management;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -11,5 +12,6 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 ManagementEndpoints.Map(app, sessionLifetime);
+app.MapAegisHealth("Aegis.Cafeteria.Management");
 
 await app.RunAsync();
