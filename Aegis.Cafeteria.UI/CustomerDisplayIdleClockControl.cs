@@ -104,7 +104,7 @@ public sealed class CustomerDisplayIdleClockControl : UserControl
         Label greeting = new()
         {
             Dock = DockStyle.Fill,
-            Text = "Welcome to Food For The Poor Jamaica",
+            Text = "Welcome to the Cafeteria",
             Font = new Font("Segoe UI", 16, FontStyle.Regular),
             ForeColor = Muted,
             TextAlign = ContentAlignment.TopCenter,
