@@ -7,6 +7,7 @@ using Aegis.Cafeteria.Application.Security;
 using Aegis.Cafeteria.Reporting;
 using Aegis.Cafeteria.Reporting.Export;
 using Aegis.Cafeteria.Reporting.Models;
+using Aegis.Cafeteria.Presentation;
 using System.Diagnostics;
 using Aegis.Cafeteria.Domain.Identification;
 using Aegis.Cafeteria.Infrastructure.Configuration;
@@ -830,7 +831,7 @@ public sealed class MainWindow : Window
         if (idleDashboard is not null) idleDashboard.IsVisible = false;
         UpdateRecentTransactionsVisibility();
         customerName.Text = account.Customer.Name;
-        period.Text = account.Customer.IsCashCustomer ? "Cash-only sale" : $"{new DateTime(account.Period.Year, account.Period.Month, 1):MMMM yyyy} | Eligible days: {account.Period.EligibleWorkingDays}";
+        period.Text = CafeteriaDisplayText.Period(account);
         if (account.Customer.IsCashCustomer || !account.Customer.IsEligibleForCredit)
         {
             fundingStatus.Text = account.Customer.IsCashCustomer
@@ -1432,7 +1433,7 @@ public sealed class MainWindow : Window
                 Value = Convert.ToDecimal(row.GetValueOrDefault("sales") ?? 0m)
             }).ToArray();
             todayItemsByValue.SetData("ITEMS SOLD — VALUE", DashboardPieBuckets(productSales.Select(x => (x.Name, x.Value))), "C0");
-            todayDashboardStatus.Text = $"Updated {DateTime.Now:HH:mm}";
+            todayDashboardStatus.Text = CafeteriaDisplay.Updated(DateTime.Now);
         }
         catch (Exception ex)
         {
@@ -1455,7 +1456,7 @@ public sealed class MainWindow : Window
         return ordered.Length <= 6 ? ordered : ordered.Take(5).Append(("Other", ordered.Skip(5).Sum(x => x.Value))).ToArray();
     }
 
-    private static string Money(decimal value) => value.ToString("C2");
+    private static string Money(decimal value) => CafeteriaDisplay.Money(value);
     private static TextBlock DashboardValue() => new()
     {
         Text = "—",
