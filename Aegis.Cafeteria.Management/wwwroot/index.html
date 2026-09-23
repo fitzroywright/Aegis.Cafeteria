@@ -41,7 +41,7 @@
     </section>
 
     <nav class="tabs" aria-label="Cafeteria management functions">
-      <button class="tab active" data-tab="additional-credit">Additional Credit</button><button class="tab" data-tab="stipend">Stipend</button><button class="tab" data-tab="rates">Rates</button><button class="tab" data-tab="month-opening">Month Opening</button><button class="tab" data-tab="amount-due">Amount Due</button><button class="tab" data-tab="email">Email & Reports</button><button class="tab" data-tab="audit">Audit Trail</button>
+      <button class="tab active" data-tab="additional-credit">Additional Credit</button><button class="tab" data-tab="stipend">Stipend</button><button class="tab" data-tab="rates">Rates</button><button class="tab" data-tab="month-opening">Month Opening</button><button class="tab" data-tab="amount-due">Amount Due</button><button class="tab" data-tab="email">Email & Reports</button><button class="tab" data-tab="import-tools">Import Tools</button><button class="tab" data-tab="audit">Audit Trail</button>
     </nav>
 
     <section class="tab-panel active" data-panel="additional-credit"><div class="card"><div class="section-title"><div><span class="section-icon">02</span><div><h2>Additional Credit</h2><p>Manage the employee limit and approve controlled additional credit.</p></div></div></div><div class="form-grid"><label>Monthly employee limit<input id="creditLimit" type="number" min="0" step="0.01" /></label><div class="button-field"><button id="loadCreditPolicy" class="secondary">Load Limit</button><button id="saveCreditPolicy">Save Limit</button></div><label>Approval amount<input id="additionalCreditAmount" type="number" min="0.01" step="0.01" /></label><label>Reason<input id="additionalCreditReason" placeholder="Reason for approval" /></label></div><button id="approveAdditionalCredit" class="wide">Approve Additional Credit</button></div></section>
@@ -56,7 +56,38 @@
 
     <section class="tab-panel" data-panel="email"><div class="card"><div class="section-title"><div><span class="section-icon">07</span><div><h2>Email & Reports</h2><p>Control management reporting delivery, send Daily Sales Reports and verify email configuration.</p></div></div></div><div class="form-grid"><label class="inline-check">Weekly manager summary<input id="managerWeeklyEnabled" type="checkbox" /></label><label>Manager email<input id="managerEmail" type="email" autocomplete="email" /></label><label>Weekly summary day<select id="managerWeeklyDay"><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option></select></label><label>Hour (0-23)<input id="managerWeeklyHour" type="number" min="0" max="23" /></label></div><div class="actions"><button id="loadReportSettings" class="secondary">Load Settings</button><button id="saveReportSettings">Save Settings</button><button id="sendTestEmail" class="secondary">Send Test Email</button></div></div></section>
 
-    <section class="tab-panel" data-panel="audit"><div class="card"><div class="section-title"><div><span class="section-icon">08</span><div><h2>Audit Trail</h2><p>Trace management actions, outcomes and exceptions.</p></div></div></div><div class="audit-filters"><label>Actor<input id="auditActor" /></label><label>Action<input id="auditAction" /></label><label>Customer ID<input id="auditCustomerId" type="number" min="1" /></label><label>Result<select id="auditSucceeded"><option value="">All</option><option value="true">Succeeded</option><option value="false">Failed</option></select></label><label>From<input id="auditFrom" type="datetime-local" /></label><label>To<input id="auditTo" type="datetime-local" /></label><label>Rows<input id="auditTake" type="number" min="1" max="500" value="100" /></label></div><div class="actions"><button id="loadAudit">Load Audit</button><button id="clearAuditFilters" class="secondary">Clear Filters</button></div><div id="auditTable" class="table-wrap"><div class="hint empty-state">No audit records loaded.</div></div></div></section>
+    <section class="tab-panel" data-panel="import-tools">
+      <div class="card">
+        <div class="section-title">
+          <div>
+            <span class="section-icon">08</span>
+            <div>
+              <h2>Import Tools</h2>
+              <p>Controlled legacy imports. Cafeteria Services reads the external source and distributes import events to POS terminals.</p>
+            </div>
+          </div>
+        </div>
+        <div class="import-grid">
+          <article class="tool-card">
+            <h3>Product Catalog Bootstrap</h3>
+            <p>Import missing saleable Lunch Items into POS product catalogs. Existing POS products and prices are not overwritten; funding-policy rows are ignored.</p>
+            <button id="importProducts">Import Lunch Items</button>
+          </article>
+          <article class="tool-card">
+            <h3>Current-Month Legacy Transactions</h3>
+            <p>Import recognized legacy cafeteria allocations, card purchases and stipends. Re-running is idempotent and skips source transactions already distributed.</p>
+            <div class="form-grid compact">
+              <label>Year<input id="importYear" type="number" min="2000" max="9999" /></label>
+              <label>Month<input id="importMonth" type="number" min="1" max="12" /></label>
+            </div>
+            <button id="importCurrentMonth">Import Current Month</button>
+          </article>
+        </div>
+        <p class="hint">These actions do not connect the browser or POS directly to the external database. Import events are created in Cafeteria Services and applied through normal POS synchronization.</p>
+      </div>
+    </section>
+
+    <section class="tab-panel" data-panel="audit"><div class="card"><div class="section-title"><div><span class="section-icon">09</span><div><h2>Audit Trail</h2><p>Trace management actions, outcomes and exceptions.</p></div></div></div><div class="audit-filters"><label>Actor<input id="auditActor" /></label><label>Action<input id="auditAction" /></label><label>Customer ID<input id="auditCustomerId" type="number" min="1" /></label><label>Result<select id="auditSucceeded"><option value="">All</option><option value="true">Succeeded</option><option value="false">Failed</option></select></label><label>From<input id="auditFrom" type="datetime-local" /></label><label>To<input id="auditTo" type="datetime-local" /></label><label>Rows<input id="auditTake" type="number" min="1" max="500" value="100" /></label></div><div class="actions"><button id="loadAudit">Load Audit</button><button id="clearAuditFilters" class="secondary">Clear Filters</button></div><div id="auditTable" class="table-wrap"><div class="hint empty-state">No audit records loaded.</div></div></div></section>
 
     <section class="card activity-card"><div class="section-title"><div><span class="section-icon">✓</span><div><h2>Activity</h2><p>Latest management operation and response.</p></div></div><button id="clearResult" class="secondary small">Clear</button></div><pre id="result" class="output">Ready.</pre></section>
   </main>
