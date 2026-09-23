@@ -29,6 +29,56 @@ public sealed class CafeteriaServiceContractTests
         Assert.Equal(650m,y.CardReductionAmount);
         Assert.Equal(id,y.OperationId);
     }
+    [Fact]
+    public void ProductCatalogImportEvent_RoundTripsManagementImportMetadata()
+    {
+        Guid id = Guid.NewGuid();
+        DateTimeOffset at = DateTimeOffset.UtcNow;
+        ProductCatalogImportServiceEvent source = new(id, 42, "LUNCH42", "Chicken Lunch", 700m, "Manager", at);
+
+        string json = JsonSerializer.Serialize(source);
+        ProductCatalogImportServiceEvent? result = JsonSerializer.Deserialize<ProductCatalogImportServiceEvent>(json);
+
+        Assert.NotNull(result);
+        Assert.Equal(id, result!.OperationId);
+        Assert.Equal("Chicken Lunch", result.Name);
+        Assert.Equal(700m, result.Price);
+        Assert.Equal("Manager", result.ImportedBy);
+    }
+
+    [Fact]
+    public void LegacyTransactionImportEvent_RoundTripsSourceIdentity()
+    {
+        Guid id = Guid.NewGuid();
+        DateTimeOffset at = DateTimeOffset.UtcNow;
+        LegacyTransactionImportServiceEvent source = new
+        (
+              id
+            , 12345
+            , 101
+            , 2026
+            , 9
+            , at
+            , "Lunch"
+            , "Imported purchase"
+            , 650m
+            , "SYSTEM"
+            , "CARD"
+            , 8
+            , "Manager"
+            , at
+        );
+
+        string json = JsonSerializer.Serialize(source);
+        LegacyTransactionImportServiceEvent? result = JsonSerializer.Deserialize<LegacyTransactionImportServiceEvent>(json);
+
+        Assert.NotNull(result);
+        Assert.Equal(12345, result!.SourceId);
+        Assert.Equal(101, result.CustomerId);
+        Assert.Equal(8, result.ScanType);
+        Assert.Equal("Manager", result.ImportedBy);
+    }
+
 }
 
 public sealed class DevelopmentResetServiceEventContractTests
