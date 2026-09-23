@@ -15,6 +15,9 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
         new CafeteriaWorkforceSourceDiagnosticLevelTest(null!),
         new CafeteriaHolidaySourceDiagnosticLevelTest(null!),
         new CafeteriaPublicationQueueDiagnosticLevelTest(null!),
+        new CafeteriaAccountingGatewayDiagnosticLevelTest(null!),
+        new CafeteriaProductReferenceSourceDiagnosticLevelTest(null!),
+        new CafeteriaMessagingDiagnosticLevelTest(null!),
         new CafeteriaFundingPolicyDiagnosticLevelTest(null!),
         new CafeteriaCustomerLookupDiagnosticLevelTest(null!),
         new CafeteriaRecoveryReadinessDiagnosticLevelTest(null!),
@@ -27,7 +30,7 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
         IDiagnosticLevelLocalTest[] tests = Catalogue();
 
         Assert.Equal(tests.Length, tests.Select(x => x.TestId).Distinct(StringComparer.OrdinalIgnoreCase).Count());
-        Assert.All(tests, test => Assert.StartsWith("CAFETERIA.SERVICES.", test.TestId, StringComparison.Ordinal));
+        Assert.All(tests, test => Assert.True(test.TestId.StartsWith("CAFETERIA.SERVICES.", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -43,10 +46,10 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
 
     [Theory]
     [InlineData(EngineeringDiagnosticLevel.Level5Scan, 5)]
-    [InlineData(EngineeringDiagnosticLevel.Level4Analysis, 9)]
-    [InlineData(EngineeringDiagnosticLevel.Level3Verification, 10)]
-    [InlineData(EngineeringDiagnosticLevel.Level2Repair, 11)]
-    [InlineData(EngineeringDiagnosticLevel.Level1CriticalIntervention, 12)]
+    [InlineData(EngineeringDiagnosticLevel.Level4Analysis, 12)]
+    [InlineData(EngineeringDiagnosticLevel.Level3Verification, 13)]
+    [InlineData(EngineeringDiagnosticLevel.Level2Repair, 14)]
+    [InlineData(EngineeringDiagnosticLevel.Level1CriticalIntervention, 15)]
     public void Starfleet_levels_are_cumulative(EngineeringDiagnosticLevel requested, int expectedCafeteriaTests)
     {
         IDiagnosticLevelLocalTest[] selected = Catalogue()
