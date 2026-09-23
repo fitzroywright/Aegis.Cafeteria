@@ -1220,7 +1220,7 @@ public sealed class MainWindow : Window
         var hasCustomer = currentCustomer is not null;
         var hasOrder = hasCustomer && cart.Count > 0;
         checkoutButton.IsEnabled = hasOrder &&
-            TryGetPayment(out _, out _, out _, out TenderQuote? quote) &&
+            TryGetPayment(out _, out _, out TenderQuote? quote) &&
             quote is not null &&
             quote.IsComplete;
         voidButton.IsEnabled = operatorSession.IsAuthenticated && hasOrder;
@@ -1263,13 +1263,18 @@ public sealed class MainWindow : Window
         }
 
         decimal total = this.cart.Sum(item => item.Total);
-        decimal maximumAccountAmount = this.currentCustomer is null || this.currentCustomer.Customer.IsCashCustomer || !this.currentCustomer.Customer.IsEligibleForCredit
-            ? 0m
-            : Math.Min(total, this.currentCustomer.FinancialStatus.TotalAvailableToSpend);
-        decimal accountAmount = TenderAllocationCalculator.CalculateCafeteriaAccountAmount
+        bool accountAllowed =
+            this.currentCustomer is not null
+            && !this.currentCustomer.Customer.IsCashCustomer
+            && this.currentCustomer.Customer.IsEligibleForCredit;
+        decimal availableToSpend = accountAllowed && this.currentCustomer is not null
+            ? this.currentCustomer.FinancialStatus.TotalAvailableToSpend
+            : 0m;
+        decimal accountAmount = TenderQuoteCalculator.DefaultCafeteriaAccountAmount
         (
               total
-            , maximumAccountAmount
+            , availableToSpend
+            , accountAllowed
             , cashReceived
         );
 
