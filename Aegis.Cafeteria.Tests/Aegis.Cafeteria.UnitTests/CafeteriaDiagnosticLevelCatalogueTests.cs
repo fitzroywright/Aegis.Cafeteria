@@ -132,7 +132,7 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
         Assert.Equal(test.TestId, running.CurrentTestId);
         Assert.Equal(test.Name, running.CurrentTestName);
 
-        test.Release.SetResult();
+        test.Release.SetResult(true);
 
         DiagnosticLevelRunRecord? completed = null;
         for (int attempt = 0; attempt < 50; attempt++)
@@ -152,9 +152,9 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
 
     private sealed class BlockingDiagnosticTest : IDiagnosticLevelLocalTest
     {
-        public TaskCompletionSource Started { get; } =
+        public TaskCompletionSource<bool> Started { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource Release { get; } =
+        public TaskCompletionSource<bool> Release { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public string TestId => "CAFETERIA.SERVICES.TEST.BLOCKING";
@@ -165,7 +165,7 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
 
         public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
         {
-            Started.TrySetResult();
+            Started.TrySetResult(true);
             await Release.Task.WaitAsync(cancellationToken);
             return EngineeringDiagnosticPolicy.Passed(TestId, Name, "Probe completed.");
         }
