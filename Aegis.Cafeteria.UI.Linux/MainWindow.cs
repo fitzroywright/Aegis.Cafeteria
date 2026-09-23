@@ -902,12 +902,12 @@ public sealed class MainWindow : Window
         cartTotal.Text = $"Total: {Money(total)}";
         if (currentCustomer is not null)
         {
-            bool accountAllowed = !currentCustomer.Customer.IsCashCustomer && currentCustomer.Customer.IsEligibleForCredit;
+            TenderCustomerContext tenderContext = TenderCustomerPolicy.Evaluate(currentCustomer);
             decimal accountAmount = TenderQuoteCalculator.DefaultCafeteriaAccountAmount
             (
                   total
-                , currentCustomer.FinancialStatus.TotalAvailableToSpend
-                , accountAllowed
+                , tenderContext.AvailableToSpend
+                , tenderContext.CafeteriaAccountAllowed
             );
             cafeteriaTender.Text = accountAmount.ToString("0.00");
             cashTender.Text = "0.00";
@@ -1095,9 +1095,10 @@ public sealed class MainWindow : Window
         }
 
         var order = await orderQuery.GetAsync(selected.Transaction.ReferenceId);
-        if (order is null || order.Status != Aegis.Cafeteria.Domain.Orders.OrderStatus.Completed || order.RefundedAmount >= order.Total)
+        RefundEligibility refundEligibility = RefundEligibilityPolicy.Evaluate(order);
+        if (!refundEligibility.Allowed || order is null)
         {
-            status.Text = "The selected order is not refundable.";
+            status.Text = refundEligibility.Reason ?? "The selected order is not refundable.";
             return;
         }
 
@@ -1263,18 +1264,14 @@ public sealed class MainWindow : Window
         }
 
         decimal total = this.cart.Sum(item => item.Total);
-        bool accountAllowed =
-            this.currentCustomer is not null
-            && !this.currentCustomer.Customer.IsCashCustomer
-            && this.currentCustomer.Customer.IsEligibleForCredit;
-        decimal availableToSpend = accountAllowed && this.currentCustomer is not null
-            ? this.currentCustomer.FinancialStatus.TotalAvailableToSpend
-            : 0m;
+        TenderCustomerContext tenderContext = this.currentCustomer is null
+            ? new TenderCustomerContext(false, false, 0m, 0m)
+            : TenderCustomerPolicy.Evaluate(this.currentCustomer);
         decimal accountAmount = TenderQuoteCalculator.DefaultCafeteriaAccountAmount
         (
               total
-            , availableToSpend
-            , accountAllowed
+            , tenderContext.AvailableToSpend
+            , tenderContext.CafeteriaAccountAllowed
             , cashReceived
         );
 
@@ -1293,7 +1290,7 @@ public sealed class MainWindow : Window
 
     private void UpdatePaymentState()
     {
-        if (!TryGetPayment(out _, out _, out _, out TenderQuote? quote) || quote is null)
+        if (!TryGetPayment(out _, out _, out TenderQuote? quote) || quote is null)
         {
             paymentRemaining.Text = "Remaining: —";
             changeDue.Text = "Change: —";
@@ -1331,26 +1328,18 @@ public sealed class MainWindow : Window
         }
 
         decimal total = cart.Sum(item => item.Total);
-        bool accountAllowed =
-            currentCustomer is not null
-            && !currentCustomer.Customer.IsCashCustomer
-            && currentCustomer.Customer.IsEligibleForCredit;
-
-        decimal availableToSpend = accountAllowed && currentCustomer is not null
-            ? currentCustomer.FinancialStatus.TotalAvailableToSpend
-            : 0m;
-        decimal subsidyRemaining = accountAllowed && currentCustomer is not null
-            ? currentCustomer.FinancialStatus.SubsidyAmountRemaining
-            : 0m;
+        TenderCustomerContext tenderContext = currentCustomer is null
+            ? new TenderCustomerContext(false, false, 0m, 0m)
+            : TenderCustomerPolicy.Evaluate(currentCustomer);
 
         try
         {
             quote = TenderQuoteCalculator.Calculate
             (
                   total
-                , availableToSpend
-                , subsidyRemaining
-                , accountAllowed
+                , tenderContext.AvailableToSpend
+                , tenderContext.SubsidyRemaining
+                , tenderContext.CafeteriaAccountAllowed
                 , creditSalesAllowed: false
                 , cafeteriaAccountAmount: accountAmount
                 , cashReceived: cashReceived
