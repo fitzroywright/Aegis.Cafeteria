@@ -1071,9 +1071,6 @@ public sealed class MainWindow : Window
             var accountBeforeRefund = currentCustomer;
             var refund = refundService.Refund(order, refundDialog.SelectedItems, refundDialog.CafeteriaAccountAmount, refundDialog.CashAmount, manager.UserId, DateTimeOffset.Now, reason);
             await persistenceStore.SaveOrderAsync(order);
-            var externalProjection = services.GetService<IExternalLedgerProjectionService>();
-            if (externalProjection is not null && !accountBeforeRefund.Customer.IsCashCustomer)
-                await externalProjection.PublishRefundAsync(accountBeforeRefund, order, refund);
 
             if (!accountBeforeRefund.Customer.IsCashCustomer)
             {
@@ -1096,7 +1093,7 @@ public sealed class MainWindow : Window
         if (currentCustomer is null) return;
 
         // Escape abandons only the in-memory, uncompleted customer/cart state.
-        // It does not create an order, void, refund, or FFP ledger event.
+        // It does not create an order, void, refund, or external-system event.
         ClearCustomer();
         status.Text = "Sale cancelled";
     }
