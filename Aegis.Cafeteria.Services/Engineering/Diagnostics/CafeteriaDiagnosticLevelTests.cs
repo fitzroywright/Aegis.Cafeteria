@@ -17,7 +17,7 @@ public static class CafeteriaDiagnosticModules
     public static IReadOnlySet<string> All { get; } =
         new HashSet<string>(StringComparer.Ordinal)
         {
-            Servers,
+            Services,
             Pos,
             PosUi,
             Management
