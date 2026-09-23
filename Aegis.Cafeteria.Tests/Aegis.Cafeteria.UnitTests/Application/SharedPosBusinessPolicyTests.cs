@@ -1,5 +1,6 @@
 namespace Aegis.Cafeteria.UnitTests.Application;
 
+using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Accounts;
 using Aegis.Cafeteria.Application.Orders;
 using Aegis.Cafeteria.Application.Reporting;
@@ -48,6 +49,31 @@ public sealed class SharedPosBusinessPolicyTests
         WeeklySummaryPromptDecision decision = WeeklySummaryPromptPolicy.Evaluate(account, false, "employee@example.com");
 
         Assert.False(decision.ShouldPrompt);
+    }
+
+
+    [Fact]
+    public void TenderCustomerPolicy_DisablesAccountTenderForCashCustomer()
+    {
+        TenderCustomerContext context = TenderCustomerPolicy.Evaluate
+        (
+            Account(isCash: true, eligible: false, amountDue: 0m, closed: false)
+        );
+
+        Assert.False(context.CafeteriaAccountAllowed);
+        Assert.False(context.CreditSalesAllowed);
+        Assert.Equal(0m, context.AvailableToSpend);
+    }
+
+    [Fact]
+    public void RefundEligibility_RejectsDraftOrder()
+    {
+        Order order = new(Guid.NewGuid(), 42, DateTimeOffset.UtcNow);
+        order.AddItem(new OrderItem(1, "Lunch", 500m, 1));
+
+        RefundEligibility result = RefundEligibilityPolicy.Evaluate(order);
+
+        Assert.False(result.Allowed);
     }
 
     [Fact]
