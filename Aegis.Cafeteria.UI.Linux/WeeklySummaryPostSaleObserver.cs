@@ -28,11 +28,6 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
         Order order,
         CancellationToken cancellationToken = default)
     {
-        if (account.Customer.IsCashCustomer || !account.Customer.IsEligibleForCredit)
-        {
-            return;
-        }
-
         CustomerNotificationPreferenceSnapshot preference;
         try
         {
@@ -47,14 +42,17 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
             preference = new CustomerNotificationPreferenceSnapshot(account.Customer.Id, false, false, null);
         }
 
-        if (preference.PreferenceAsked)
+        WeeklySummaryPromptDecision decision = WeeklySummaryPromptPolicy.Evaluate
+        (
+              account
+            , preference.PreferenceAsked
+            , preference.EmailAddress
+        );
+
+        if (!decision.ShouldPrompt)
         {
             return;
         }
-
-        string suggestedEmail = !string.IsNullOrWhiteSpace(preference.EmailAddress)
-            ? preference.EmailAddress
-            : account.Customer.EmailAddress;
 
         WeeklySummaryPreferenceResult? result = await Dispatcher.UIThread.InvokeAsync(async () =>
         {
@@ -64,7 +62,7 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
                 return null;
             }
 
-            WeeklySummaryPreferenceWindow dialog = new(account.Customer.Name, suggestedEmail);
+            WeeklySummaryPreferenceWindow dialog = new(account.Customer.Name, decision.SuggestedEmail);
             return await dialog.ShowDialog<WeeklySummaryPreferenceResult?>(owner);
         });
 
