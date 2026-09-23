@@ -68,9 +68,7 @@ public static class CafeteriaRuntimeOptionsResolver
     {
         IConfigurationSection p = configuration.GetSection("Persistence");
         IConfigurationSection log = configuration.GetSection("Logging");
-        IConfigurationSection ffp = allowDirectFfpDatabase
-            ? configuration.GetSection("FfpIntegration")
-            : new ConfigurationBuilder().AddInMemoryCollection().Build().GetSection("FfpIntegration");
+        IConfigurationSection ffp = configuration.GetSection("FfpIntegration");
         IConfigurationSection health = configuration.GetSection("Health");
         IConfigurationSection messaging = configuration.GetSection("Messaging");
         IConfigurationSection svc = configuration.GetSection("CafeteriaServices");
