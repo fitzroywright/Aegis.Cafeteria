@@ -3,6 +3,7 @@ namespace Aegis.Cafeteria.Services.Workers;
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Domain.Accounts;
+using Aegis.Cafeteria.Services;
 using Aegis.Cafeteria.Services.Persistence;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
