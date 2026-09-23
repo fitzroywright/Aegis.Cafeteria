@@ -1,11 +1,9 @@
 namespace Aegis.Cafeteria.UnitTests.Orders;
 
 using Aegis.Cafeteria.Application.Abstractions;
-using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Application.Orders;
 using Aegis.Cafeteria.Application.Reporting;
 using Aegis.Cafeteria.Domain.Accounts;
-using Aegis.Cafeteria.Domain.Customers;
 using Aegis.Cafeteria.Domain.Identification;
 using Aegis.Cafeteria.Domain.Orders;
 using Aegis.Cafeteria.Domain.Products;
@@ -80,7 +78,7 @@ public sealed class PosCheckoutServiceTests
     {
         FakeStore store = new();
         RecordingObserver observer = new(store);
-        PosCheckoutService service = new(store, null, [observer]);
+        PosCheckoutService service = new(store, [observer]);
 
         Order order = await service.CompleteAsync(
             new PosCheckoutRequest(
@@ -99,32 +97,10 @@ public sealed class PosCheckoutServiceTests
     }
 
     [Fact]
-    public async Task CompleteAsync_InvokesObserverAfterExternalProjection()
-    {
-        List<string> sequence = [];
-        FakeStore store = new(sequence);
-        RecordingProjection projection = new(sequence);
-        SequenceObserver observer = new(sequence);
-        PosCheckoutService service = new(store, projection, [observer]);
-
-        await service.CompleteAsync(
-            new PosCheckoutRequest(
-                View(1_000m),
-                [new PosOrderLine(1, "Lunch", 1_000m, 1)],
-                1_000m,
-                0m,
-                0m,
-                "fwright",
-                "CAFETERIA-POS"));
-
-        Assert.Equal(["save", "projection", "observer"], sequence);
-    }
-
-    [Fact]
     public async Task CompleteAsync_ObserverFailure_DoesNotFailCommittedSale()
     {
         FakeStore store = new();
-        PosCheckoutService service = new(store, null, [new ThrowingObserver()]);
+        PosCheckoutService service = new(store, [new ThrowingObserver()]);
 
         Order order = await service.CompleteAsync(
             new PosCheckoutRequest(
@@ -144,7 +120,7 @@ public sealed class PosCheckoutServiceTests
     public async Task CompleteAsync_NoObservers_CompletesNormally()
     {
         FakeStore store = new();
-        PosCheckoutService service = new(store, null, []);
+        PosCheckoutService service = new(store, []);
 
         Order order = await service.CompleteAsync(
             new PosCheckoutRequest(
@@ -289,24 +265,6 @@ public sealed class PosCheckoutServiceTests
             sequence.Add("observer");
             return Task.CompletedTask;
         }
-    }
-
-    private sealed class RecordingProjection(List<string> sequence) : IExternalLedgerProjectionService
-    {
-        public Task PublishCompletedOrderAsync(CustomerAccountView accountBeforePurchase, Order order, CancellationToken cancellationToken = default)
-        {
-            sequence.Add("projection");
-            return Task.CompletedTask;
-        }
-
-        public Task PublishMonthlyAllocationAsync(Customer customer, MonthlyCreditAllocation allocation, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
-
-        public Task PublishRefundAsync(CustomerAccountView accountBeforeRefund, Order order, OrderRefund refund, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
-
-        public Task PublishAdjustmentAsync(int customerId, Guid operationId, ExternalLedgerEntryKind kind, DateTimeOffset occurredAt, string description, decimal signedAvailabilityChange, decimal creditLimit, decimal availableBalance, CancellationToken cancellationToken = default, string userName = "SYSTEM", string idName = "Cafeteria Adjustment", string scanCode = "ADJUSTMENT")
-            => Task.CompletedTask;
     }
 
     private sealed class FakeStore(List<string>? sequence = null) : ICafeteriaPersistenceStore
