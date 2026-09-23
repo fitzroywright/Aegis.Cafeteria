@@ -322,7 +322,7 @@ public sealed class MainWindow : Window
             new { Name = "Overview & KPIs", Kinds = new[] { CafeteriaReportKind.ExecutiveSummary } },
             new { Name = "Sales & Purchases", Kinds = new[] { CafeteriaReportKind.DailySales, CafeteriaReportKind.SalesTrend, CafeteriaReportKind.TenderMix, CafeteriaReportKind.ProductSales, CafeteriaReportKind.PurchaseItemDetail, CafeteriaReportKind.PurchaseByPerson } },
             new { Name = "Employee & Credit", Kinds = new[] { CafeteriaReportKind.CanteenSummary, CafeteriaReportKind.EmployeeStatement, CafeteriaReportKind.MonthlyAllocations, CafeteriaReportKind.SubsidyUtilization, CafeteriaReportKind.CustomerResponsibility, CafeteriaReportKind.OutstandingDebt } },
-            new { Name = "Audit & Reconciliation", Kinds = new[] { CafeteriaReportKind.RefundVoidAudit, CafeteriaReportKind.AdditionalCreditAudit, CafeteriaReportKind.FfpReconciliation } }
+            new { Name = "Audit & Reconciliation", Kinds = new[] { CafeteriaReportKind.RefundVoidAudit, CafeteriaReportKind.AdditionalCreditAudit, CafeteriaReportKind.ExternalSystemReconciliation } }
         })
         {
             var parent = new MenuItem
