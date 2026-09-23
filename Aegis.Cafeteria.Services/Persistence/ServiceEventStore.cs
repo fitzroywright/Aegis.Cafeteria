@@ -306,6 +306,7 @@ public sealed class ServiceEventStore
     public async Task<IReadOnlyList<CafeteriaServiceEventEnvelope>> GetPendingFfpPublicationAsync
     (
           int take
+        , int poisonMessageAttemptLimit
         , CancellationToken cancellationToken = default
     )
     {
@@ -313,7 +314,8 @@ public sealed class ServiceEventStore
 
         List<ServiceEventRow> rows = await database.Events
             .AsNoTracking()
-            .Where(serviceEvent => serviceEvent.FfpPublishedAt == null)
+            .Where(serviceEvent => serviceEvent.FfpPublishedAt == null
+                && serviceEvent.FfpAttemptCount < poisonMessageAttemptLimit)
             .OrderBy(serviceEvent => serviceEvent.Sequence)
             .Take(Math.Clamp(take, 1, 200))
             .ToListAsync(cancellationToken);
