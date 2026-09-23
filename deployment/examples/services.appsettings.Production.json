@@ -44,5 +44,19 @@
     "BatchSize": 100,
     "RetryIntervalSeconds": 15,
     "PoisonMessageAttemptLimit": 25
+  },
+  "Aegis": {
+    "PublicUrl": "https://cafeteria-services.example.internal",
+    "Configuration": {
+      "Url": "https://configuration.example.internal"
+    },
+    "Diagnostics": {
+      "Url": "https://diagnostics.example.internal",
+      "RequestCredentialSecretName": "diagnostics/machine/Aegis.Cafeteria.Services",
+      "StorePath": "C:\\ProgramData\\Aegis.Cafeteria.Services\\diagnostic-level.db"
+    }
+  },
+  "Service": {
+    "Identity": "cafeteria-services-production"
   }
 }
