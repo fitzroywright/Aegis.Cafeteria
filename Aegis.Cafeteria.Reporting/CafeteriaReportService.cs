@@ -39,7 +39,7 @@ public sealed class CafeteriaReportService(
             CafeteriaReportKind.OutstandingDebt => await ResponsibilityAsync(filter, cancellationToken, true),
             CafeteriaReportKind.RefundVoidAudit => await RefundVoidAuditAsync(filter, cancellationToken),
             CafeteriaReportKind.AdditionalCreditAudit => await AdditionalCreditAuditAsync(filter, cancellationToken),
-            CafeteriaReportKind.ExternalSystemReconciliation => await ExternalSystemReconciliationAsync(filter, cancellationToken),
+            CafeteriaReportKind.ExternalSystemReconciliation => await FfpReconciliationAsync(filter, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
         };
     }
