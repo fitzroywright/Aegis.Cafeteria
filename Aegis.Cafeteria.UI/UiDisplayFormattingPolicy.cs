@@ -260,14 +260,4 @@ internal static class UiDisplayFormattingPolicy
         }
     }
 
-    private sealed record RefundSelectionTransactionRow
-    (
-          DateTime Date
-        , string Kind
-        , string Description
-        , decimal Amount
-        , decimal Account
-        , decimal Cash
-        , Guid ReferenceId
-    );
 }
