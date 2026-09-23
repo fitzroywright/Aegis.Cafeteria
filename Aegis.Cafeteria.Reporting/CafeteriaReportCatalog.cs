@@ -21,6 +21,6 @@ public static class CafeteriaReportCatalog
         new(CafeteriaReportKind.RefundVoidAudit, "Refund and void audit", "Refunds and voided orders with operator/reason detail.", true, false),
         new(CafeteriaReportKind.AdditionalCreditAudit, "Additional credit audit", "Manager-approved additional credit events.", true, false),
         new(CafeteriaReportKind.OutstandingDebt, "Outstanding debt", "Outstanding customer liabilities across employees.", true, false),
-        new(CafeteriaReportKind.FfpReconciliation, "FFP reconciliation", "Cafeteria calculated balances compared with FFP employee summary balances.", true, false)
+        new(CafeteriaReportKind.ExternalSystemReconciliation, "External system reconciliation", "Cafeteria calculated balances compared with the configured external accounting system.", true, false)
     ];
 }
