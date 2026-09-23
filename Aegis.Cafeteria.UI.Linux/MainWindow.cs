@@ -386,9 +386,9 @@ public sealed class MainWindow : Window
         ReportCatalogItem metadata = CafeteriaReportCatalog.All.Single(item => item.Kind == kind);
         MenuItem reportItem = new()
         {
-              Header = metadata.Name
-            , ToolTip = new ToolTip { Content = metadata.Description }
+            Header = metadata.Name
         };
+        ToolTip.SetTip(reportItem, metadata.Description);
         reportItem.Click += async (_, _) => await OpenReportCenterAsync(kind);
         return reportItem;
     }
