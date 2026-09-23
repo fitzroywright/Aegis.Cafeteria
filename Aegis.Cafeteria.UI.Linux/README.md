@@ -55,3 +55,7 @@ The Linux idle dashboard now matches the Windows layout with daily KPI cards, a 
 ## Business-rule boundary
 
 The POS UI must not own cafeteria business rules. Tender eligibility/allocation, customer responsibility, refund eligibility/allocation, customer-payment eligibility, manager enforcement for product/price maintenance, and weekly-summary prompt decisions are shared Application/Domain policies. The UI may parse input, display policy results, choose colors/layout, request confirmation or credentials, and show validation messages, but it must not duplicate or replace those rules.
+
+## Presentation boundary
+
+Cross-platform display semantics come from `Aegis.Cafeteria.Presentation`. Currency/date/time formatting and shared cafeteria terminology must be added there when Windows and Linux should render the same meaning. Framework-specific controls, colors, fonts, layout and interaction remain in this UI project.
