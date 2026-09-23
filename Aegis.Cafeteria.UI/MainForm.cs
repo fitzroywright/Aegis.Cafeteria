@@ -366,7 +366,7 @@ public sealed class MainForm : Form
         var audit = ReportCategory("Audit & Reconciliation");
         audit.DropDownItems.Add(ReportMenuItem("Refund && Void Audit", CafeteriaReportKind.RefundVoidAudit));
         audit.DropDownItems.Add(ReportMenuItem("Additional Credit Audit", CafeteriaReportKind.AdditionalCreditAudit));
-        audit.DropDownItems.Add(ReportMenuItem("External System Reconciliation", CafeteriaReportKind.FfpReconciliation));
+        audit.DropDownItems.Add(ReportMenuItem("External System Reconciliation", CafeteriaReportKind.ExternalSystemReconciliation));
 
         reports.DropDownItems.Add(overview);
         reports.DropDownItems.Add(sales);
