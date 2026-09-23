@@ -12,7 +12,6 @@ namespace Aegis.Cafeteria.Infrastructure.Health;
 public sealed class CafeteriaHeartbeatWorker(
       CafeteriaHealthOptions options
     , CafeteriaPersistenceOptions persistence
-    , IFfpPublicationStatusProvider publication
     , ICustomerReferenceCacheStatus employeeCacheStatus
     , ILogger<CafeteriaHeartbeatWorker> logger) : BackgroundService
 {
@@ -31,7 +30,6 @@ public sealed class CafeteriaHeartbeatWorker(
 
             try
             {
-                FfpPublicationStatus ffp = await publication.GetAsync(stoppingToken);
                 CustomerReferenceCacheStatus cache = await employeeCacheStatus.GetAsync(stoppingToken);
                 int? age = cache.CacheUpdatedAtUtc.HasValue
                     ? Math.Max(0, (int)(now - cache.CacheUpdatedAtUtc.Value).TotalMinutes)
@@ -39,17 +37,12 @@ public sealed class CafeteriaHeartbeatWorker(
 
                 object payload = new
                 {
-                      status = ffp.PoisonedOperations > 0 || cache.EmployeeCount == 0 || age >= options.EmployeeCacheCriticalMinutes ? "degraded" : "running"
+                      status = cache.EmployeeCount == 0 || age >= options.EmployeeCacheCriticalMinutes ? "degraded" : "running"
                     , application = "Aegis.Cafeteria.POS"
                     , terminalId = persistence.TerminalId
                     , machine = Environment.MachineName
                     , processId = Environment.ProcessId
                     , timeUtc = now
-                    , ffpIntegrationEnabled = ffp.Enabled
-                    , ffpPendingOperations = ffp.PendingOperations
-                    , ffpPoisonedOperations = ffp.PoisonedOperations
-                    , lastSuccessfulFfpPublishUtc = ffp.LastSuccessfulPublication
-                    , ffpLastError = ffp.LastError
                     , employeeCacheCount = cache.EmployeeCount
                     , employeeCacheIdentifierCount = cache.IdentifierCount
                     , employeeCacheLastRefreshUtc = cache.CacheUpdatedAtUtc
@@ -68,10 +61,8 @@ public sealed class CafeteriaHeartbeatWorker(
                 if (now - lastGraylogHeartbeat >= TimeSpan.FromMinutes(options.GraylogHeartbeatEveryMinutes))
                 {
                     logger.LogInformation(
-                        "Cafeteria heartbeat terminal={TerminalId} ffpPending={FfpPending} ffpPoisoned={FfpPoisoned} employeeCacheCount={EmployeeCacheCount} employeeCacheAgeMinutes={EmployeeCacheAgeMinutes}"
+                        "Cafeteria heartbeat terminal={TerminalId} employeeCacheCount={EmployeeCacheCount} employeeCacheAgeMinutes={EmployeeCacheAgeMinutes}"
                         , persistence.TerminalId
-                        , ffp.PendingOperations
-                        , ffp.PoisonedOperations
                         , cache.EmployeeCount
                         , age);
 
