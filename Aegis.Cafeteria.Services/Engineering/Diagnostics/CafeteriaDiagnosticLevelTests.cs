@@ -9,7 +9,7 @@ namespace Aegis.Cafeteria.Services.Engineering.Diagnostics;
 
 public static class CafeteriaDiagnosticModules
 {
-    public const string Servers = "Cafeteria.Servers";
+    public const string Services = "Cafeteria.Services";
     public const string Pos = "Cafeteria.POS";
     public const string PosUi = "Cafeteria.POS.UI";
     public const string Management = "Cafeteria.Management";
@@ -49,7 +49,7 @@ public sealed class CafeteriaDatabaseConnectivityDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.DatabaseConnectivity;
     public string Name => "Services database connectivity";
-    public string Owner => CafeteriaDiagnosticModules.Servers;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level5Scan;
     public bool IsDestructive => false;
 
@@ -75,7 +75,7 @@ public sealed class CafeteriaDatabaseIntegrityDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.DatabaseIntegrity;
     public string Name => "Services database integrity";
-    public string Owner => CafeteriaDiagnosticModules.Servers;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level5Scan;
     public bool IsDestructive => false;
 
@@ -113,7 +113,7 @@ public sealed class CafeteriaConfigurationDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.Configuration;
     public string Name => "Required service configuration";
-    public string Owner => CafeteriaDiagnosticModules.Servers;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level5Scan;
     public bool IsDestructive => false;
 
@@ -142,7 +142,7 @@ public sealed class CafeteriaRuntimeIdentityDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.RuntimeIdentity;
     public string Name => "Runtime identity";
-    public string Owner => CafeteriaDiagnosticModules.Servers;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level5Scan;
     public bool IsDestructive => false;
 
@@ -165,7 +165,7 @@ public sealed class CafeteriaDiagnosticStoreIntegrityDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.DiagnosticStore;
     public string Name => "Diagnostic run store";
-    public string Owner => CafeteriaDiagnosticModules.Servers;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level5Scan;
     public bool IsDestructive => false;
 
@@ -189,7 +189,7 @@ public sealed class CafeteriaWorkforceSourceDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.WorkforceSource;
     public string Name => "External workforce source";
-    public string Owner => CafeteriaDiagnosticModules.Servers;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
     public bool IsDestructive => false;
 
@@ -216,7 +216,7 @@ public sealed class CafeteriaHolidaySourceDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.HolidaySource;
     public string Name => "Holiday reference source";
-    public string Owner => CafeteriaDiagnosticModules.Servers;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
     public bool IsDestructive => false;
 
@@ -241,7 +241,7 @@ public sealed class CafeteriaSecretsCredentialDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.SecretsCredential;
     public string Name => "Diagnostic credential availability";
-    public string Owner => CafeteriaDiagnosticModules.Servers;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
     public bool IsDestructive => false;
 
@@ -270,7 +270,7 @@ public sealed class CafeteriaPublicationQueueDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.PublicationQueue;
     public string Name => "External publication queue";
-    public string Owner => CafeteriaDiagnosticModules.Servers;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
     public bool IsDestructive => false;
 
@@ -299,7 +299,7 @@ public sealed class CafeteriaAccountingGatewayDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.AccountingGateway;
     public string Name => "External accounting gateway";
-    public string Owner => CafeteriaDiagnosticModules.Servers;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
     public bool IsDestructive => false;
 
@@ -440,7 +440,7 @@ public sealed class CafeteriaRecoveryReadinessDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.RecoveryReadiness;
     public string Name => "Publication recovery readiness";
-    public string Owner => CafeteriaDiagnosticModules.Servers;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level2Repair;
     public bool IsDestructive => false;
 
@@ -461,7 +461,7 @@ public sealed class CafeteriaExhaustiveConsistencyDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.ExhaustiveConsistency;
     public string Name => "Cafeteria service consistency certification";
-    public string Owner => CafeteriaDiagnosticModules.Servers;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level1CriticalIntervention;
     public bool IsDestructive => false;
 
