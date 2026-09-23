@@ -1,6 +1,6 @@
 # Windows POS — v47
 
-The Windows POS uses local SQLite plus FFP integration; there is no Aegis central server/database. Startup refreshes FFP reference data when available, then authenticates the operator through Common.Security. Normal sales record cashier and terminal. Refunds/voids require manager authorization.
+The Windows POS uses local SQLite for offline operation and Cafeteria Services as its external-system boundary. The POS does not contain FFP transaction mappings or direct FFP database configuration. Startup refreshes cafeteria reference data from Cafeteria Services when available, then authenticates the operator through Common.Security. Normal sales record cashier and terminal. Refunds/voids require manager authorization.
 
 With a second monitor, the customer display opens borderless/maximized on that monitor and shows customer profile/account data plus the previous calendar month's transaction history. It never displays employee number/TRN/NFC/barcode identifiers.
 
