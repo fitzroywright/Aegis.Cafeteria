@@ -1,3 +1,4 @@
+using Common.Diagnostics;
 using Common.Registration;
 using Aegis.Cafeteria.Services;
 
@@ -12,6 +13,7 @@ builder.Services.AddAegisOperationsLogging(builder.Configuration, "Aegis.Cafeter
 builder.Services.AddHostedService<Aegis.Cafeteria.Services.OperationsTelemetryPublisher>();
 
 WebApplication app = builder.Build();
+app.MapDiagnosticLevelRuntime();
 CafeteriaServicesPipeline.ConfigureLogging(app);
 await CafeteriaServiceDatabase.InitializeAsync(app, app.Lifetime.ApplicationStopping);
 CafeteriaServicesPipeline.Configure(app);
