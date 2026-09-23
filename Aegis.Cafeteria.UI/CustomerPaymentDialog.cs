@@ -1,5 +1,7 @@
 namespace Aegis.Cafeteria.UI;
 
+using Aegis.Cafeteria.Application.Accounts;
+
 public sealed class CustomerPaymentDialog : Form
 {
     private static readonly Color Navy = Color.FromArgb(24, 45, 68);
@@ -67,7 +69,7 @@ public sealed class CustomerPaymentDialog : Form
     public string PaymentMethod => this.method.SelectedItem?.ToString() ?? "Cash";
     public string? Reference => string.IsNullOrWhiteSpace(this.reference.Text) ? null : this.reference.Text.Trim();
 
-    private void UpdateRemaining() => this.remaining.Text = Math.Max(0m, this.amountDue - this.amount.Value).ToString("C2");
+    private void UpdateRemaining() => this.remaining.Text = CustomerPaymentPolicy.RemainingAmount(this.amountDue, this.amount.Value).ToString("C2");
 
     private static void AddRow(TableLayoutPanel root, int row, string caption, Control value)
     {
