@@ -48,7 +48,7 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
     [Fact]
     public void Required_Cafeteria_modules_are_defined()
     {
-        Assert.Contains(CafeteriaDiagnosticModules.Servers, CafeteriaDiagnosticModules.All);
+        Assert.Contains(CafeteriaDiagnosticModules.Services, CafeteriaDiagnosticModules.All);
         Assert.Contains(CafeteriaDiagnosticModules.Pos, CafeteriaDiagnosticModules.All);
         Assert.Contains(CafeteriaDiagnosticModules.PosUi, CafeteriaDiagnosticModules.All);
         Assert.Contains(CafeteriaDiagnosticModules.Management, CafeteriaDiagnosticModules.All);
