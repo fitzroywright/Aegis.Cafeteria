@@ -104,6 +104,19 @@ public sealed record ProductCatalogImportServiceEvent
     , DateTimeOffset ImportedAt
 );
 
+public sealed record LegacyTransactionLedgerSnapshot
+(
+      long SourceId
+    , int CustomerId
+    , DateTimeOffset OccurredAt
+    , string IdName
+    , string Description
+    , decimal ScanValue
+    , string UserName
+    , string ScanCode
+    , int ScanType
+);
+
 public sealed record LegacyTransactionImportServiceEvent
 (
       Guid OperationId
