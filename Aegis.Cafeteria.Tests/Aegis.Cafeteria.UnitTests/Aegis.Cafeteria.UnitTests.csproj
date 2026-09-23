@@ -8,11 +8,11 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4"><PrivateAssets>all</PrivateAssets><IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets></PackageReference>
-      <ProjectReference Include="..\..\Aegis.Cafeteria.Presentation\Aegis.Cafeteria.Presentation.csproj" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\Aegis.Cafeteria.Domain\Aegis.Cafeteria.Domain.csproj" />
     <ProjectReference Include="..\..\Aegis.Cafeteria.Application\Aegis.Cafeteria.Application.csproj" />
+    <ProjectReference Include="..\..\Aegis.Cafeteria.Presentation\Aegis.Cafeteria.Presentation.csproj" />
     <ProjectReference Include="..\..\Aegis.Cafeteria.Infrastructure\Aegis.Cafeteria.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Aegis.Cafeteria.Services\Aegis.Cafeteria.Services.csproj" />
     <ProjectReference Include="$(CommonRoot)\Common.Security\Common.Security.csproj" />
