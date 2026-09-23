@@ -1,3 +1,4 @@
+using Aegis.Cafeteria.Application.Orders;
 using Aegis.Cafeteria.Domain.Orders;
 using Avalonia;
 using Avalonia.Controls;
@@ -11,6 +12,7 @@ public sealed class RefundWindow : Window
     private readonly List<RowModel> rows = [];
     private readonly TextBox accountAmount = new() { Text = "0.00" };
     private readonly TextBlock total = new() { FontWeight = Avalonia.Media.FontWeight.Bold };
+    private readonly TextBlock credit = new() { FontWeight = Avalonia.Media.FontWeight.Bold };
     private readonly TextBlock cash = new() { FontWeight = Avalonia.Media.FontWeight.Bold };
     private readonly TextBlock remainingTender = new();
     private readonly StackPanel itemPanel = new() { Spacing = 6, MinHeight = 185 };
@@ -55,8 +57,9 @@ public sealed class RefundWindow : Window
         tender.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         tender.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
         AddTender(tender, 0, 0, "Refund Total", total);
-        AddTender(tender, 0, 2, "Cafeteria Account", accountAmount);
-        AddTender(tender, 1, 2, "Cash Refund", cash);
+        AddTender(tender, 0, 2, "Employee Card", accountAmount);
+        AddTender(tender, 1, 2, "Employee Credit Reduction", credit);
+        AddTender(tender, 2, 2, "Cash Refund", cash);
         Grid.SetRow(remainingTender, 1); Grid.SetColumn(remainingTender, 0); Grid.SetColumnSpan(remainingTender, 2); tender.Children.Add(remainingTender);
         accountAmount.TextChanged += (_, _) => UpdateSummary(false);
         Grid.SetRow(tender, 3); root.Children.Add(tender);
@@ -76,7 +79,9 @@ public sealed class RefundWindow : Window
     public IReadOnlyList<(Guid OrderItemId, int Quantity)> SelectedItems => rows.Where(x => x.RefundQuantity > 0).Select(x => (x.OrderItemId, x.RefundQuantity)).ToArray();
     public decimal RefundTotal => rows.Sum(x => x.UnitPrice * x.RefundQuantity);
     public decimal CafeteriaAccountAmount => decimal.TryParse(accountAmount.Text, out var value) ? value : 0m;
-    public decimal CashAmount => Math.Max(0m, RefundTotal - CafeteriaAccountAmount);
+    private RefundQuote CurrentQuote => RefundQuoteCalculator.Calculate(order, SelectedItems, CafeteriaAccountAmount);
+    public decimal CreditAmount => CurrentQuote.CreditAmount;
+    public decimal CashAmount => CurrentQuote.CashAmount;
 
     private void BuildItems()
     {
@@ -102,27 +107,31 @@ public sealed class RefundWindow : Window
 
     private void UpdateSummary(bool resetAccountDefault)
     {
-        var refundTotal = RefundTotal;
-        var remainingAccount = Math.Max(0m, order.CafeteriaAccountPaid - order.CafeteriaAccountRefunded);
-        var remainingCash = Math.Max(0m, order.CashPaid - order.CashRefunded);
-        var minimumAccount = Math.Max(0m, refundTotal - remainingCash);
-        var maximumAccount = Math.Min(refundTotal, remainingAccount);
-        if (resetAccountDefault || !decimal.TryParse(accountAmount.Text, out var current) || current < minimumAccount || current > maximumAccount)
-            accountAmount.Text = Math.Min(maximumAccount, Math.Max(minimumAccount, Math.Min(refundTotal, remainingAccount))).ToString("0.00");
-        total.Text = refundTotal.ToString("C2");
-        cash.Text = CashAmount.ToString("C2");
-        remainingTender.Text = $"Remaining original tender: account {remainingAccount:C2}, cash {remainingCash:C2}";
+        RefundQuote quote = RefundQuoteCalculator.Calculate
+        (
+              order
+            , SelectedItems
+            , resetAccountDefault ? null : CafeteriaAccountAmount
+        );
+
+        accountAmount.Text = quote.CafeteriaAccountAmount.ToString("0.00");
+        total.Text = quote.RefundTotal.ToString("C2");
+        credit.Text = quote.CreditAmount.ToString("C2");
+        cash.Text = quote.CashAmount.ToString("C2");
+        remainingTender.Text =
+            $"Remaining original tender: Employee Card {quote.RemainingCafeteriaAccount:C2}, Credit {quote.RemainingCredit:C2}, Cash {quote.RemainingCash:C2}";
     }
 
     private bool ValidateSelection()
     {
-        if (SelectedItems.Count == 0) { remainingTender.Text = "Select at least one item quantity to refund."; return false; }
-        if (rows.Any(x => x.RefundQuantity < 0 || x.RefundQuantity > x.RemainingQuantity)) { remainingTender.Text = "A refund quantity exceeds the remaining refundable quantity."; return false; }
-        var remainingAccount = order.CafeteriaAccountPaid - order.CafeteriaAccountRefunded;
-        var remainingCash = order.CashPaid - order.CashRefunded;
-        if (CafeteriaAccountAmount < 0m || CafeteriaAccountAmount > remainingAccount || CashAmount > remainingCash || CafeteriaAccountAmount + CashAmount != RefundTotal)
-        { remainingTender.Text = "Refund tender must equal the selected refund total and stay within the original tender."; return false; }
-        return true;
+        RefundQuote quote = RefundQuoteCalculator.Calculate(order, SelectedItems, CafeteriaAccountAmount);
+        if (quote.IsValid)
+        {
+            return true;
+        }
+
+        remainingTender.Text = quote.ValidationMessage ?? "Refund selection is invalid.";
+        return false;
     }
 
     private static void AddTender(Grid grid, int row, int column, string caption, Control value)
