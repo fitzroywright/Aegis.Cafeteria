@@ -1,4 +1,5 @@
 using Aegis.Cafeteria.Application.Orders;
+using Aegis.Cafeteria.Presentation;
 using Aegis.Cafeteria.Domain.Orders;
 using Avalonia;
 using Avalonia.Controls;
@@ -93,7 +94,7 @@ public sealed class RefundWindow : Window
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(80)));
             grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(90)));
             grid.Children.Add(new TextBlock { Text = row.ProductName, VerticalAlignment = VerticalAlignment.Center });
-            var price = new TextBlock { Text = row.UnitPrice.ToString("C2"), VerticalAlignment = VerticalAlignment.Center };
+            var price = new TextBlock { Text = CafeteriaDisplay.Money(row.UnitPrice), VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(price, 1); grid.Children.Add(price);
             var available = new TextBlock { Text = $"Avail {row.RemainingQuantity}", VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(available, 2); grid.Children.Add(available);
@@ -115,11 +116,11 @@ public sealed class RefundWindow : Window
         );
 
         accountAmount.Text = quote.CafeteriaAccountAmount.ToString("0.00");
-        total.Text = quote.RefundTotal.ToString("C2");
-        credit.Text = quote.CreditAmount.ToString("C2");
-        cash.Text = quote.CashAmount.ToString("C2");
+        total.Text = CafeteriaDisplay.Money(quote.RefundTotal);
+        credit.Text = CafeteriaDisplay.Money(quote.CreditAmount);
+        cash.Text = CafeteriaDisplay.Money(quote.CashAmount);
         remainingTender.Text =
-            $"Remaining original tender: Employee Card {quote.RemainingCafeteriaAccount:C2}, Credit {quote.RemainingCredit:C2}, Cash {quote.RemainingCash:C2}";
+            CafeteriaDisplayText.RemainingOriginalTender(quote.RemainingCafeteriaAccount, quote.RemainingCredit, quote.RemainingCash);
     }
 
     private bool ValidateSelection()
