@@ -21,7 +21,7 @@ internal sealed class StartupSplashForm : Form
         MinimizeBox = false;
         ShowInTaskbar = true;
         StartPosition = FormStartPosition.CenterScreen;
-        Text = "Food For The Poor Jamaica - Cafeteria";
+        Text = "Cafeteria";
         TopMost = true;
 
         Icon? applicationIcon = Icon.ExtractAssociatedIcon(System.Windows.Forms.Application.ExecutablePath);
@@ -57,7 +57,7 @@ internal sealed class StartupSplashForm : Form
             ForeColor = Color.White,
             Font = new Font("Segoe UI", 19F, FontStyle.Bold),
             Location = new Point(125, 24),
-            Text = "FOOD FOR THE POOR JAMAICA"
+            Text = "CAFETERIA"
         };
 
         Label application = new()
