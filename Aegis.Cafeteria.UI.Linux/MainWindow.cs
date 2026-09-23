@@ -519,8 +519,14 @@ public sealed class MainWindow : Window
         var root = new Grid { RowSpacing = 12 };
         root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         root.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
-        root.Children.Add(new TextBlock { Text = "DAILY DASHBOARD", FontSize = 18, FontWeight = FontWeight.Bold, Foreground = new SolidColorBrush(Color.Parse("#182D44")) });
+        root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+
+        StackPanel heading = new() { Spacing = 4 };
+        heading.Children.Add(new TextBlock { Text = "DAILY DASHBOARD", FontSize = 18, FontWeight = FontWeight.Bold, Foreground = new SolidColorBrush(Color.Parse("#182D44")) });
+        heading.Children.Add(new TextBlock { Text = "Today's KPIs with this week's Monday–Friday sales trend.", Foreground = new SolidColorBrush(Color.Parse("#687584")) });
+        root.Children.Add(heading);
 
         var metrics = new Grid { ColumnSpacing = 10 };
         for (var i = 0; i < 3; i++) metrics.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
@@ -529,12 +535,32 @@ public sealed class MainWindow : Window
         var rf = DashboardMetric("Refunds", todayRefunds); Grid.SetColumn(rf, 2); metrics.Children.Add(rf);
         Grid.SetRow(metrics, 1); root.Children.Add(metrics);
 
-        var pies = new Grid { ColumnSpacing = 16 };
-        pies.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-        pies.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
-        pies.Children.Add(todayItemsByQuantity); Grid.SetColumn(todayItemsByValue, 1); pies.Children.Add(todayItemsByValue);
-        var pieHost = new Grid { RowSpacing = 6 }; pieHost.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star))); pieHost.RowDefinitions.Add(new RowDefinition(GridLength.Auto)); pieHost.Children.Add(pies); Grid.SetRow(todayDashboardStatus, 1); pieHost.Children.Add(todayDashboardStatus);
-        Grid.SetRow(pieHost, 2); root.Children.Add(pieHost);
+        var charts = new Grid { ColumnSpacing = 16, MinHeight = 225 };
+        charts.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+        charts.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+        charts.Children.Add(weeklySalesByDay);
+        Grid.SetColumn(todayItemsByValue, 1);
+        charts.Children.Add(todayItemsByValue);
+        Grid.SetRow(charts, 2);
+        root.Children.Add(charts);
+
+        StackPanel ready = new() { Spacing = 4, Margin = new Thickness(0, 8, 0, 0) };
+        ready.Children.Add(new TextBlock { Text = "Ready for customer", FontSize = 16, FontWeight = FontWeight.Bold, Foreground = new SolidColorBrush(Color.Parse("#182D44")) });
+        ready.Children.Add(new TextBlock { Text = "Scan a card, enter an identifier, or press Find with an empty search box to browse customers.", TextWrapping = TextWrapping.Wrap, Foreground = new SolidColorBrush(Color.Parse("#687584")) });
+        Grid.SetRow(ready, 3);
+        root.Children.Add(ready);
+
+        Grid footer = new() { ColumnSpacing = 10, Margin = new Thickness(0, 10, 0, 0) };
+        footer.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(1, GridUnitType.Star)));
+        footer.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+        footer.Children.Add(todayDashboardStatus);
+        Button openReport = new() { Content = "Open Daily Sales Report", MinWidth = 185, MinHeight = 38 };
+        openReport.Click += async (_, _) => await OpenReportCenterAsync(CafeteriaReportKind.DailySales);
+        Grid.SetColumn(openReport, 1);
+        footer.Children.Add(openReport);
+        Grid.SetRow(footer, 4);
+        root.Children.Add(footer);
+
         return root;
     }
 
@@ -1343,15 +1369,40 @@ public sealed class MainWindow : Window
             todayTransactions.Text = Metric("Transactions").ToString("N0");
             todayRefunds.Text = Money(Metric("Refunds"));
 
+            int daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
+            DateOnly monday = today.AddDays(-daysSinceMonday);
+            DateOnly friday = monday.AddDays(4);
+            var weeklyReport = await reportService.GenerateAsync(CafeteriaReportKind.DailySales, new ReportFilter(monday, friday));
+            var weeklyRows = weeklyReport.Tables
+                .FirstOrDefault(table => string.Equals(table.Title, "Daily detail", StringComparison.OrdinalIgnoreCase))?
+                .Rows ?? [];
+
+            List<(string Label, decimal Value)> weekdayValues = [];
+            for (int dayOffset = 0; dayOffset < 5; dayOffset++)
+            {
+                DateOnly day = monday.AddDays(dayOffset);
+                IReadOnlyDictionary<string, object?>? row = weeklyRows.FirstOrDefault(item =>
+                {
+                    object? dateValue = item.GetValueOrDefault("date");
+                    return dateValue is DateOnly reportDate && reportDate == day;
+                });
+
+                decimal value = row is null
+                    ? 0m
+                    : Convert.ToDecimal(row.GetValueOrDefault("net") ?? 0m);
+
+                weekdayValues.Add((day.ToString("dddd"), value));
+            }
+
+            weeklySalesByDay.SetData("SALES VALUE BY DAY — THIS WEEK", weekdayValues, "C0");
+
             var productReport = await reportService.GenerateAsync(CafeteriaReportKind.ProductSales, new ReportFilter(today, today));
             var productRows = productReport.Tables.FirstOrDefault(x => string.Equals(x.Title, "Product detail", StringComparison.OrdinalIgnoreCase))?.Rows ?? [];
             var productSales = productRows.Select(row => new
             {
                 Name = Convert.ToString(row.GetValueOrDefault("product")) ?? "Unknown",
-                Quantity = Convert.ToDecimal(row.GetValueOrDefault("quantity") ?? 0m),
                 Value = Convert.ToDecimal(row.GetValueOrDefault("sales") ?? 0m)
             }).ToArray();
-            todayItemsByQuantity.SetData("ITEMS SOLD — QUANTITY", DashboardPieBuckets(productSales.Select(x => (x.Name, x.Quantity))), "N0");
             todayItemsByValue.SetData("ITEMS SOLD — VALUE", DashboardPieBuckets(productSales.Select(x => (x.Name, x.Value))), "C0");
             todayDashboardStatus.Text = $"Updated {DateTime.Now:HH:mm}";
         }
@@ -1359,7 +1410,12 @@ public sealed class MainWindow : Window
         {
             logger.LogWarning(ex, "Could not load Linux daily dashboard");
             todayNetSales.Text = todayTransactions.Text = todayRefunds.Text = "—";
-            todayItemsByQuantity.SetData("ITEMS SOLD — QUANTITY", [], "N0");
+            weeklySalesByDay.SetData
+            (
+                  "SALES VALUE BY DAY — THIS WEEK"
+                , new[] { ("Monday", 0m), ("Tuesday", 0m), ("Wednesday", 0m), ("Thursday", 0m), ("Friday", 0m) }
+                , "C0"
+            );
             todayItemsByValue.SetData("ITEMS SOLD — VALUE", [], "C0");
             todayDashboardStatus.Text = "Dashboard temporarily unavailable";
         }
