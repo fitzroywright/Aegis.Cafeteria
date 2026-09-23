@@ -32,13 +32,17 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            await TryPublishAsync(configurationUrl, path, stoppingToken);
+            await TryPublishAsync(configurationUrl, operationsUrl, path, stoppingToken);
             try { await Task.Delay(publishInterval, stoppingToken); }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
         }
     }
 
-    private async Task<bool> TryPublishAsync(string configurationUrl, string path, CancellationToken cancellationToken)
+    private async Task<bool> TryPublishAsync(
+        string configurationUrl,
+        string operationsUrl,
+        string path,
+        CancellationToken cancellationToken)
     {
         try
         {
