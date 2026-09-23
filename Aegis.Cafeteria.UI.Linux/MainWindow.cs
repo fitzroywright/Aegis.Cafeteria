@@ -8,7 +8,6 @@ using Aegis.Cafeteria.Reporting;
 using Aegis.Cafeteria.Reporting.Export;
 using Aegis.Cafeteria.Reporting.Models;
 using System.Diagnostics;
-using IOPath = System.IO.Path;
 using Aegis.Cafeteria.Domain.Identification;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Infrastructure.Services;
@@ -20,7 +19,6 @@ using Avalonia.Layout;
 using Avalonia.Media.Imaging;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Avalonia.Platform.Storage;
 using Microsoft.Extensions.Logging;
 
 namespace Aegis.Cafeteria.UI.Linux;
@@ -1425,96 +1423,6 @@ public sealed class MainWindow : Window
     {
         var ordered = source.Where(x => x.Value > 0m).OrderByDescending(x => x.Value).ToArray();
         return ordered.Length <= 6 ? ordered : ordered.Take(5).Append(("Other", ordered.Skip(5).Sum(x => x.Value))).ToArray();
-    }
-
-    private async Task<ReportDocument?> GenerateMenuReportAsync(CafeteriaReportKind kind)
-    {
-        int? employeeId = null;
-        if (kind == CafeteriaReportKind.EmployeeStatement)
-        {
-            if (currentCustomer is null || currentCustomer.Customer.IsCashCustomer)
-            {
-                status.Text = "Select an employee before running Employee Statement.";
-                return null;
-            }
-            employeeId = currentCustomer.Customer.Id;
-        }
-        var today = DateOnly.FromDateTime(DateTime.Today);
-        var from = new DateOnly(today.Year, today.Month, 1);
-        var reportService = services.GetRequiredService<ICafeteriaReportService>();
-        return await reportService.GenerateAsync(kind, new ReportFilter(from, today, employeeId));
-    }
-
-    private async Task PreviewReportAsync(CafeteriaReportKind kind)
-    {
-        try
-        {
-            var report = await GenerateMenuReportAsync(kind);
-            if (report is null) return;
-            var exporter = services.GetServices<IReportExporter>().Single(x => string.Equals(x.Format, "HTML", StringComparison.OrdinalIgnoreCase));
-            var path = IOPath.Combine(IOPath.GetTempPath(), $"cafeteria-report-{kind}-{DateTime.Now:yyyyMMdd-HHmmss}.html");
-            status.Text = "Rendering preview...";
-            var bytes = await RenderExporterAsync(exporter, report);
-            await File.WriteAllBytesAsync(path, bytes);
-            Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
-            status.Text = $"Opened {report.Title}.";
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Could not preview report {ReportKind}", kind);
-            status.Text = $"Report error: {ex.GetBaseException().Message}";
-        }
-    }
-
-    private async Task ExportReportAsync(CafeteriaReportKind kind, string format)
-    {
-        try
-        {
-            var report = await GenerateMenuReportAsync(kind);
-            if (report is null) return;
-            var exporter = services.GetServices<IReportExporter>().Single(x => string.Equals(x.Format, format, StringComparison.OrdinalIgnoreCase));
-            var fileType = new FilePickerFileType(format switch { "XLSX" => "Excel workbook", "PDF" => "PDF document", _ => "CSV file" })
-            {
-                Patterns = [$"*{exporter.FileExtension}"]
-            };
-            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-            {
-                Title = $"Export {report.Title}",
-                SuggestedFileName = $"{SafeReportFileName(report.Title)}-{DateTime.Now:yyyyMMdd}{exporter.FileExtension}",
-                DefaultExtension = exporter.FileExtension.TrimStart('.'),
-                FileTypeChoices = [fileType]
-            });
-            if (file is null) return;
-            status.Text = $"Rendering {format}...";
-            var bytes = await RenderExporterAsync(exporter, report);
-            await using var stream = await file.OpenWriteAsync();
-            if (stream.CanSeek) stream.SetLength(0);
-            await stream.WriteAsync(bytes);
-            await stream.FlushAsync();
-            status.Text = $"Exported {report.Title} to {format}.";
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Could not export report {ReportKind} as {Format}", kind, format);
-            status.Text = $"Export error: {ex.GetBaseException().Message}";
-        }
-    }
-
-
-    private static Task<byte[]> RenderExporterAsync(IReportExporter exporter, ReportDocument report)
-    {
-        return Task.Run(async () =>
-        {
-            await using var buffer = new MemoryStream();
-            await exporter.ExportAsync(report, buffer).ConfigureAwait(false);
-            return buffer.ToArray();
-        });
-    }
-
-    private static string SafeReportFileName(string value)
-    {
-        var invalid = IOPath.GetInvalidFileNameChars();
-        return new string(value.Select(c => invalid.Contains(c) ? '-' : c).ToArray()).Replace(' ', '-');
     }
 
     private static string Money(decimal value) => value.ToString("C2");
