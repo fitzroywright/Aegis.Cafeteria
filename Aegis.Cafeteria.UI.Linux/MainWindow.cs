@@ -395,7 +395,7 @@ public sealed class MainWindow : Window
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
         var brand = new StackPanel { Spacing = 2 };
         brand.Children.Add(new TextBlock { Text = "CAFETERIA", Foreground = Brushes.White, FontSize = 24, FontWeight = FontWeight.Bold });
-        brand.Children.Add(new TextBlock { Text = "Food For The Poor Jamaica", Foreground = new SolidColorBrush(Color.FromRgb(193, 210, 225)), FontSize = 13 });
+        brand.Children.Add(new TextBlock { Text = "Cafeteria", Foreground = new SolidColorBrush(Color.FromRgb(193, 210, 225)), FontSize = 13 });
         headerGrid.Children.Add(brand);
         var identifyBar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
         identifyBar.Children.Add(lookup); identifyBar.Children.Add(findButton); identifyBar.Children.Add(cashCustomerButton);
@@ -817,9 +817,7 @@ public sealed class MainWindow : Window
         SetPhoto(account.Customer.Photo);
         status.Text = account.Customer.IsCashCustomer
             ? "Cash customer ready"
-            : account.FfpPublication.Enabled
-                ? $"FFP publication | Pending: {account.FfpPublication.PendingOperations} | Requires attention: {account.FfpPublication.PoisonedOperations}"
-                : "FFP publication disabled";
+            : "Cafeteria Services synchronization active";
         customerPaymentButton.IsEnabled = !account.Customer.IsCashCustomer && account.Customer.IsEligibleForCredit && !account.Period.IsClosed && account.FinancialStatus.EmployeeAmountDue > 0m;
         UpdateCustomerDisplay(account);
         UpdateCheckoutState();
