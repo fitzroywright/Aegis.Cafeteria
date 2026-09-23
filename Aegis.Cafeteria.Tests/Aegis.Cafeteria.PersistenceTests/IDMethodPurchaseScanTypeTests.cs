@@ -13,19 +13,31 @@ public sealed class IDMethodPurchaseScanTypeTests
         Assert.NotEqual(9, options.PurchaseScanType);
     }
 
-    [Theory]
-    [InlineData("Aegis.Cafeteria.Services/appsettings.json")]
-    [InlineData("Aegis.Cafeteria.UI/appsettings.json")]
-    public void ShippedConfiguration_PurchaseScanType_Is8(string relativePath)
+    [Fact]
+    public void ServicesConfiguration_PurchaseScanType_Is8()
     {
-        string repositoryRoot = FindRepositoryRoot();
-        string path = Path.Combine(repositoryRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
-        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(path));
+        using JsonDocument document = LoadJson("Aegis.Cafeteria.Services/appsettings.json");
         JsonElement ffp = document.RootElement.GetProperty("FfpIntegration");
         int purchaseScanType = ffp.GetProperty("PurchaseScanType").GetInt32();
 
         Assert.Equal(8, purchaseScanType);
         Assert.NotEqual(9, purchaseScanType);
+    }
+
+    [Theory]
+    [InlineData("Aegis.Cafeteria.UI/appsettings.json")]
+    [InlineData("Aegis.Cafeteria.UI.Linux/appsettings.json")]
+    public void PosConfiguration_DoesNotContainFfpIntegration(string relativePath)
+    {
+        using JsonDocument document = LoadJson(relativePath);
+        Assert.False(document.RootElement.TryGetProperty("FfpIntegration", out _));
+    }
+
+    private static JsonDocument LoadJson(string relativePath)
+    {
+        string repositoryRoot = FindRepositoryRoot();
+        string path = Path.Combine(repositoryRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        return JsonDocument.Parse(File.ReadAllText(path));
     }
 
     private static string FindRepositoryRoot()
