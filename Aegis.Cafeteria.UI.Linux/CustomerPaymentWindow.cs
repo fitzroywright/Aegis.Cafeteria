@@ -1,3 +1,4 @@
+using Aegis.Cafeteria.Presentation;
 using Aegis.Cafeteria.Application.Accounts;
 using Avalonia;
 using Avalonia.Controls;
@@ -80,7 +81,7 @@ public sealed class CustomerPaymentWindow : Window
     }
 
     private bool TryGetAmount(out decimal value) => decimal.TryParse(amount.Text, out value);
-    private static string Money(decimal value) => value.ToString("C2");
+    private static string Money(decimal value) => CafeteriaDisplay.Money(value);
 
     private static void AddRow(Grid grid, int row, string caption, Control value)
     {
