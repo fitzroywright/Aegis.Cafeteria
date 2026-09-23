@@ -4,6 +4,7 @@ using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Orders;
 using Aegis.Cafeteria.Application.Reporting;
 using Aegis.Cafeteria.Domain.Accounts;
+using Aegis.Cafeteria.Domain.Customers;
 using Aegis.Cafeteria.Domain.Identification;
 using Aegis.Cafeteria.Domain.Orders;
 using Aegis.Cafeteria.Domain.Products;
