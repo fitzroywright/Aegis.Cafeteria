@@ -101,9 +101,7 @@ public static class CafeteriaRuntimeOptionsResolver
         CafeteriaPersistenceOptions persistence = new()
         {
             LocalSqliteConnectionString = p["LocalSqliteConnectionString"] ?? "Data Source=cafeteria.local.db;Cache=Shared",
-            TerminalId = p["TerminalId"] ?? Environment.MachineName,
-            FfpPublicationBatchSize = p.GetValue("FfpPublicationBatchSize", 100),
-            FfpPoisonMessageAttemptLimit = p.GetValue("FfpPoisonMessageAttemptLimit", 25)
+            TerminalId = p["TerminalId"] ?? Environment.MachineName
         };
         CafeteriaLoggingOptions logging = new()
         {
@@ -164,7 +162,6 @@ public static class CafeteriaRuntimeOptionsResolver
             RequestTimeoutSeconds = Math.Max(5, svc.GetValue("RequestTimeoutSeconds", 10)),
             StartupRefreshTimeoutSeconds = Math.Max(5, svc.GetValue("StartupRefreshTimeoutSeconds", 12)),
             ApiKey = string.IsNullOrWhiteSpace(serviceApiKey) ? null : serviceApiKey.Trim(),
-            UseServiceMonthlyAllocations = svc.GetValue("UseServiceMonthlyAllocations", false),
             RealtimeEnabled = svc.GetValue("RealtimeEnabled", true),
             HubPath = svc["HubPath"]?.Trim() ?? "/hubs/cafeteria",
             RealtimeReconnectSeconds = Math.Max(2, svc.GetValue("RealtimeReconnectSeconds", 5))
