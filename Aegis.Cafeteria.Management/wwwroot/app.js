@@ -255,6 +255,8 @@ async function initialize() {
     document.getElementById('monthNumber').value = now.getMonth() + 1;
     document.getElementById('reportYear').value = now.getFullYear();
     document.getElementById('reportMonth').value = now.getMonth() + 1;
+    document.getElementById('importYear').value = now.getFullYear();
+    document.getElementById('importMonth').value = now.getMonth() + 1;
 
     try {
         await api('/health', { headers: {} });
@@ -363,6 +365,19 @@ wire('sendTestEmail', async () => {
     if (!emailAddress) throw new Error('Enter a manager email address first.');
     await api('/api/management/report-settings/test-email', { method: 'POST', body: JSON.stringify({ emailAddress }) });
     showResult('Test email queued', `A test message was queued for ${emailAddress}.`);
+});
+wire('importProducts', async () => {
+    if (!window.confirm('Import missing Lunch Items into POS catalogs? Existing products and prices will not be overwritten.')) return;
+    const response = await api('/api/management/import-tools/products', { method: 'POST', body: '{}' });
+    showResult('Product Catalog Bootstrap', response);
+});
+wire('importCurrentMonth', async () => {
+    const year = Number(document.getElementById('importYear').value);
+    const month = Number(document.getElementById('importMonth').value);
+    if (!year || month < 1 || month > 12) throw new Error('Enter a valid import year and month.');
+    if (!window.confirm(`Import recognized legacy cafeteria transactions for ${year}-${String(month).padStart(2, '0')}? Re-running safely skips transactions already imported.`)) return;
+    const response = await api(`/api/management/import-tools/current-month?year=${year}&month=${month}`, { method: 'POST', body: '{}' });
+    showResult('Current-Month Legacy Import', response);
 });
 wire('loadAudit', async () => {
     const rows = await api(`/api/management/audit?${auditQuery()}`);
