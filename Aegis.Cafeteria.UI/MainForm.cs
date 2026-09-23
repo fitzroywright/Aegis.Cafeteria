@@ -366,7 +366,7 @@ public sealed class MainForm : Form
         var audit = ReportCategory("Audit & Reconciliation");
         audit.DropDownItems.Add(ReportMenuItem("Refund && Void Audit", CafeteriaReportKind.RefundVoidAudit));
         audit.DropDownItems.Add(ReportMenuItem("Additional Credit Audit", CafeteriaReportKind.AdditionalCreditAudit));
-        audit.DropDownItems.Add(ReportMenuItem("FFP Reconciliation", CafeteriaReportKind.FfpReconciliation));
+        audit.DropDownItems.Add(ReportMenuItem("External System Reconciliation", CafeteriaReportKind.FfpReconciliation));
 
         reports.DropDownItems.Add(overview);
         reports.DropDownItems.Add(sales);
@@ -467,7 +467,7 @@ public sealed class MainForm : Form
 
         var brand = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false };
         brand.Controls.Add(new Label { Text = "CAFETERIA", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI", 18, FontStyle.Bold) });
-        brand.Controls.Add(new Label { Text = "Food For The Poor Jamaica", AutoSize = true, ForeColor = Color.FromArgb(193, 210, 225), Font = new Font("Segoe UI", 9) });
+        brand.Controls.Add(new Label { Text = "Cafeteria", AutoSize = true, ForeColor = Color.FromArgb(193, 210, 225), Font = new Font("Segoe UI", 9) });
         header.Controls.Add(brand, 0, 0);
 
         var identify = new FlowLayoutPanel { AutoSize = true, WrapContents = false, Anchor = AnchorStyles.Right, Padding = new Padding(0, 5, 0, 0) };
@@ -755,7 +755,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            this.logger.LogWarning(ex, "Could not read FFP employee cache status");
+            this.logger.LogWarning(ex, "Could not read employee cache status");
             this.cacheStatus.Text = "● Employee cache: status unavailable";
             this.cacheStatus.LinkColor = Red;
         }
@@ -884,7 +884,7 @@ public sealed class MainForm : Form
 
             if (account is null)
             {
-                MessageBox.Show(this, "No matching employee was found in the local FFP cache.", "Cafeteria", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(this, "No matching employee was found in the local employee cache.", "Cafeteria", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 FocusCustomerLookup(selectAll: true);
                 return;
             }
@@ -993,10 +993,8 @@ public sealed class MainForm : Form
         }
         else
         {
-            this.syncStatus.Text = account.FfpPublication.Enabled
-                ? $"● FFP publication  •  Pending {account.FfpPublication.PendingOperations}  •  Requires attention {account.FfpPublication.PoisonedOperations}"
-                : "● FFP publication disabled";
-            this.syncStatus.ForeColor = account.FfpPublication.PoisonedOperations == 0 ? Green : Color.DarkOrange;
+            this.syncStatus.Text = "● Cafeteria Services synchronization active";
+            this.syncStatus.ForeColor = Green;
         }
         this.customerPaymentButton.Enabled = !account.Customer.IsCashCustomer && account.Customer.IsEligibleForCredit && !account.Period.IsClosed && account.FinancialStatus.EmployeeAmountDue > 0m;
         UpdateCheckoutState();
