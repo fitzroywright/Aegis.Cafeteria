@@ -14,6 +14,7 @@ The Linux/Avalonia POS uses the same local offline persistence, Cafeteria Servic
 - Configurable inactivity privacy clear.
 - Reports menu using the shared 13-report catalog; report preview opens as HTML; reports can also be exported to Excel, PDF, or CSV.
 - Recent Transactions - Today panel from local SQLite.
+- Employee email preferences administration through Cafeteria Services.
 - Close confirmation.
 
 ## Configuration
