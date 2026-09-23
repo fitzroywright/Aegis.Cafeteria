@@ -94,4 +94,129 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
             request,
             signature));
     }
+
+    [Fact]
+    public async Task Runtime_exposes_current_test_name_and_clears_it_at_completion()
+    {
+        var store = new CapturingRunStore();
+        var test = new BlockingDiagnosticTest();
+        var service = new DiagnosticLevelExecutionService(
+            [test],
+            store,
+            new DiagnosticLevelExecutionOptions
+            {
+                Application = "Aegis.Cafeteria.Services",
+                Component = "Services",
+                InstanceId = "unit-test",
+                CatalogVersion = "1"
+            },
+            new NoopCompletionNotifier());
+
+        DateTimeOffset issued = DateTimeOffset.UtcNow;
+        var request = new DiagnosticLevelRunRequest(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            EngineeringDiagnosticLevel.Level5Scan,
+            "unit-test",
+            null,
+            null,
+            issued,
+            issued.AddMinutes(2));
+
+        DiagnosticLevelRunAccepted accepted = await service.AcceptAsync(request);
+        await test.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        DiagnosticLevelRunRecord? running = await store.GetAsync(accepted.RunId);
+        Assert.NotNull(running);
+        Assert.Equal(DiagnosticLevelExecutionState.Running, running.ExecutionState);
+        Assert.Equal(test.TestId, running.CurrentTestId);
+        Assert.Equal(test.Name, running.CurrentTestName);
+
+        test.Release.SetResult();
+
+        DiagnosticLevelRunRecord? completed = null;
+        for (int attempt = 0; attempt < 50; attempt++)
+        {
+            completed = await store.GetAsync(accepted.RunId);
+            if (completed?.ExecutionState == DiagnosticLevelExecutionState.Completed)
+                break;
+            await Task.Delay(20);
+        }
+
+        Assert.NotNull(completed);
+        Assert.Equal(DiagnosticLevelExecutionState.Completed, completed.ExecutionState);
+        Assert.Null(completed.CurrentTestId);
+        Assert.Null(completed.CurrentTestName);
+        Assert.NotNull(completed.CompletedAtUtc);
+    }
+
+    private sealed class BlockingDiagnosticTest : IDiagnosticLevelLocalTest
+    {
+        public TaskCompletionSource Started { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public string TestId => "CAFETERIA.SERVICES.TEST.BLOCKING";
+        public string Name => "Blocking runtime probe";
+        public string Owner => "Aegis.Cafeteria.Services";
+        public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level5Scan;
+        public bool IsDestructive => false;
+
+        public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+        {
+            Started.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            return EngineeringDiagnosticPolicy.Passed(TestId, Name, "Probe completed.");
+        }
+    }
+
+    private sealed class NoopCompletionNotifier : IDiagnosticLevelCompletionNotifier
+    {
+        public Task<DiagnosticLevelDeliveryState> NotifyAsync(
+            DiagnosticLevelRunRequest request,
+            DiagnosticLevelRunRecord run,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(DiagnosticLevelDeliveryState.NotApplicable);
+    }
+
+    private sealed class CapturingRunStore : IDiagnosticLevelRunStore
+    {
+        private readonly object gate = new();
+        private readonly Dictionary<Guid, DiagnosticLevelRunRecord> runs = [];
+
+        public Task InitializeAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task SaveAsync(
+            DiagnosticLevelRunRecord run,
+            CancellationToken cancellationToken = default)
+        {
+            lock (gate)
+                runs[run.RunId] = run;
+            return Task.CompletedTask;
+        }
+
+        public Task<DiagnosticLevelRunRecord?> GetAsync(
+            Guid runId,
+            CancellationToken cancellationToken = default)
+        {
+            lock (gate)
+                return Task.FromResult(runs.TryGetValue(runId, out DiagnosticLevelRunRecord? run) ? run : null);
+        }
+
+        public Task<IReadOnlyList<DiagnosticLevelRunRecord>> QueryAsync(
+            DiagnosticLevelHistoryQuery query,
+            CancellationToken cancellationToken = default)
+        {
+            lock (gate)
+                return Task.FromResult<IReadOnlyList<DiagnosticLevelRunRecord>>(
+                    runs.Values.OrderByDescending(x => x.RequestedAtUtc).Take(query.Take).ToArray());
+        }
+
+        public Task PurgeExpiredAsync(
+            DateTimeOffset nowUtc,
+            CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+    }
+
 }
