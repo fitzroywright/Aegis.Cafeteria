@@ -1,6 +1,7 @@
 namespace Aegis.Cafeteria.UI.Linux;
 
 using Aegis.Cafeteria.Application.Abstractions;
+using Aegis.Cafeteria.Presentation;
 
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -175,7 +176,7 @@ public sealed class ProductMaintenanceWindow : Window
     {
         public override string ToString()
         {
-            return $"{Product.Id}  {Product.Name}  -  {Product.Price:C2}";
+            return $"{Product.Id}  {Product.Name}  -  {CafeteriaDisplay.Money(Product.Price)}";
         }
     }
 }
