@@ -2,6 +2,7 @@ namespace Aegis.Cafeteria.UI;
 
 using Aegis.Cafeteria.Domain.Orders;
 using Aegis.Cafeteria.Application.Orders;
+using Aegis.Cafeteria.Presentation;
 
 internal sealed class RefundDialog : Form
 {
@@ -362,12 +363,12 @@ internal sealed class RefundDialog : Form
                 , this.account.Maximum
             );
 
-            this.total.Text = quote.RefundTotal.ToString("C2");
-            this.credit.Text = quote.CreditAmount.ToString("C2");
+            this.total.Text = CafeteriaDisplay.Money(quote.RefundTotal);
+            this.credit.Text = CafeteriaDisplay.Money(quote.CreditAmount);
             this.credit.ForeColor = quote.CreditAmount > 0m ? Orange : Navy;
-            this.cash.Text = quote.CashAmount.ToString("C2");
+            this.cash.Text = CafeteriaDisplay.Money(quote.CashAmount);
             this.remainingTender.Text =
-                $"Remaining original tender: Employee Card {quote.RemainingCafeteriaAccount:C2}, Credit {quote.RemainingCredit:C2}, Cash {quote.RemainingCash:C2}";
+                CafeteriaDisplayText.RemainingOriginalTender(quote.RemainingCafeteriaAccount, quote.RemainingCredit, quote.RemainingCash);
             this.refund.Enabled = quote.IsValid;
         }
         finally
