@@ -7,6 +7,7 @@ using Aegis.Cafeteria.Infrastructure;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Infrastructure.Logging;
 using Aegis.Cafeteria.Infrastructure.Persistence;
+using Aegis.Cafeteria.Infrastructure.Registration;
 using Aegis.Cafeteria.Infrastructure.Secrets;
 using Aegis.Cafeteria.Infrastructure.Security;
 using Aegis.Cafeteria.Reporting;
@@ -55,6 +56,7 @@ internal static class LinuxCafeteriaHost
         builder.Logging.AddCafeteriaLogging(runtime.Logging, runtime.Persistence.TerminalId);
         builder.Services.AddCafeteriaPos(runtime);
         builder.Services.AddCafeteriaReporting();
+        RegisterControlPlaneModules(builder, runtime);
 
         OperatorSecurityOptions securityOptions = builder.Configuration.GetSection("Security").Get<OperatorSecurityOptions>() ?? new();
         CafeteriaUiOptions uiOptions = builder.Configuration.GetSection("Ui").Get<CafeteriaUiOptions>() ?? new();
@@ -77,5 +79,40 @@ internal static class LinuxCafeteriaHost
         }
 
         builder.Services.AddSingleton<MainWindow>();
+    }
+
+    private static void RegisterControlPlaneModules(
+        HostApplicationBuilder builder,
+        CafeteriaRuntimeOptions runtime)
+    {
+        const string platform = "Linux";
+        string instanceId = CafeteriaRegistrationIdentity.BuildInstanceId(
+            runtime.Persistence.TerminalId,
+            platform);
+        string? siteId = builder.Configuration["Deployment:SiteId"];
+
+        builder.Services.AddCafeteriaControlPlaneRegistration(
+            new CafeteriaControlPlaneRegistrationOptions(
+                "Aegis.Cafeteria.POS",
+                "Aegis Cafeteria POS",
+                "Aegis.Cafeteria.POS",
+                instanceId,
+                CafeteriaRegistrationIdentity.BuildIdentityFilePath(
+                    "Aegis.Cafeteria.POS",
+                    instanceId),
+                platform,
+                siteId));
+
+        builder.Services.AddCafeteriaControlPlaneRegistration(
+            new CafeteriaControlPlaneRegistrationOptions(
+                "Aegis.Cafeteria.POS.UI",
+                "Aegis Cafeteria POS UI",
+                "Aegis.Cafeteria.POS.UI",
+                instanceId,
+                CafeteriaRegistrationIdentity.BuildIdentityFilePath(
+                    "Aegis.Cafeteria.POS.UI",
+                    instanceId),
+                platform,
+                siteId));
     }
 }
