@@ -31,7 +31,7 @@ public sealed class OperatorLoginWindow : Window
         var header = new Border { Background = new SolidColorBrush(Color.FromRgb(24,45,68)), Padding = new Avalonia.Thickness(24,18) };
         var brand = new StackPanel { Spacing = 2 };
         brand.Children.Add(new TextBlock { Text = "CAFETERIA", Foreground = Brushes.White, FontSize = 24, FontWeight = FontWeight.Bold });
-        brand.Children.Add(new TextBlock { Text = "Food For The Poor Jamaica", Foreground = new SolidColorBrush(Color.FromRgb(193,210,225)) });
+        brand.Children.Add(new TextBlock { Text = "Point of Sale", Foreground = new SolidColorBrush(Color.FromRgb(193,210,225)) });
         header.Child = brand;
         root.Children.Add(header);
 
