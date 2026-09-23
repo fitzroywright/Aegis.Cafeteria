@@ -51,7 +51,7 @@ public sealed class OperatorLoginForm : Form
             ForeColor = Color.White,
             Font = new Font("Segoe UI", 19F, FontStyle.Bold),
             Location = new Point(34, 24),
-            Text = "FOOD FOR THE POOR JAMAICA"
+            Text = "CAFETERIA"
         });
         header.Controls.Add(new Label
         {
