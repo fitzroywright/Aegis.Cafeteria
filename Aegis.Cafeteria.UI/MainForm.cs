@@ -996,7 +996,8 @@ public sealed class MainForm : Form
             this.syncStatus.Text = "● Cafeteria Services synchronization active";
             this.syncStatus.ForeColor = Green;
         }
-        this.customerPaymentButton.Enabled = !account.Customer.IsCashCustomer && account.Customer.IsEligibleForCredit && !account.Period.IsClosed && account.FinancialStatus.EmployeeAmountDue > 0m;
+        CustomerPaymentEligibility paymentEligibility = CustomerPaymentPolicy.Evaluate(account);
+        this.customerPaymentButton.Enabled = paymentEligibility.Allowed;
         UpdateCheckoutState();
         _ = UpdateCustomerDisplayAsync(account);
     }
@@ -1313,13 +1314,14 @@ public sealed class MainForm : Form
 
     private async Task RecordCustomerPaymentAsync()
     {
-        if (this.currentCustomer is null || this.currentCustomer.Customer.IsCashCustomer || !this.currentCustomer.Customer.IsEligibleForCredit) return;
-        var due = this.currentCustomer.FinancialStatus.EmployeeAmountDue;
-        if (due <= 0m)
+        if (this.currentCustomer is null) return;
+        CustomerPaymentEligibility eligibility = CustomerPaymentPolicy.Evaluate(this.currentCustomer);
+        if (!eligibility.Allowed)
         {
-            MessageBox.Show(this, "This customer has no outstanding cafeteria responsibility to pay.", "Customer Payment", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, eligibility.Reason ?? "Customer payment is not available.", "Customer Payment", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
+        decimal due = eligibility.MaximumPayment;
 
         using var dialog = new CustomerPaymentDialog(this.currentCustomer.Customer.Name, due);
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
@@ -1343,7 +1345,7 @@ public sealed class MainForm : Form
         finally
         {
             if (this.currentCustomer is not null)
-                this.customerPaymentButton.Enabled = !this.currentCustomer.Customer.IsCashCustomer && this.currentCustomer.Customer.IsEligibleForCredit && !this.currentCustomer.Period.IsClosed && this.currentCustomer.FinancialStatus.EmployeeAmountDue > 0m;
+                this.customerPaymentButton.Enabled = CustomerPaymentPolicy.Evaluate(this.currentCustomer).Allowed;
         }
     }
 
