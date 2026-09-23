@@ -12,6 +12,7 @@ using Aegis.Cafeteria.Services.Workers;
 using Aegis.Cafeteria.Services.Engineering.Diagnostics;
 using Aegis.Engineering.Diagnostics;
 using Common.Diagnostics;
+using Common.Registration;
 using Common.Secrets;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.Data.SqlClient;
@@ -63,6 +64,33 @@ internal static class CafeteriaServicesHost
             Path = storePath
         });
         builder.Services.AddCommonSecretsDiagnostics();
+
+        string configurationUrl = AegisControlPlaneEndpoints.ResolvePublic(
+            builder.Configuration,
+            AegisControlPlaneService.Configuration,
+            configurationKey: "Aegis:Configuration:Url");
+        if (!Uri.TryCreate(configurationUrl.TrimEnd('/') + "/", UriKind.Absolute, out Uri? configurationUri))
+            throw new InvalidOperationException("Aegis Configuration URL is invalid.");
+
+        string identityFile = builder.Configuration["Aegis:Registration:IdentityFile"]?.Trim()
+            ?? (OperatingSystem.IsWindows()
+                ? Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                    "Aegis",
+                    "Cafeteria.Services",
+                    "registration-identity.json")
+                : "/var/lib/aegis/cafeteria-services/registration-identity.json");
+
+        builder.Services.AddCommonRegistrationDiagnosticLevel(new RegistrationLifecycleOptions(
+            configurationUri,
+            "Aegis.Cafeteria.Services",
+            instanceId,
+            identityFile,
+            TimeSpan.FromSeconds(Math.Clamp(
+                builder.Configuration.GetValue("Aegis:Registration:RequestTimeoutSeconds", 30),
+                5,
+                120)),
+            RunbookReference: "docs/RUNBOOK.md"));
 
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaDatabaseConnectivityDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaDatabaseIntegrityDiagnosticLevelTest>();
