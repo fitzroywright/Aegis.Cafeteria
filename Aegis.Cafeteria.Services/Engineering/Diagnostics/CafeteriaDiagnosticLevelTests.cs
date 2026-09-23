@@ -16,6 +16,7 @@ internal static class CafeteriaDiagnosticIds
     internal const string DiagnosticStore = "CAFETERIA.SERVICES.DIAGNOSTIC-STORE";
     internal const string WorkforceSource = "CAFETERIA.SERVICES.WORKFORCE-SOURCE";
     internal const string HolidaySource = "CAFETERIA.SERVICES.HOLIDAY-SOURCE";
+    internal const string SecretsCredential = "CAFETERIA.SERVICES.SECRETS.CREDENTIAL";
     internal const string PublicationQueue = "CAFETERIA.SERVICES.PUBLICATION-QUEUE";
     internal const string AccountingGateway = "CAFETERIA.SERVICES.ACCOUNTING-GATEWAY";
     internal const string ProductReferenceSource = "CAFETERIA.SERVICES.PRODUCT-REFERENCE-SOURCE";
@@ -213,6 +214,36 @@ public sealed class CafeteriaHolidaySourceDiagnosticLevelTest(
         catch (Exception exception)
         {
             return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+public sealed class CafeteriaSecretsCredentialDiagnosticLevelTest(
+    ISecretProvider secrets,
+    IConfiguration configuration) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.SecretsCredential;
+    public string Name => "Diagnostic credential availability";
+    public string Owner => "Aegis.Cafeteria.Services";
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        string? secretName = configuration["Aegis:Diagnostics:RequestCredentialSecretName"]?.Trim();
+        if (string.IsNullOrWhiteSpace(secretName))
+            return EngineeringDiagnosticPolicy.Warning(TestId, Name, "DiagnosticLevel request credential name is not configured.");
+
+        try
+        {
+            string? credential = await secrets.GetAsync(secretName, cancellationToken);
+            return !string.IsNullOrWhiteSpace(credential)
+                ? EngineeringDiagnosticPolicy.Passed(TestId, Name, "DiagnosticLevel request credential can be resolved.")
+                : EngineeringDiagnosticPolicy.Failed(TestId, Name, "Configured DiagnosticLevel request credential is missing.");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, "DiagnosticLevel request credential could not be resolved.", exception.GetType().Name);
         }
     }
 }
