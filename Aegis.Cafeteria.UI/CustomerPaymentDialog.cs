@@ -1,6 +1,7 @@
 namespace Aegis.Cafeteria.UI;
 
 using Aegis.Cafeteria.Application.Accounts;
+using Aegis.Cafeteria.Presentation;
 
 public sealed class CustomerPaymentDialog : Form
 {
@@ -45,7 +46,7 @@ public sealed class CustomerPaymentDialog : Form
         root.Controls.Add(subtitle, 0, 1); root.SetColumnSpan(subtitle, 2);
 
         AddRow(root, 2, "Employee", new Label { Text = customerName, AutoSize = true, Font = new Font("Segoe UI", 10, FontStyle.Bold) });
-        AddRow(root, 3, "Outstanding Balance before payment", new Label { Text = amountDue.ToString("C2"), AutoSize = true, Font = new Font("Segoe UI", 14, FontStyle.Bold), ForeColor = Red });
+        AddRow(root, 3, "Outstanding Balance before payment", new Label { Text = CafeteriaDisplay.Money(amountDue), AutoSize = true, Font = new Font("Segoe UI", 14, FontStyle.Bold), ForeColor = Red });
         AddRow(root, 4, "Payment amount", this.amount);
         AddRow(root, 5, "Payment method", this.method);
         AddRow(root, 6, "Reference", this.reference);
@@ -69,7 +70,7 @@ public sealed class CustomerPaymentDialog : Form
     public string PaymentMethod => this.method.SelectedItem?.ToString() ?? "Cash";
     public string? Reference => string.IsNullOrWhiteSpace(this.reference.Text) ? null : this.reference.Text.Trim();
 
-    private void UpdateRemaining() => this.remaining.Text = CustomerPaymentPolicy.RemainingAmount(this.amountDue, this.amount.Value).ToString("C2");
+    private void UpdateRemaining() => this.remaining.Text = CafeteriaDisplay.Money(CustomerPaymentPolicy.RemainingAmount(this.amountDue, this.amount.Value));
 
     private static void AddRow(TableLayoutPanel root, int row, string caption, Control value)
     {
