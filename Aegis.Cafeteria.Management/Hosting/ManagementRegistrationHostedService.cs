@@ -50,6 +50,7 @@ internal sealed class ManagementRegistrationHostedService(
             {
                 ["applicationId"] = ApplicationId,
                 ["displayName"] = "Aegis Cafeteria Management",
+                ["module"] = "Aegis.Cafeteria.Management",
                 ["version"] = Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "unknown",
                 ["siteId"] = NullIfBlank(configuration["Deployment:SiteId"] ?? configuration["Site:Id"]),
                 ["instanceId"] = instanceId,
