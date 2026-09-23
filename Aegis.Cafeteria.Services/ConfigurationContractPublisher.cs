@@ -1,3 +1,4 @@
+using Aegis.Cafeteria.Services.Engineering.Diagnostics;
 using System.Net;
 using System.Reflection;
 using System.Text.Json.Nodes;
@@ -52,9 +53,9 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
                 ["accent"] = configuration["Aegis:Presentation:Accent"] ?? "gold"
             };
             contract["runtimeEnvironment"] = DetectedRuntimeEnvironment.Capture(environment.EnvironmentName, environment.ContentRootPath);
-            contract["diagnostics"] = BuildDiagnosticsCapability();
-            if (contract["diagnostics"] is JsonObject diagnostics)
-                diagnostics["baseUrl"] = NullIfBlank(configuration["Aegis:PublicUrl"]);
+            contract["diagnostics"] = CafeteriaDiagnosticLevelContract.BuildCapability(
+                configuration,
+                NullIfBlank(configuration["Aegis:PublicUrl"]));
             contract["requirements"] = await BuildRequirementsAsync(secrets, cancellationToken);
 
             string instanceId =
@@ -137,24 +138,6 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
             logger.LogWarning(exception, "Unable to register Aegis.Cafeteria.Services; service remains operational and will retry.");
             return false;
         }
-    }
-
-    private JsonObject BuildDiagnosticsCapability()
-    {
-        string? secretName = NullIfBlank(configuration["Aegis:Diagnostics:RequestCredentialSecretName"]);
-
-        return new JsonObject
-        {
-            ["healthPath"] = "/health",
-            ["diagnosticsRunPath"] = "/api/engineering/diagnostics/diagnostic-level/run",
-            ["diagnosticsRunsPath"] = "/api/engineering/diagnostics/diagnostic-level/runs",
-            ["telemetryPath"] = "/api/engineering/diagnostics/telemetry",
-            ["supportsRemoteDiagnostics"] = true,
-            ["supportsOperationalTelemetry"] = true,
-            ["authenticationScheme"] = "DiagnosticLevel-HMAC-SHA256",
-            ["secretName"] = secretName,
-            ["supportedLevels"] = new JsonArray(5, 4, 3, 2, 1)
-        };
     }
 
     private async Task<JsonArray> BuildRequirementsAsync(ISecretProvider secrets, CancellationToken cancellationToken)
