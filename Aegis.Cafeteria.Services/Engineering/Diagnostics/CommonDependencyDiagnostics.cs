@@ -55,13 +55,13 @@ public sealed class CafeteriaDatabaseDiagnostic(IDbContextFactory<ServiceDbConte
 
 public sealed class CafeteriaSecretsDiagnostic(IConfiguration configuration) : CafeteriaDependencyDiagnosticBase
 {
-    public override string Name => "Common.Secrets";
+    public override string Name => "Secrets";
     protected override Task<(DiagnosticStatus, string)> CheckAsync(CancellationToken cancellationToken)
     {
         bool configured = configuration.GetSection("CommonSecrets").Exists();
         return Task.FromResult(configured
-            ? (DiagnosticStatus.Unknown, "Common.Secrets is configured, but this check has no provider-health evidence. Provider availability must be verified through Common.Secrets diagnostics.")
-            : (DiagnosticStatus.Warning, "Cafeteria Services has no Common.Secrets configuration in this host."));
+            ? (DiagnosticStatus.Unknown, "Secrets are configured, but this check has no provider-health evidence. Provider availability must be verified through Secrets diagnostics.")
+            : (DiagnosticStatus.Warning, "Cafeteria Services has no Secrets configuration in this host."));
     }
 }
 
