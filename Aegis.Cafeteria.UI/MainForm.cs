@@ -1211,15 +1211,17 @@ public sealed class MainForm : Form
     {
         if (this.currentCustomer is null || this.cart.Count == 0) return;
         decimal total = this.cart.Sum(x => x.Total);
-        decimal accountAvailable = this.currentCustomer.Customer.IsEligibleForCredit
-            ? this.currentCustomer.FinancialStatus.TotalAvailableToSpend
-            : 0m;
-
-        decimal subsidyRemaining = this.currentCustomer.Customer.IsEligibleForCredit
-            ? this.currentCustomer.FinancialStatus.SubsidyAmountRemaining
-            : 0m;
-        bool creditSalesAllowed = !this.currentCustomer.Customer.IsCashCustomer && this.currentCustomer.Customer.IsEligibleForCredit;
-        using TenderDialog dialog = new(new TenderDialogOptions(total, accountAvailable, subsidyRemaining, creditSalesAllowed));
+        TenderCustomerContext tenderContext = TenderCustomerPolicy.Evaluate(this.currentCustomer);
+        using TenderDialog dialog = new
+        (
+            new TenderDialogOptions
+            (
+                  total
+                , tenderContext.AvailableToSpend
+                , tenderContext.SubsidyRemaining
+                , tenderContext.CreditSalesAllowed
+            )
+        );
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
         try
         {
@@ -1399,9 +1401,10 @@ public sealed class MainForm : Form
         if (order is null) return;
         var orderId = order.Id;
 
-        if (order.Status != OrderStatus.Completed || order.RefundedAmount >= order.Total)
+        RefundEligibility refundEligibility = RefundEligibilityPolicy.Evaluate(order);
+        if (!refundEligibility.Allowed)
         {
-            MessageBox.Show(this, "The selected order is not refundable.", "Refund", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, refundEligibility.Reason ?? "The selected order is not refundable.", "Refund", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
@@ -1475,7 +1478,7 @@ public sealed class MainForm : Form
 
         var recent = await this.orderQuery.GetRecentCompletedAsync(this.currentCustomer.Customer.Id, 50);
         var refundable = recent
-            .Where(x => x.RefundedAmount < x.Total)
+            .Where(x => RefundEligibilityPolicy.Evaluate(x).Allowed)
             .Take(5)
             .ToArray();
         if (refundable.Length == 0)
