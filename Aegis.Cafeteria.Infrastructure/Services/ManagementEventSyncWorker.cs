@@ -148,7 +148,10 @@ public sealed class ManagementEventSyncWorker : BackgroundService
 
                 processed++;
 
-                await this.accountChangeNotifier.NotifyAsync(serviceEvent.CustomerId);
+                if (serviceEvent.CustomerId > 0)
+                {
+                    await this.accountChangeNotifier.NotifyAsync(serviceEvent.CustomerId);
+                }
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
@@ -373,13 +376,12 @@ public sealed class ManagementEventSyncWorker : BackgroundService
     {
         await using LocalCafeteriaDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
 
-        bool exists = await database.Products.AnyAsync
-        (
-              product => product.Name.ToUpper() == import.Name.ToUpper()
-            , cancellationToken
-        );
+        string[] existingNames = await database.Products
+            .AsNoTracking()
+            .Select(product => product.Name)
+            .ToArrayAsync(cancellationToken);
 
-        if (exists)
+        if (existingNames.Any(name => string.Equals(name, import.Name, StringComparison.OrdinalIgnoreCase)))
         {
             return;
         }
