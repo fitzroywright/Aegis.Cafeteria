@@ -293,6 +293,24 @@ public sealed class ManagementEventSyncWorker : BackgroundService
                 break;
             }
 
+            case CafeteriaServiceEventKind.ProductCatalogImport:
+            {
+                ProductCatalogImportServiceEvent productImport = JsonSerializer.Deserialize<ProductCatalogImportServiceEvent>(envelope.PayloadJson)
+                    ?? throw new InvalidOperationException("Invalid Product Catalog Import event payload.");
+
+                await ApplyProductImportAsync(productImport, cancellationToken);
+                break;
+            }
+
+            case CafeteriaServiceEventKind.LegacyTransactionImport:
+            {
+                LegacyTransactionImportServiceEvent legacyImport = JsonSerializer.Deserialize<LegacyTransactionImportServiceEvent>(envelope.PayloadJson)
+                    ?? throw new InvalidOperationException("Invalid Legacy Transaction Import event payload.");
+
+                await ApplyLegacyTransactionImportAsync(legacyImport, cancellationToken);
+                break;
+            }
+
             case CafeteriaServiceEventKind.DevelopmentReset:
             {
                 DevelopmentResetServiceEvent developmentReset = JsonSerializer.Deserialize<DevelopmentResetServiceEvent>(envelope.PayloadJson)
@@ -345,6 +363,124 @@ public sealed class ManagementEventSyncWorker : BackgroundService
         {
             await database.Products.ExecuteDeleteAsync(cancellationToken);
         }
+    }
+
+    private async Task ApplyProductImportAsync
+    (
+          ProductCatalogImportServiceEvent import
+        , CancellationToken cancellationToken
+    )
+    {
+        await using LocalCafeteriaDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
+
+        bool exists = await database.Products.AnyAsync
+        (
+              product => product.Name.ToUpper() == import.Name.ToUpper()
+            , cancellationToken
+        );
+
+        if (exists)
+        {
+            return;
+        }
+
+        int nextId = (await database.Products.Select(product => (int?)product.Id).MaxAsync(cancellationToken) ?? 0) + 1;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        database.Products.Add
+        (
+            new ProductRow
+            {
+                  Id = nextId
+                , Name = import.Name.Trim()
+                , Price = import.Price
+                , Revision = now.UtcDateTime.Ticks
+                , UpdatedAt = now
+            }
+        );
+
+        await database.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task ApplyLegacyTransactionImportAsync
+    (
+          LegacyTransactionImportServiceEvent import
+        , CancellationToken cancellationToken
+    )
+    {
+        await using LocalCafeteriaDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
+
+        bool exists = await database.FfpImportedTransactions.AnyAsync
+        (
+              row => row.SourceId == import.SourceId
+            , cancellationToken
+        );
+
+        if (exists)
+        {
+            return;
+        }
+
+        database.FfpImportedTransactions.Add
+        (
+            new FfpImportedTransactionRow
+            {
+                  SourceId = import.SourceId
+                , CustomerId = import.CustomerId
+                , Year = import.Year
+                , Month = import.Month
+                , OccurredAt = import.OccurredAt
+                , IdName = import.IdName
+                , Description = import.Description
+                , ScanValue = import.ScanValue
+                , UserName = import.UserName
+                , ScanCode = import.ScanCode
+                , ScanType = import.ScanType
+                , ImportedAt = import.ImportedAt
+            }
+        );
+
+        AccountEventRow? accountEvent = await database.AccountEvents.SingleOrDefaultAsync
+        (
+              row => row.Id == import.OperationId
+            , cancellationToken
+        );
+
+        if (accountEvent is null)
+        {
+            database.AccountEvents.Add
+            (
+                new AccountEventRow
+                {
+                      Id = import.OperationId
+                    , EventType = "ImportedFfpTransaction"
+                    , CustomerId = import.CustomerId
+                    , AccountYear = import.Year
+                    , AccountMonth = import.Month
+                    , Amount = import.ScanValue
+                    , PayloadJson = JsonSerializer.Serialize
+                    (
+                        new ExternalFfpTransactionSnapshot
+                        (
+                              import.SourceId
+                            , import.CustomerId
+                            , import.OccurredAt
+                            , import.IdName
+                            , import.Description
+                            , import.ScanValue
+                            , import.UserName
+                            , import.ScanCode
+                            , import.ScanType
+                        )
+                    )
+                    , OccurredAt = import.OccurredAt
+                    , Revision = DateTimeOffset.UtcNow.UtcDateTime.Ticks
+                    , UpdatedAt = DateTimeOffset.UtcNow
+                }
+            );
+        }
+
+        await database.SaveChangesAsync(cancellationToken);
     }
 
     private async Task ReplaceMonthlyCreditAllocationAsync
