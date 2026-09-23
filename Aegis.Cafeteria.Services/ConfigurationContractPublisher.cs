@@ -1,3 +1,4 @@
+using Aegis.Cafeteria.Services.Engineering.Diagnostics;
 using System.Net;
 using System.Reflection;
 using System.Text.Json.Nodes;
@@ -52,9 +53,9 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
                 ["accent"] = configuration["Aegis:Presentation:Accent"] ?? "gold"
             };
             contract["runtimeEnvironment"] = DetectedRuntimeEnvironment.Capture(environment.EnvironmentName, environment.ContentRootPath);
-            contract["diagnostics"] = BuildDiagnosticsCapability();
-            if (contract["diagnostics"] is JsonObject diagnostics)
-                diagnostics["baseUrl"] = NullIfBlank(configuration["Aegis:PublicUrl"]);
+            contract["diagnostics"] = CafeteriaDiagnosticLevelContract.BuildCapability(
+                configuration,
+                NullIfBlank(configuration["Aegis:PublicUrl"]));
             contract["requirements"] = await BuildRequirementsAsync(secrets, cancellationToken);
 
             string instanceId =
@@ -139,19 +140,6 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
         }
     }
 
-    private static JsonObject BuildDiagnosticsCapability() => new()
-    {
-        ["healthPath"] = "/health",
-        ["diagnosticsRunPath"] = "/api/engineering/diagnostics/run",
-        ["diagnosticsRunsPath"] = "/api/engineering/diagnostics/runs",
-        ["telemetryPath"] = "/api/engineering/diagnostics/telemetry",
-        ["supportsRemoteDiagnostics"] = false,
-        ["supportsOperationalTelemetry"] = false,
-        ["authenticationScheme"] = "None",
-        ["secretName"] = "",
-        ["supportedLevels"] = new JsonArray()
-    };
-
     private async Task<JsonArray> BuildRequirementsAsync(ISecretProvider secrets, CancellationToken cancellationToken)
     {
         JsonArray requirements = [];
@@ -159,6 +147,7 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
         Add(requirements, "service-url", "urls", "Service Listener", true, false, "Address on which Cafeteria Services listens locally.");
         Add(requirements, "configuration-url", "Aegis:Configuration:Url", "System Configuration URL", false, false, "Aegis.Configuration endpoint used for contract publication.");
         Add(requirements, "diagnostics-url", "Aegis:Diagnostics:Url", "System Diagnostics URL", false, false, "Aegis.Diagnostics endpoint.");
+        Add(requirements, "diagnostic-level-secret-name", "Aegis:Diagnostics:RequestCredentialSecretName", "DiagnosticLevel Request Credential", true, true, "Logical secret name used for signed remote DiagnosticLevel execution.");
         Add(requirements, "site-id", "Deployment:SiteId", "Site ID", false, false, "Deployment site identifier.");
         Add(requirements, "service-identity", "Service:Identity", "Service Identity", false, false, "Stable service instance identity.", Environment.MachineName);
         Add(requirements, "service-database", "ServicePersistence:ConnectionString", "Service Database", true, false, "SQLite connection string for Cafeteria Services state.");

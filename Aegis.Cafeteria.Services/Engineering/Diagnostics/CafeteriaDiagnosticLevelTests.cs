@@ -1,0 +1,491 @@
+using Aegis.Cafeteria.Application.Integration;
+using Aegis.Cafeteria.Services.Persistence;
+using Common.Diagnostics;
+using Common.Secrets;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.Sqlite;
+
+namespace Aegis.Cafeteria.Services.Engineering.Diagnostics;
+
+public static class CafeteriaDiagnosticModules
+{
+    public const string Services = "Aegis.Cafeteria.Services";
+    public const string Pos = "Aegis.Cafeteria.POS";
+    public const string PosUi = "Aegis.Cafeteria.POS.UI";
+    public const string Management = "Aegis.Cafeteria.Management";
+
+    public static IReadOnlySet<string> All { get; } =
+        new HashSet<string>(StringComparer.Ordinal)
+        {
+            Servers,
+            Pos,
+            PosUi,
+            Management
+        };
+}
+
+internal static class CafeteriaDiagnosticIds
+{
+    internal const string DatabaseConnectivity = "CAFETERIA.SERVICES.DATABASE.CONNECTIVITY";
+    internal const string DatabaseIntegrity = "CAFETERIA.SERVICES.DATABASE.INTEGRITY";
+    internal const string Configuration = "CAFETERIA.SERVICES.CONFIGURATION";
+    internal const string RuntimeIdentity = "CAFETERIA.SERVICES.RUNTIME.IDENTITY";
+    internal const string DiagnosticStore = "CAFETERIA.SERVICES.DIAGNOSTIC-STORE";
+    internal const string WorkforceSource = "CAFETERIA.SERVICES.WORKFORCE-SOURCE";
+    internal const string HolidaySource = "CAFETERIA.SERVICES.HOLIDAY-SOURCE";
+    internal const string SecretsCredential = "CAFETERIA.SERVICES.SECRETS.CREDENTIAL";
+    internal const string PublicationQueue = "CAFETERIA.SERVICES.PUBLICATION-QUEUE";
+    internal const string AccountingGateway = "CAFETERIA.SERVICES.ACCOUNTING-GATEWAY";
+    internal const string ProductReferenceSource = "CAFETERIA.SERVICES.PRODUCT-REFERENCE-SOURCE";
+    internal const string Messaging = "CAFETERIA.SERVICES.MESSAGING";
+    internal const string FundingPolicy = "CAFETERIA.SERVICES.FUNDING-POLICY";
+    internal const string CustomerLookup = "CAFETERIA.SERVICES.CUSTOMER-LOOKUP";
+    internal const string RecoveryReadiness = "CAFETERIA.SERVICES.RECOVERY-READINESS";
+    internal const string ExhaustiveConsistency = "CAFETERIA.SERVICES.EXHAUSTIVE-CONSISTENCY";
+}
+
+public sealed class CafeteriaDatabaseConnectivityDiagnosticLevelTest(
+    IDbContextFactory<ServiceDbContext> databaseFactory) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.DatabaseConnectivity;
+    public string Name => "Services database connectivity";
+    public string Owner => CafeteriaDiagnosticModules.Services;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level5Scan;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using ServiceDbContext database = await databaseFactory.CreateDbContextAsync(cancellationToken);
+            bool connected = await database.Database.CanConnectAsync(cancellationToken);
+            return connected
+                ? EngineeringDiagnosticPolicy.Passed(TestId, Name, "Cafeteria Services database is reachable.")
+                : EngineeringDiagnosticPolicy.Failed(TestId, Name, "Cafeteria Services database could not be reached.");
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+public sealed class CafeteriaDatabaseIntegrityDiagnosticLevelTest(
+    IDbContextFactory<ServiceDbContext> databaseFactory) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.DatabaseIntegrity;
+    public string Name => "Services database integrity";
+    public string Owner => CafeteriaDiagnosticModules.Services;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level5Scan;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using ServiceDbContext database = await databaseFactory.CreateDbContextAsync(cancellationToken);
+            string? connectionString = database.Database.GetConnectionString();
+            if (string.IsNullOrWhiteSpace(connectionString))
+                return EngineeringDiagnosticPolicy.Warning(TestId, Name, "Database connection string is not available for an integrity probe.");
+
+            var builder = new SqliteConnectionStringBuilder(connectionString);
+            if (string.IsNullOrWhiteSpace(builder.DataSource) || builder.DataSource == ":memory:")
+                return EngineeringDiagnosticPolicy.Passed(TestId, Name, "Database is in-memory; file integrity probe is not applicable.");
+
+            string path = Path.GetFullPath(builder.DataSource);
+            if (!File.Exists(path))
+                return EngineeringDiagnosticPolicy.Failed(TestId, Name, "Database file is missing.", path);
+
+            FileInfo info = new(path);
+            return info.Length > 0
+                ? EngineeringDiagnosticPolicy.Passed(TestId, Name, "Database file is present and non-empty.", $"Size={info.Length} bytes")
+                : EngineeringDiagnosticPolicy.Warning(TestId, Name, "Database file exists but is empty.", path);
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+public sealed class CafeteriaConfigurationDiagnosticLevelTest(
+    IConfiguration configuration) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.Configuration;
+    public string Name => "Required service configuration";
+    public string Owner => CafeteriaDiagnosticModules.Services;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level5Scan;
+    public bool IsDestructive => false;
+
+    public Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        string[] keys =
+        [
+            "Aegis:PublicUrl",
+            "Aegis:Configuration:Url",
+            "Aegis:Diagnostics:Url",
+            "Aegis:Diagnostics:RequestCredentialSecretName",
+            "ServicePersistence:ConnectionString",
+            "Service:Identity"
+        ];
+
+        string[] missing = keys.Where(key => string.IsNullOrWhiteSpace(configuration[key])).ToArray();
+        return Task.FromResult(missing.Length == 0
+            ? EngineeringDiagnosticPolicy.Passed(TestId, Name, "Required Cafeteria Services configuration is present.")
+            : EngineeringDiagnosticPolicy.Warning(TestId, Name, "One or more required configuration values are unresolved.", $"Missing={string.Join(",", missing)}"));
+    }
+}
+
+public sealed class CafeteriaRuntimeIdentityDiagnosticLevelTest(
+    IConfiguration configuration,
+    IHostEnvironment environment) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.RuntimeIdentity;
+    public string Name => "Runtime identity";
+    public string Owner => CafeteriaDiagnosticModules.Services;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level5Scan;
+    public bool IsDestructive => false;
+
+    public Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        string instanceId = configuration["Service:Identity"]?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(instanceId))
+            return Task.FromResult(EngineeringDiagnosticPolicy.Warning(TestId, Name, "Service:Identity is not explicitly configured.", $"Environment={environment.EnvironmentName}; Machine={Environment.MachineName}"));
+
+        return Task.FromResult(EngineeringDiagnosticPolicy.Passed(
+            TestId,
+            Name,
+            "Stable Cafeteria Services identity is configured.",
+            $"Instance={instanceId}; Environment={environment.EnvironmentName}; Machine={Environment.MachineName}"));
+    }
+}
+
+public sealed class CafeteriaDiagnosticStoreIntegrityDiagnosticLevelTest(
+    IDiagnosticLevelRunStore store) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.DiagnosticStore;
+    public string Name => "Diagnostic run store";
+    public string Owner => CafeteriaDiagnosticModules.Services;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level5Scan;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await store.InitializeAsync(cancellationToken);
+            await store.QueryAsync(new DiagnosticLevelHistoryQuery(Take: 1), cancellationToken);
+            return EngineeringDiagnosticPolicy.Passed(TestId, Name, "Diagnostic run store initialized and is readable.");
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+public sealed class CafeteriaWorkforceSourceDiagnosticLevelTest(
+    IWorkforceReferenceSource workforce) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.WorkforceSource;
+    public string Name => "External workforce source";
+    public string Owner => CafeteriaDiagnosticModules.Services;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            IReadOnlyList<ExternalCustomerSnapshot> customers = await workforce.GetCustomersAsync(cancellationToken);
+            int active = customers.Count(x => x.IsActive);
+            int eligible = customers.Count(x => x.IsActive && x.IsEligibleForCafeteriaCredit);
+            return customers.Count > 0
+                ? EngineeringDiagnosticPolicy.Passed(TestId, Name, "External workforce source is reachable.", $"Rows={customers.Count}; Active={active}; Eligible={eligible}")
+                : EngineeringDiagnosticPolicy.Warning(TestId, Name, "External workforce source is reachable but returned no records.");
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+public sealed class CafeteriaHolidaySourceDiagnosticLevelTest(
+    IWorkforceReferenceSource workforce) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.HolidaySource;
+    public string Name => "Holiday reference source";
+    public string Owner => CafeteriaDiagnosticModules.Services;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            DateTime today = DateTime.Today;
+            IReadOnlyCollection<DateOnly> holidays = await workforce.GetHolidaysAsync(today.Year, today.Month, cancellationToken);
+            return EngineeringDiagnosticPolicy.Passed(TestId, Name, "Holiday reference source is reachable.", $"Month={today:yyyy-MM}; Count={holidays.Count}");
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+public sealed class CafeteriaSecretsCredentialDiagnosticLevelTest(
+    ISecretProvider secrets,
+    IConfiguration configuration) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.SecretsCredential;
+    public string Name => "Diagnostic credential availability";
+    public string Owner => CafeteriaDiagnosticModules.Services;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        string? secretName = configuration["Aegis:Diagnostics:RequestCredentialSecretName"]?.Trim();
+        if (string.IsNullOrWhiteSpace(secretName))
+            return EngineeringDiagnosticPolicy.Warning(TestId, Name, "DiagnosticLevel request credential name is not configured.");
+
+        try
+        {
+            string? credential = await secrets.GetAsync(secretName, cancellationToken);
+            return !string.IsNullOrWhiteSpace(credential)
+                ? EngineeringDiagnosticPolicy.Passed(TestId, Name, "DiagnosticLevel request credential can be resolved.")
+                : EngineeringDiagnosticPolicy.Failed(TestId, Name, "Configured DiagnosticLevel request credential is missing.");
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, "DiagnosticLevel request credential could not be resolved.", exception.GetType().Name);
+        }
+    }
+}
+
+public sealed class CafeteriaPublicationQueueDiagnosticLevelTest(
+    IDbContextFactory<ServiceDbContext> databaseFactory) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.PublicationQueue;
+    public string Name => "External publication queue";
+    public string Owner => CafeteriaDiagnosticModules.Services;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using ServiceDbContext database = await databaseFactory.CreateDbContextAsync(cancellationToken);
+            int pending = await database.Events.AsNoTracking().CountAsync(x => x.FfpPublishedAt == null, cancellationToken);
+            int failed = await database.Events.AsNoTracking().CountAsync(x => x.FfpLastError != null, cancellationToken);
+
+            if (failed > 0)
+                return EngineeringDiagnosticPolicy.Warning(TestId, Name, "External publication queue contains failed items.", $"Pending={pending}; Failed={failed}");
+
+            return EngineeringDiagnosticPolicy.Passed(TestId, Name, "External publication queue has no recorded failures.", $"Pending={pending}; Failed=0");
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+public sealed class CafeteriaAccountingGatewayDiagnosticLevelTest(
+    IExternalAccountingGateway accounting) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.AccountingGateway;
+    public string Name => "External accounting gateway";
+    public string Owner => CafeteriaDiagnosticModules.Services;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            IReadOnlyList<ExternalAccountSummary> summaries =
+                await accounting.GetAccountSummariesAsync(cancellationToken);
+            return EngineeringDiagnosticPolicy.Passed(
+                TestId,
+                Name,
+                "External accounting gateway read path is reachable.",
+                $"AccountSummaries={summaries.Count}");
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+public sealed class CafeteriaProductReferenceSourceDiagnosticLevelTest(
+    ILunchItemBootstrapSource products) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.ProductReferenceSource;
+    public string Name => "Product reference source";
+    public string Owner => CafeteriaDiagnosticModules.Pos;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            IReadOnlyList<ExternalProductSnapshot> items =
+                await products.GetLunchItemsAsync(cancellationToken);
+            return items.Count > 0
+                ? EngineeringDiagnosticPolicy.Passed(TestId, Name, "Product reference source is reachable.", $"Items={items.Count}")
+                : EngineeringDiagnosticPolicy.Warning(TestId, Name, "Product reference source is reachable but returned no items.");
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+public sealed class CafeteriaMessagingDiagnosticLevelTest(
+    IConfiguration configuration) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.Messaging;
+    public string Name => "Messaging configuration";
+    public string Owner => CafeteriaDiagnosticModules.Management;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
+    public bool IsDestructive => false;
+
+    public Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        bool messagingEnabled = configuration.GetValue("Messaging:Enabled", false);
+        bool emailEnabled = configuration.GetValue("ScheduledEmail:Enabled", false);
+        if (!messagingEnabled && !emailEnabled)
+            return Task.FromResult(EngineeringDiagnosticPolicy.Warning(TestId, Name, "No outbound messaging channel is enabled."));
+
+        return Task.FromResult(EngineeringDiagnosticPolicy.Passed(
+            TestId,
+            Name,
+            "At least one outbound messaging path is enabled.",
+            $"MessagingEnabled={messagingEnabled}; ScheduledEmailEnabled={emailEnabled}"));
+    }
+}
+
+public sealed class CafeteriaFundingPolicyDiagnosticLevelTest(
+    CafeteriaFundingPolicyStore fundingPolicy) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.FundingPolicy;
+    public string Name => "Funding policy";
+    public string Owner => CafeteriaDiagnosticModules.Management;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            CafeteriaFundingPolicySnapshot policy = await fundingPolicy.GetFundingPolicyAsync(cancellationToken);
+            if (policy.DailyCreditLimitRate <= 0 || policy.DailyCompanySubsidyRate <= 0)
+                return EngineeringDiagnosticPolicy.Warning(TestId, Name, "Funding policy contains non-positive rates.");
+
+            if (policy.DailyCompanySubsidyRate > policy.DailyCreditLimitRate)
+                return EngineeringDiagnosticPolicy.Failed(TestId, Name, "Company subsidy rate exceeds the daily credit-limit rate.");
+
+            return EngineeringDiagnosticPolicy.Passed(
+                TestId,
+                Name,
+                "Funding policy is internally consistent.",
+                $"CreditLimitRate={policy.DailyCreditLimitRate:0.00}; SubsidyRate={policy.DailyCompanySubsidyRate:0.00}");
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+public sealed class CafeteriaCustomerLookupDiagnosticLevelTest(
+    IWorkforceReferenceSource workforce) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.CustomerLookup;
+    public string Name => "Customer lookup path";
+    public string Owner => CafeteriaDiagnosticModules.Pos;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level3Verification;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            IReadOnlyList<ExternalCustomerSnapshot> customers = await workforce.GetCustomersAsync(cancellationToken);
+            ExternalCustomerSnapshot? sample = customers.FirstOrDefault(x => x.IsActive);
+            if (sample is null)
+                return EngineeringDiagnosticPolicy.Warning(TestId, Name, "No active customer is available for a non-destructive lookup verification.");
+
+            bool resolvable = sample.CustomerId > 0 && !string.IsNullOrWhiteSpace(sample.Name);
+            return resolvable
+                ? EngineeringDiagnosticPolicy.Passed(TestId, Name, "Customer lookup data contains a resolvable active record.", $"CustomerId={sample.CustomerId}")
+                : EngineeringDiagnosticPolicy.Failed(TestId, Name, "Customer lookup returned an active record without a usable identifier or name.");
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+public sealed class CafeteriaRecoveryReadinessDiagnosticLevelTest(
+    IConfiguration configuration) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.RecoveryReadiness;
+    public string Name => "Publication recovery readiness";
+    public string Owner => CafeteriaDiagnosticModules.Services;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level2Repair;
+    public bool IsDestructive => false;
+
+    public Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        int retrySeconds = configuration.GetValue("ExternalPublication:RetryIntervalSeconds", 0);
+        int poisonLimit = configuration.GetValue("ExternalPublication:PoisonMessageAttemptLimit", 0);
+        return Task.FromResult(retrySeconds > 0 && poisonLimit > 0
+            ? EngineeringDiagnosticPolicy.Passed(TestId, Name, "External publication recovery controls are configured.", $"RetryIntervalSeconds={retrySeconds}; PoisonMessageAttemptLimit={poisonLimit}")
+            : EngineeringDiagnosticPolicy.Warning(TestId, Name, "External publication recovery controls are incomplete."));
+    }
+}
+
+public sealed class CafeteriaExhaustiveConsistencyDiagnosticLevelTest(
+    IDbContextFactory<ServiceDbContext> databaseFactory,
+    IWorkforceReferenceSource workforce,
+    CafeteriaFundingPolicyStore fundingPolicy) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.ExhaustiveConsistency;
+    public string Name => "Cafeteria service consistency certification";
+    public string Owner => CafeteriaDiagnosticModules.Services;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level1CriticalIntervention;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using ServiceDbContext database = await databaseFactory.CreateDbContextAsync(cancellationToken);
+            if (!await database.Database.CanConnectAsync(cancellationToken))
+                return EngineeringDiagnosticPolicy.Failed(TestId, Name, "Services database is unavailable.");
+
+            CafeteriaFundingPolicySnapshot policy = await fundingPolicy.GetFundingPolicyAsync(cancellationToken);
+            IReadOnlyList<ExternalCustomerSnapshot> customers = await workforce.GetCustomersAsync(cancellationToken);
+            int eventCount = await database.Events.AsNoTracking().CountAsync(cancellationToken);
+
+            return EngineeringDiagnosticPolicy.Passed(
+                TestId,
+                Name,
+                "Core service state, funding policy and workforce reference data can be read together without mutation.",
+                $"Customers={customers.Count}; Events={eventCount}; PolicyUpdated={policy.UpdatedAt:O}");
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}

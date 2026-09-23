@@ -63,18 +63,34 @@
       "configurationKey": "Service:Identity",
       "isConfigured": false,
       "example": "cafeteria-services-jm"
+    },
+    {
+      "id": "diagnostic-level-request-credential",
+      "displayName": "DiagnosticLevel Request Credential",
+      "kind": "Secret",
+      "required": true,
+      "purpose": "Enables authenticated remote DiagnosticLevel execution and signed completion callbacks.",
+      "secretName": "diagnostics/machine/Aegis.Cafeteria.Services",
+      "isConfigured": false,
+      "sensitive": true
     }
   ],
   "diagnostics": {
     "baseUrl": null,
     "healthPath": "/health",
-    "diagnosticsRunPath": "/api/engineering/diagnostics/run",
-    "diagnosticsRunsPath": "/api/engineering/diagnostics/runs",
+    "diagnosticsRunPath": "/api/engineering/diagnostics/diagnostic-level/run",
+    "diagnosticsRunsPath": "/api/engineering/diagnostics/diagnostic-level/runs",
     "telemetryPath": "/api/engineering/diagnostics/telemetry",
-    "supportsRemoteDiagnostics": false,
-    "supportsOperationalTelemetry": false,
-    "authenticationScheme": "None",
-    "secretName": "",
-    "supportedLevels": []
+    "supportsRemoteDiagnostics": true,
+    "supportsOperationalTelemetry": true,
+    "authenticationScheme": "DiagnosticLevel-HMAC-SHA256",
+    "secretName": "diagnostics/machine/Aegis.Cafeteria.Services",
+    "supportedLevels": [
+      5,
+      4,
+      3,
+      2,
+      1
+    ]
   }
 }
