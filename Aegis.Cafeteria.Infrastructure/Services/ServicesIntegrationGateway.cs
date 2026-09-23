@@ -3,7 +3,7 @@ namespace Aegis.Cafeteria.Infrastructure.Services;
 using Aegis.Cafeteria.Application.Integration;
 using System.Net.Http.Json;
 
-/// <summary>POS-side adapter. Cafeteria terminals never connect directly to FFP SQL.</summary>
+/// <summary>POS-side adapter. Cafeteria terminals communicate only with Cafeteria Services and never with an external system database directly.</summary>
 public sealed class ServicesIntegrationGateway(HttpClient http) :
       IExternalAccountingGateway
     , IWorkforceReferenceSource
@@ -14,7 +14,7 @@ public sealed class ServicesIntegrationGateway(HttpClient http) :
     {
         ExternalCustomerSnapshot[] customers = await GetCustomersOnceAsync(cancellationToken);
 
-        // The Services-side FFP adapter warms its photo cache independently from the main employee query.
+        // The Services-side workforce adapter may warm its photo cache independently from the main employee query.
         // On a cold service start the first response can therefore contain employee identity data before
         // the photo cache has finished loading. Briefly re-query so a manual/startup refresh persists the
         // photos as part of the same user-visible refresh operation instead of requiring a second attempt.
