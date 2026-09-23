@@ -1,5 +1,6 @@
 namespace Aegis.Cafeteria.UI.Linux;
 
+using Aegis.Cafeteria.Presentation;
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
@@ -17,15 +18,7 @@ internal static class LinuxUiParityPolicy
 
     public static void ConfigureApplicationCulture()
     {
-        CultureInfo culture = (CultureInfo)CultureInfo.CurrentCulture.Clone();
-        culture.NumberFormat.CurrencyNegativePattern = 0;
-        culture.NumberFormat.NumberNegativePattern = 0;
-        culture.DateTimeFormat.ShortTimePattern = "h:mm tt";
-        culture.DateTimeFormat.LongTimePattern = "h:mm:ss tt";
-        CultureInfo.CurrentCulture = culture;
-        CultureInfo.CurrentUICulture = culture;
-        CultureInfo.DefaultThreadCurrentCulture = culture;
-        CultureInfo.DefaultThreadCurrentUICulture = culture;
+        CafeteriaPresentationCulture.ConfigureCurrentCulture();
     }
 
     public static void Apply(Window window)
