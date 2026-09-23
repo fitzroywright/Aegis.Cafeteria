@@ -16,6 +16,7 @@ using System.Text.Json;
 public sealed class ServiceFfpPublisherWorker(
     ServiceEventStore events,
     IExternalAccountingGateway accounting,
+    ExternalPublicationOptions options,
     ILogger<ServiceFfpPublisherWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -37,7 +38,7 @@ public sealed class ServiceFfpPublisherWorker(
 
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(Math.Max(1, options.RetryIntervalSeconds)), stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -48,7 +49,12 @@ public sealed class ServiceFfpPublisherWorker(
 
     internal async Task<int> PublishBatchAsync(CancellationToken cancellationToken)
     {
-        var pending = await events.GetPendingFfpPublicationAsync(50, cancellationToken);
+        var pending = await events.GetPendingFfpPublicationAsync
+        (
+              Math.Clamp(options.BatchSize, 1, 500)
+            , Math.Max(1, options.PoisonMessageAttemptLimit)
+            , cancellationToken
+        );
         var count = 0;
         foreach (CafeteriaServiceEventEnvelope envelope in pending)
         {
