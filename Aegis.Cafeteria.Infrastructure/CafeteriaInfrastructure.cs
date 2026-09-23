@@ -50,7 +50,7 @@ public static class CafeteriaInfrastructure
 
         if (runtime.Services.Enabled) ConfigureOnlineCafeteriaIntegration(services, runtime);
 
-        services.AddSingleton<IProductCatalogMaintenance>(serviceProvider => new EfProductCatalogMaintenance(serviceProvider.GetRequiredService<IDbContextFactory<LocalCafeteriaDbContext>>(), serviceProvider.GetService<ILunchItemBootstrapSource>(), serviceProvider.GetService<IFfpMonthImportService>()));
+        services.AddSingleton<IProductCatalogMaintenance>(serviceProvider => new EfProductCatalogMaintenance(serviceProvider.GetRequiredService<IDbContextFactory<LocalCafeteriaDbContext>>()));
         services.AddSingleton<MonthlyAllocationCalculator>();
         services.AddSingleton<IMonthlyAllocationExecutionPolicy, MonthlyAllocationExecutionPolicy>();
         services.AddSingleton<MonthlyCreditAllocationService>();
