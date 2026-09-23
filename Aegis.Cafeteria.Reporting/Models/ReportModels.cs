@@ -15,7 +15,7 @@ public enum CafeteriaReportKind
     RefundVoidAudit,
     AdditionalCreditAudit,
     OutstandingDebt,
-    FfpReconciliation,
+    ExternalSystemReconciliation,
     PurchaseItemDetail,
     PurchaseByPerson
 }
