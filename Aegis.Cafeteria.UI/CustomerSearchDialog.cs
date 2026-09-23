@@ -200,7 +200,7 @@ internal sealed class CustomerSearchDialog : Form
         };
         FlowLayoutPanel stack = new() { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false };
         stack.Controls.Add(new Label { Text = "EMPLOYEE SEARCH", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI", 16, FontStyle.Bold) });
-        stack.Controls.Add(new Label { Text = "Food For The Poor Jamaica • Cafeteria", AutoSize = true, ForeColor = Color.FromArgb(193, 210, 225), Font = new Font("Segoe UI", 9) });
+        stack.Controls.Add(new Label { Text = "Cafeteria • Employee Search", AutoSize = true, ForeColor = Color.FromArgb(193, 210, 225), Font = new Font("Segoe UI", 9) });
         header.Controls.Add(stack);
         return header;
     }
