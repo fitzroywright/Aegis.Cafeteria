@@ -50,8 +50,12 @@ internal static class CafeteriaServicesHost
         string storePath = builder.Configuration["Aegis:Diagnostics:StorePath"]?.Trim()
             ?? Path.Combine(builder.Environment.ContentRootPath, "diagnostics", "diagnostic-level.db");
 
-        builder.Services.AddCommonSecrets(builder.Configuration);
         builder.Services.AddCommonDiagnostics();
+        builder.Services.AddSingleton<ISecretProvider>(_ =>
+            CommonSecretProviderFactory.Create(builder.Configuration));
+        builder.Services.AddSingleton<
+            IDiagnosticLevelRequestCredentialProvider,
+            CommonSecretsDiagnosticLevelRequestCredentialProvider>();
         builder.Services.AddSingleton(new DiagnosticLevelExecutionOptions
         {
             Application = "Aegis.Cafeteria.Services",
@@ -63,7 +67,6 @@ internal static class CafeteriaServicesHost
         {
             Path = storePath
         });
-        builder.Services.AddCommonSecretsDiagnostics();
 
         string configurationUrl = AegisControlPlaneEndpoints.ResolvePublic(
             builder.Configuration,
@@ -99,6 +102,7 @@ internal static class CafeteriaServicesHost
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaDiagnosticStoreIntegrityDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaWorkforceSourceDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaHolidaySourceDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaSecretsCredentialDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaPublicationQueueDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaAccountingGatewayDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaProductReferenceSourceDiagnosticLevelTest>();
