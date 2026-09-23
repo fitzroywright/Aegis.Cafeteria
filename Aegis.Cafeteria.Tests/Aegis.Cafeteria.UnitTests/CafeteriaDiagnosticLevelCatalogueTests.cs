@@ -1,5 +1,6 @@
 using Aegis.Cafeteria.Services.Engineering.Diagnostics;
 using Common.Diagnostics;
+using Microsoft.Extensions.Configuration;
 
 namespace Aegis.Cafeteria.UnitTests;
 
@@ -58,6 +59,43 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
             .ToArray();
 
         Assert.Equal(expectedCafeteriaTests, selected.Length);
+    }
+
+    [Fact]
+    public void Configuration_contract_advertises_standard_remote_DiagnosticLevel()
+    {
+        IConfiguration configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Aegis:Diagnostics:RequestCredentialSecretName"] =
+                    CafeteriaDiagnosticLevelContract.RequestCredentialSecretName
+            })
+            .Build();
+
+        System.Text.Json.Nodes.JsonObject capability =
+            CafeteriaDiagnosticLevelContract.BuildCapability(
+                configuration,
+                "https://cafeteria.example.test");
+
+        Assert.True(capability["supportsRemoteDiagnostics"]!.GetValue<bool>());
+        Assert.Equal(
+            CafeteriaDiagnosticLevelContract.RunPath,
+            capability["diagnosticsRunPath"]!.GetValue<string>());
+        Assert.Equal(
+            CafeteriaDiagnosticLevelContract.RunsPath,
+            capability["diagnosticsRunsPath"]!.GetValue<string>());
+        Assert.Equal(
+            CafeteriaDiagnosticLevelContract.AuthenticationScheme,
+            capability["authenticationScheme"]!.GetValue<string>());
+        Assert.Equal(
+            CafeteriaDiagnosticLevelContract.RequestCredentialSecretName,
+            capability["secretName"]!.GetValue<string>());
+
+        int[] levels = capability["supportedLevels"]!
+            .AsArray()
+            .Select(x => x!.GetValue<int>())
+            .ToArray();
+        Assert.Equal([5, 4, 3, 2, 1], levels);
     }
 
     [Fact]
