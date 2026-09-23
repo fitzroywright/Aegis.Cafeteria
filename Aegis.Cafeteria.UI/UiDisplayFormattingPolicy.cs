@@ -1,5 +1,6 @@
 namespace Aegis.Cafeteria.UI;
 
+using Aegis.Cafeteria.Presentation;
 using System.Globalization;
 using System.Reflection;
 
@@ -15,15 +16,7 @@ internal static class UiDisplayFormattingPolicy
 
     public static void ConfigureApplicationCulture()
     {
-        CultureInfo culture = (CultureInfo)CultureInfo.CurrentCulture.Clone();
-        culture.NumberFormat.CurrencyNegativePattern = 0;
-        culture.NumberFormat.NumberNegativePattern = 0;
-        culture.DateTimeFormat.ShortTimePattern = "h:mm tt";
-        culture.DateTimeFormat.LongTimePattern = "h:mm:ss tt";
-        CultureInfo.CurrentCulture = culture;
-        CultureInfo.CurrentUICulture = culture;
-        CultureInfo.DefaultThreadCurrentCulture = culture;
-        CultureInfo.DefaultThreadCurrentUICulture = culture;
+        CafeteriaPresentationCulture.ConfigureCurrentCulture();
     }
 
     public static void ApplyToOpenForms()
@@ -65,14 +58,14 @@ internal static class UiDisplayFormattingPolicy
 
             if (eventArgs.Value is DateTime dateTime)
             {
-                eventArgs.Value = dateTime.ToString("M/d/yyyy h:mm tt");
+                eventArgs.Value = dateTime.ToString("M/d/yyyy h:mm tt", CultureInfo.CurrentCulture);
                 eventArgs.FormattingApplied = true;
                 return;
             }
 
             if (eventArgs.Value is DateTimeOffset dateTimeOffset)
             {
-                eventArgs.Value = dateTimeOffset.LocalDateTime.ToString("M/d/yyyy h:mm tt");
+                eventArgs.Value = CafeteriaDisplay.DateTime(dateTimeOffset);
                 eventArgs.FormattingApplied = true;
                 return;
             }
