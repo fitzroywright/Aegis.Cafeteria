@@ -51,3 +51,7 @@ Customer Search is universal: NFC -> Code -> TRN -> Name. The lookup-type dropdo
 POS configuration is limited to terminal-local concerns: local SQLite and terminal identity, UI behavior, local health/logging, manager authorization timeout, deployment/control-plane identity, and Cafeteria Services connectivity. External-system database settings, transaction mappings, publication batching/retry/poison policy, month-opening policy, imports, and scheduled messaging belong to Cafeteria Services or Cafeteria Management and must not be added to POS configuration.
 
 The Linux idle dashboard now matches the Windows layout with daily KPI cards, a Monday–Friday sales-value chart, items-sold-by-value chart, ready-for-customer guidance, and a direct Daily Sales Report action.
+
+## Business-rule boundary
+
+The POS UI must not own cafeteria business rules. Tender eligibility/allocation, customer responsibility, refund eligibility/allocation, customer-payment eligibility, manager enforcement for product/price maintenance, and weekly-summary prompt decisions are shared Application/Domain policies. The UI may parse input, display policy results, choose colors/layout, request confirmation or credentials, and show validation messages, but it must not duplicate or replace those rules.
