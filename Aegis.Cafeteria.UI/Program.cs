@@ -184,7 +184,7 @@ internal static class Program
         , StartupSplashController splash
     )
     {
-        if (!runtime.FfpIntegration.Enabled || !runtime.Services.Enabled)
+        if (!runtime.Services.Enabled)
         {
             return;
         }
@@ -259,7 +259,6 @@ internal static class Program
             , host.Services.GetRequiredService<IOrderQuery>()
             , host.Services.GetRequiredService<ICustomerIdentificationService>()
         );
-        FfpDataToolsUiPolicy.Apply(uiOptions);
         HomeDashboardEnhancementPolicy.Apply
         (
               mainForm
