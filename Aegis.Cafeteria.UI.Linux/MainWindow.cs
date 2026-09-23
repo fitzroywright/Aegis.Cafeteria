@@ -103,7 +103,7 @@ public sealed class MainWindow : Window
     private readonly TextBlock todayTransactions = DashboardValue();
     private readonly TextBlock todayRefunds = DashboardValue();
     private readonly TextBlock todayDashboardStatus = new();
-    private readonly PieChartView todayItemsByQuantity = new();
+    private readonly WeekdayBarChartView weeklySalesByDay = new();
     private readonly PieChartView todayItemsByValue = new();
 
     private CustomerAccountView? currentCustomer;
@@ -309,11 +309,11 @@ public sealed class MainWindow : Window
 
         var intro = new MenuItem
         {
-            Header = "Report Center  •  Preview / Excel / PDF",
+            Header = "Report Center...   Preview • Excel • PDF",
             FontWeight = FontWeight.Bold,
-            Foreground = new SolidColorBrush(Color.FromRgb(31, 111, 190)),
-            IsEnabled = false
+            Foreground = new SolidColorBrush(Color.FromRgb(31, 111, 190))
         };
+        intro.Click += async (_, _) => await OpenReportCenterAsync(CafeteriaReportKind.ExecutiveSummary);
         reports.Items.Add(intro);
         reports.Items.Add(new Separator());
 
@@ -383,22 +383,23 @@ public sealed class MainWindow : Window
 
     private MenuItem BuildReportMenuItem(CafeteriaReportKind kind)
     {
-        var metadata = CafeteriaReportCatalog.All.Single(x => x.Kind == kind);
-        var reportItem = new MenuItem { Header = metadata.Name };
-        var preview = new MenuItem { Header = "Preview" };
-        preview.Click += async (_, _) => await PreviewReportAsync(kind);
-        var excel = new MenuItem { Header = "Export to Excel (.xlsx)" };
-        excel.Click += async (_, _) => await ExportReportAsync(kind, "XLSX");
-        var pdf = new MenuItem { Header = "Export to PDF (.pdf)" };
-        pdf.Click += async (_, _) => await ExportReportAsync(kind, "PDF");
-        var csv = new MenuItem { Header = "Export to CSV (.csv)" };
-        csv.Click += async (_, _) => await ExportReportAsync(kind, "CSV");
-        reportItem.Items.Add(preview);
-        reportItem.Items.Add(new Separator());
-        reportItem.Items.Add(excel);
-        reportItem.Items.Add(pdf);
-        reportItem.Items.Add(csv);
+        ReportCatalogItem metadata = CafeteriaReportCatalog.All.Single(item => item.Kind == kind);
+        MenuItem reportItem = new()
+        {
+              Header = metadata.Name
+            , ToolTip = new ToolTip { Content = metadata.Description }
+        };
+        reportItem.Click += async (_, _) => await OpenReportCenterAsync(kind);
         return reportItem;
+    }
+
+    private async Task OpenReportCenterAsync(CafeteriaReportKind kind)
+    {
+        ICafeteriaReportService reportService = this.services.GetRequiredService<ICafeteriaReportService>();
+        IEnumerable<IReportExporter> exporters = this.services.GetServices<IReportExporter>();
+        ReportCenterWindow window = new(reportService, this.identification, this.products, exporters, kind);
+        await window.ShowDialog(this);
+        RegisterActivity();
     }
 
     private Control BuildHeader()
