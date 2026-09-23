@@ -27,9 +27,10 @@ internal static class CafeteriaServicesHost
         ManagementApiOptions management = builder.Configuration.GetSection("ManagementApi").Get<ManagementApiOptions>() ?? new();
         MonthOpeningOptions monthOpening = builder.Configuration.GetSection("MonthOpening").Get<MonthOpeningOptions>() ?? new();
         ScheduledEmailOptions scheduledEmail = builder.Configuration.GetSection("ScheduledEmail").Get<ScheduledEmailOptions>() ?? new();
+        ExternalPublicationOptions externalPublication = builder.Configuration.GetSection("ExternalPublication").Get<ExternalPublicationOptions>() ?? new();
         string serviceDb = CafeteriaServiceDatabase.ResolveConnectionString(builder.Configuration);
 
-        RegisterOptions(builder.Services, ffp, management, monthOpening, scheduledEmail);
+        RegisterOptions(builder.Services, ffp, management, monthOpening, scheduledEmail, externalPublication);
         RegisterIntegrationGateways(builder.Services);
         RegisterApplicationServices(builder.Services, serviceDb);
         ConfigureDevelopmentServices(builder);
@@ -76,12 +77,21 @@ internal static class CafeteriaServicesHost
         };
     }
 
-    private static void RegisterOptions(IServiceCollection services, FfpIntegrationOptions ffp, ManagementApiOptions management, MonthOpeningOptions monthOpening, ScheduledEmailOptions scheduledEmail)
+    private static void RegisterOptions
+    (
+          IServiceCollection services
+        , FfpIntegrationOptions ffp
+        , ManagementApiOptions management
+        , MonthOpeningOptions monthOpening
+        , ScheduledEmailOptions scheduledEmail
+        , ExternalPublicationOptions externalPublication
+    )
     {
         services.AddSingleton(ffp);
         services.AddSingleton(management);
         services.AddSingleton(monthOpening);
         services.AddSingleton(scheduledEmail);
+        services.AddSingleton(externalPublication);
     }
 
     private static void RegisterIntegrationGateways(IServiceCollection services)
