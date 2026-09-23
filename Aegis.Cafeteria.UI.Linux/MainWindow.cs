@@ -1352,8 +1352,8 @@ public sealed class MainWindow : Window
                 , subsidyRemaining
                 , accountAllowed
                 , creditSalesAllowed: false
-                , accountAmount
-                , cashReceived
+                , cafeteriaAccountAmount: accountAmount
+                , cashReceived: cashReceived
                 , useEmployeeCredit: false
             );
         }
