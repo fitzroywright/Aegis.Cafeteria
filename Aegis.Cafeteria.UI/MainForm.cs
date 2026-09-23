@@ -11,6 +11,7 @@ using Aegis.Cafeteria.Infrastructure.Services;
 using Aegis.Cafeteria.Reporting;
 using Aegis.Cafeteria.Reporting.Export;
 using Aegis.Cafeteria.Reporting.Models;
+using Aegis.Cafeteria.Presentation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -930,12 +931,10 @@ public sealed class MainForm : Form
         this.customerPanel.BringToFront();
 
         this.customerName.Text = account.Customer.Name;
-        this.eligibility.Text = account.Customer.IsCashCustomer
-            ? "CASH CUSTOMER"
-            : account.Customer.IsEligibleForCredit ? "ELIGIBLE FOR CAFETERIA CREDIT" : "NOT ELIGIBLE FOR CAFETERIA CREDIT";
+        this.eligibility.Text = CafeteriaDisplayText.Eligibility(account);
         this.eligibility.ForeColor = account.Customer.IsEligibleForCredit ? Green : account.Customer.IsCashCustomer ? Blue : Red;
         this.eligibility.BackColor = account.Customer.IsEligibleForCredit ? Color.FromArgb(226, 246, 236) : account.Customer.IsCashCustomer ? Color.FromArgb(234, 243, 252) : Color.FromArgb(255, 232, 232);
-        this.period.Text = account.Customer.IsCashCustomer ? "Cash-only sale" : $"{new DateTime(account.Period.Year, account.Period.Month, 1):MMMM yyyy}  •  {account.Period.EligibleWorkingDays} eligible work days";
+        this.period.Text = CafeteriaDisplayText.Period(account);
         var funding = account.Funding;
         if (account.Customer.IsCashCustomer || !account.Customer.IsEligibleForCredit)
         {
@@ -987,7 +986,7 @@ public sealed class MainForm : Form
         if (this.transactions.Columns["Amount"] is DataGridViewColumn saleTotalColumn)
             saleTotalColumn.HeaderText = "Sale Total";
         if (this.transactions.Columns["Account"] is DataGridViewColumn employeeCardColumn)
-            employeeCardColumn.HeaderText = "Employee Card";
+            employeeCardColumn.HeaderText = CafeteriaDisplayText.EmployeeCard;
         SyncGridHeaderAlignment(this.transactions);
         SetPhoto(account.Customer.Photo);
 
@@ -1161,7 +1160,7 @@ public sealed class MainForm : Form
             }).ToArray();
 
             this.todayItemsByValue.SetData("ITEMS SOLD — VALUE", DashboardPieBuckets(productSales.Select(x => (x.Name, x.Value))), "C0");
-            this.todayDashboardStatus.Text = $"Updated {DateTime.Now:HH:mm}";
+            this.todayDashboardStatus.Text = CafeteriaDisplay.Updated(DateTime.Now);
         }
         catch (Exception ex)
         {
@@ -1620,7 +1619,7 @@ public sealed class MainForm : Form
         catch (Exception ex) { this.logger.LogWarning(ex, "Invalid customer photo for customer {CustomerId}", this.currentCustomer?.Customer.Id); }
     }
 
-    private static string Money(decimal value) => value.ToString("C2");
+    private static string Money(decimal value) => CafeteriaDisplay.Money(value);
 
     private static Button ActionButton(string text, Color backColor, int width, int height = 36) => new()
     {
