@@ -1,6 +1,7 @@
 namespace Aegis.Cafeteria.UI;
 
 using Aegis.Cafeteria.Domain.Orders;
+using Aegis.Cafeteria.Application.Orders;
 
 internal sealed class RefundDialog : Form
 {
@@ -61,17 +62,10 @@ internal sealed class RefundDialog : Form
 
     public decimal CafeteriaAccountAmount => this.account.Value;
 
-    public decimal CreditAmount
-    {
-        get
-        {
-            decimal remainingAfterAccount = Math.Max(0m, RefundTotal - CafeteriaAccountAmount);
-            decimal remainingCredit = Math.Max(0m, this.order.CreditPaid - this.order.CreditRefunded);
-            return Math.Min(remainingAfterAccount, remainingCredit);
-        }
-    }
+    private RefundQuote CurrentQuote => RefundQuoteCalculator.Calculate(this.order, SelectedItems, CafeteriaAccountAmount);
 
-    public decimal CashAmount => Math.Max(0m, RefundTotal - CafeteriaAccountAmount - CreditAmount);
+    public decimal CreditAmount => CurrentQuote.CreditAmount;
+    public decimal CashAmount => CurrentQuote.CashAmount;
     public decimal RefundTotal => this.rows.Sum(row => row.UnitPrice * row.RefundQuantity);
 
     public RefundDialog(Order order)
@@ -352,34 +346,29 @@ internal sealed class RefundDialog : Form
         this.updating = true;
         try
         {
-            decimal refundTotal = RefundTotal;
-            decimal remainingAccount = Math.Max(0m, this.order.CafeteriaAccountPaid - this.order.CafeteriaAccountRefunded);
-            decimal remainingCash = Math.Max(0m, this.order.CashPaid - this.order.CashRefunded);
-            decimal remainingCredit = Math.Max(0m, this.order.CreditPaid - this.order.CreditRefunded);
-            decimal accountMin = Math.Max(0m, refundTotal - remainingCredit - remainingCash);
-            decimal accountMax = Math.Min(refundTotal, remainingAccount);
+            RefundQuote quote = RefundQuoteCalculator.Calculate
+            (
+                  this.order
+                , SelectedItems
+                , resetAccountDefault ? null : CafeteriaAccountAmount
+            );
 
-            this.account.Minimum = accountMin;
-            this.account.Maximum = Math.Max(accountMin, accountMax);
-            if (resetAccountDefault)
-            {
-                this.account.Value = Math.Min(this.account.Maximum, Math.Max(this.account.Minimum, Math.Min(refundTotal, remainingAccount)));
-            }
-            else if (this.account.Value < this.account.Minimum)
-            {
-                this.account.Value = this.account.Minimum;
-            }
-            else if (this.account.Value > this.account.Maximum)
-            {
-                this.account.Value = this.account.Maximum;
-            }
+            this.account.Minimum = quote.MinimumCafeteriaAccount;
+            this.account.Maximum = Math.Max(quote.MinimumCafeteriaAccount, quote.MaximumCafeteriaAccount);
+            this.account.Value = Math.Clamp
+            (
+                  quote.CafeteriaAccountAmount
+                , this.account.Minimum
+                , this.account.Maximum
+            );
 
-            this.total.Text = refundTotal.ToString("C2");
-            this.credit.Text = CreditAmount.ToString("C2");
-            this.credit.ForeColor = CreditAmount > 0m ? Orange : Navy;
-            this.cash.Text = CashAmount.ToString("C2");
-            this.remainingTender.Text = $"Remaining original tender: Employee Card {remainingAccount:C2}, Credit {remainingCredit:C2}, Cash {remainingCash:C2}";
-            this.refund.Enabled = refundTotal > 0m && refundTotal <= remainingAccount + remainingCredit + remainingCash;
+            this.total.Text = quote.RefundTotal.ToString("C2");
+            this.credit.Text = quote.CreditAmount.ToString("C2");
+            this.credit.ForeColor = quote.CreditAmount > 0m ? Orange : Navy;
+            this.cash.Text = quote.CashAmount.ToString("C2");
+            this.remainingTender.Text =
+                $"Remaining original tender: Employee Card {quote.RemainingCafeteriaAccount:C2}, Credit {quote.RemainingCredit:C2}, Cash {quote.RemainingCash:C2}";
+            this.refund.Enabled = quote.IsValid;
         }
         finally
         {
@@ -389,33 +378,21 @@ internal sealed class RefundDialog : Form
 
     private bool ValidateSelection()
     {
-        IReadOnlyList<(Guid OrderItemId, int Quantity)> selected = SelectedItems;
-        if (selected.Count == 0)
+        RefundQuote quote = RefundQuoteCalculator.Calculate(this.order, SelectedItems, CafeteriaAccountAmount);
+        if (quote.IsValid)
         {
-            MessageBox.Show(this, "Select at least one item quantity to refund.", "Refund", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return false;
+            return true;
         }
 
-        decimal remainingAccount = this.order.CafeteriaAccountPaid - this.order.CafeteriaAccountRefunded;
-        decimal remainingCredit = this.order.CreditPaid - this.order.CreditRefunded;
-        decimal remainingCash = this.order.CashPaid - this.order.CashRefunded;
-        if (CafeteriaAccountAmount > remainingAccount
-            || CreditAmount > remainingCredit
-            || CashAmount > remainingCash
-            || CafeteriaAccountAmount + CreditAmount + CashAmount != RefundTotal)
-        {
-            MessageBox.Show
-            (
-                this,
-                "Refund allocation must match the selected total and cannot exceed the original remaining Employee Card, Credit, or Cash tender.",
-                "Refund",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Warning
-            );
-            return false;
-        }
-
-        return true;
+        MessageBox.Show
+        (
+              this
+            , quote.ValidationMessage ?? "Refund selection is invalid."
+            , "Refund"
+            , MessageBoxButtons.OK
+            , MessageBoxIcon.Warning
+        );
+        return false;
     }
 
     private static Label Caption(string text) => new()
