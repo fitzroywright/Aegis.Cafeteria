@@ -22,6 +22,28 @@ public static class CafeteriaDisplay
     public static string Updated(DateTime value)
         => $"Updated {Time(value)}";
 
+    public static bool TryFormatTime(string value, out string formatted)
+    {
+        string[] formats = ["H:mm", "HH:mm", "H:mm:ss", "HH:mm:ss", "h:mm tt", "h:mm:ss tt"];
+        if (TimeOnly.TryParseExact
+            (
+                  value.Trim()
+                , formats
+                , CultureInfo.InvariantCulture
+                , DateTimeStyles.AllowWhiteSpaces
+                , out TimeOnly time
+            ))
+        {
+            formatted = time.Second == 0
+                ? time.ToString("h:mm tt", CultureInfo.CurrentCulture)
+                : time.ToString("h:mm:ss tt", CultureInfo.CurrentCulture);
+            return true;
+        }
+
+        formatted = value;
+        return false;
+    }
+
     public static string NegativeNumber(decimal value, string format = "#,##0.##")
         => value < 0m
             ? $"({Math.Abs(value).ToString(format, CultureInfo.CurrentCulture)})"
