@@ -68,8 +68,7 @@ internal static class LinuxCafeteriaHost
         builder.Services.AddSingleton<RefundService>();
         builder.Services.AddSingleton<PosVoidService>();
         builder.Services.AddSingleton(sp => new CustomerPaymentWorkflow(
-            sp.GetRequiredService<ICafeteriaPersistenceStore>(),
-            sp.GetService<IExternalLedgerProjectionService>()));
+            sp.GetRequiredService<ICafeteriaPersistenceStore>()));
 
         if (runtime.Services.Enabled)
         {
