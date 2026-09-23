@@ -9,7 +9,10 @@ using Aegis.Cafeteria.Services.Email;
 using Aegis.Cafeteria.Services.Persistence;
 using Aegis.Cafeteria.Services.Realtime;
 using Aegis.Cafeteria.Services.Workers;
+using Aegis.Cafeteria.Services.Engineering.Diagnostics;
 using Aegis.Engineering.Diagnostics;
+using Common.Diagnostics;
+using Common.Secrets;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -31,11 +34,48 @@ internal static class CafeteriaServicesHost
         string serviceDb = CafeteriaServiceDatabase.ResolveConnectionString(builder.Configuration);
 
         RegisterOptions(builder.Services, ffp, management, monthOpening, scheduledEmail, externalPublication);
+        RegisterDiagnosticLevel(builder);
         RegisterIntegrationGateways(builder.Services);
         RegisterApplicationServices(builder.Services, serviceDb);
         ConfigureDevelopmentServices(builder);
         ConfigureAuthentication(builder, management);
         RegisterWorkers(builder.Services);
+    }
+
+    private static void RegisterDiagnosticLevel(WebApplicationBuilder builder)
+    {
+        string instanceId = builder.Configuration["Service:Identity"]?.Trim()
+            ?? builder.Environment.EnvironmentName;
+        string storePath = builder.Configuration["Aegis:Diagnostics:StorePath"]?.Trim()
+            ?? Path.Combine(builder.Environment.ContentRootPath, "diagnostics", "diagnostic-level.db");
+
+        builder.Services.AddCommonSecrets(builder.Configuration);
+        builder.Services.AddCommonDiagnostics();
+        builder.Services.AddSingleton(new DiagnosticLevelExecutionOptions
+        {
+            Application = "Aegis.Cafeteria.Services",
+            Component = "Services",
+            InstanceId = instanceId,
+            CatalogVersion = "1"
+        });
+        builder.Services.AddSingleton(new DiagnosticLevelStoreOptions
+        {
+            Path = storePath
+        });
+        builder.Services.AddCommonSecretsDiagnostics();
+
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaDatabaseConnectivityDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaDatabaseIntegrityDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaConfigurationDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaRuntimeIdentityDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaDiagnosticStoreIntegrityDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaWorkforceSourceDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaHolidaySourceDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaPublicationQueueDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaFundingPolicyDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaCustomerLookupDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaRecoveryReadinessDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaExhaustiveConsistencyDiagnosticLevelTest>();
     }
 
     private static FfpIntegrationOptions BuildFfpIntegration(WebApplicationBuilder builder)
