@@ -9,10 +9,10 @@ namespace Aegis.Cafeteria.Services.Engineering.Diagnostics;
 
 public static class CafeteriaDiagnosticModules
 {
-    public const string Services = "Cafeteria.Services";
-    public const string Pos = "Cafeteria.POS";
-    public const string PosUi = "Cafeteria.POS.UI";
-    public const string Management = "Cafeteria.Management";
+    public const string Services = "Aegis.Cafeteria.Services";
+    public const string Pos = "Aegis.Cafeteria.POS";
+    public const string PosUi = "Aegis.Cafeteria.POS.UI";
+    public const string Management = "Aegis.Cafeteria.Management";
 
     public static IReadOnlySet<string> All { get; } =
         new HashSet<string>(StringComparer.Ordinal)
