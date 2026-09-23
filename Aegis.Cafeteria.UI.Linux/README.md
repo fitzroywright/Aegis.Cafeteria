@@ -45,3 +45,7 @@ Press **Esc** during an uncompleted transaction to abandon the customer/cart and
 
 ### v58 customer identification
 Customer Search is universal: NFC -> Code -> TRN -> Name. The lookup-type dropdown is removed. While idle the customer field is focused so keyboard-wedge NFC readers can identify a customer without cashier mode selection. Empty Find opens/browses employees. Only NFC, Code and TRN are cached as identifiers; Name is the directory-search fallback.
+
+## Configuration ownership
+
+POS configuration is limited to terminal-local concerns: local SQLite and terminal identity, UI behavior, local health/logging, manager authorization timeout, deployment/control-plane identity, and Cafeteria Services connectivity. External-system database settings, transaction mappings, publication batching/retry/poison policy, month-opening policy, imports, and scheduled messaging belong to Cafeteria Services or Cafeteria Management and must not be added to POS configuration.
