@@ -1,3 +1,4 @@
+using Aegis.Cafeteria.Application.Accounts;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -54,7 +55,7 @@ public sealed class CustomerPaymentWindow : Window
         cancel.Click += (_, _) => Close(false);
         save.Click += (_, _) =>
         {
-            if (!TryGetAmount(out var entered) || entered <= 0m || entered > amountDue)
+            if (!TryGetAmount(out var entered) || !CustomerPaymentPolicy.IsValidPayment(amountDue, entered))
             {
                 remaining.Text = $"Enter an amount from {Money(0.01m)} through {Money(amountDue)}.";
                 return;
@@ -74,8 +75,8 @@ public sealed class CustomerPaymentWindow : Window
 
     private void UpdateRemaining()
     {
-        var entered = TryGetAmount(out var value) ? value : 0m;
-        remaining.Text = Money(Math.Max(0m, amountDue - entered));
+        decimal entered = TryGetAmount(out var value) ? value : 0m;
+        remaining.Text = Money(CustomerPaymentPolicy.RemainingAmount(amountDue, Math.Max(0m, entered)));
     }
 
     private bool TryGetAmount(out decimal value) => decimal.TryParse(amount.Text, out value);
