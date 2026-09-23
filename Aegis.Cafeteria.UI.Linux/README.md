@@ -27,7 +27,7 @@ The Linux/Avalonia POS uses the same local offline persistence, Cafeteria Servic
 Set `RecentTransactionCount` to `0` to hide the dashboard list.
 
 ## Deliberate remaining differences
-Windows remains the production reference for the full Report Center date/filter/export dialog. Linux now includes the dedicated second-monitor customer display; the shared transaction engine and schema remain unchanged.
+Linux now includes the same Report Center workflow as Windows: report selection, date range, employee/product filters, grouping, voided-order option, preview, and HTML/CSV/Excel/PDF export. Linux also includes the dedicated second-monitor customer display; the shared transaction engine and schema remain unchanged.
 
 No central Aegis database or SignalR service is required. Local SQLite schema remains version 48.
 
@@ -49,3 +49,5 @@ Customer Search is universal: NFC -> Code -> TRN -> Name. The lookup-type dropdo
 ## Configuration ownership
 
 POS configuration is limited to terminal-local concerns: local SQLite and terminal identity, UI behavior, local health/logging, manager authorization timeout, deployment/control-plane identity, and Cafeteria Services connectivity. External-system database settings, transaction mappings, publication batching/retry/poison policy, month-opening policy, imports, and scheduled messaging belong to Cafeteria Services or Cafeteria Management and must not be added to POS configuration.
+
+The Linux idle dashboard now matches the Windows layout with daily KPI cards, a Monday–Friday sales-value chart, items-sold-by-value chart, ready-for-customer guidance, and a direct Daily Sales Report action.
