@@ -1,7 +1,6 @@
 namespace Aegis.Cafeteria.Application.Orders;
 
 using Aegis.Cafeteria.Application.Abstractions;
-using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Application.Reporting;
 using Aegis.Cafeteria.Application.Security;
 using Aegis.Cafeteria.Domain.Orders;
@@ -9,20 +8,17 @@ using Aegis.Cafeteria.Domain.Orders;
 public sealed class PosCheckoutService
 {
     private readonly ICafeteriaPersistenceStore persistenceStore;
-    private readonly IExternalLedgerProjectionService? externalProjection;
     private readonly IPostSaleObserver[] postSaleObservers;
     private readonly IOperatorSession? operatorSession;
 
     public PosCheckoutService
     (
           ICafeteriaPersistenceStore persistenceStore
-        , IExternalLedgerProjectionService? externalProjection = null
         , IEnumerable<IPostSaleObserver>? postSaleObservers = null
         , IOperatorSession? operatorSession = null
     )
     {
         this.persistenceStore = persistenceStore;
-        this.externalProjection = externalProjection;
         this.postSaleObservers = postSaleObservers?.ToArray() ?? [];
         this.operatorSession = operatorSession;
     }
@@ -133,8 +129,6 @@ public sealed class PosCheckoutService
         order.Complete(payments, now, request.CashierUserId, request.TerminalId, cashierName);
         await this.persistenceStore.SaveOrderAsync(order, cancellationToken);
 
-        if (this.externalProjection is not null && !account.Customer.IsCashCustomer)
-            await this.externalProjection.PublishCompletedOrderAsync(account, order, cancellationToken);
 
         foreach (IPostSaleObserver observer in this.postSaleObservers)
         {
