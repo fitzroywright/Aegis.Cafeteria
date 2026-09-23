@@ -86,6 +86,8 @@ public sealed class ServiceFfpPublisherWorker(
             CafeteriaServiceEventKind.MonthlyAllocation => await BuildMonthlyAllocationAsync(envelope, cancellationToken),
             CafeteriaServiceEventKind.MonthlyAllocationRecalculation => await BuildMonthlyAllocationRecalculationAsync(envelope, cancellationToken),
             CafeteriaServiceEventKind.DevelopmentReset => null,
+            CafeteriaServiceEventKind.ProductCatalogImport => null,
+            CafeteriaServiceEventKind.LegacyTransactionImport => null,
             _ => throw new InvalidOperationException($"Unsupported service-originated FFP event kind {envelope.Kind}.")
         };
     }
