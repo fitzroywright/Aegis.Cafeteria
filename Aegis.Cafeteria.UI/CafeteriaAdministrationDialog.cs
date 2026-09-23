@@ -1,7 +1,6 @@
 namespace Aegis.Cafeteria.UI;
 
 using Aegis.Cafeteria.Application.Abstractions;
-using Aegis.Cafeteria.Application.Integration;
 
 public sealed class CafeteriaAdministrationDialog : Form
 {
@@ -18,8 +17,6 @@ public sealed class CafeteriaAdministrationDialog : Form
     private readonly IProductCatalogMaintenance products;
     private readonly BindingSource productSource = new();
     private readonly DataGridView productGrid = new();
-    private readonly Button importFromFfp = new();
-    private readonly Button importCurrentMonth = new();
 
     public CafeteriaAdministrationDialog
     (
@@ -38,12 +35,6 @@ public sealed class CafeteriaAdministrationDialog : Form
         Icon = Icon.ExtractAssociatedIcon(System.Windows.Forms.Application.ExecutablePath);
 
         ConfigureProductGrid();
-        ConfigureActionButton(this.importFromFfp, "Import Lunch Items", HeaderBlue, 210);
-        ConfigureActionButton(this.importCurrentMonth, "Import Current Month", AccentOrange, 230);
-
-        this.importFromFfp.Click += async (_, _) => await ImportFromFfpAsync();
-        this.importCurrentMonth.Click += async (_, _) => await ImportCurrentMonthAsync();
-
         Controls.Add(BuildPage());
         Shown += async (_, _) => await LoadProductsAsync();
     }
@@ -112,7 +103,7 @@ public sealed class CafeteriaAdministrationDialog : Form
             , ForeColor = Color.White
             , Font = new Font("Segoe UI", 19F, FontStyle.Bold)
             , Location = new Point(111, 22)
-            , Text = "FOOD FOR THE POOR JAMAICA"
+            , Text = "CAFETERIA"
         };
 
         Label application = new()
@@ -144,27 +135,14 @@ public sealed class CafeteriaAdministrationDialog : Form
 
     private Control BuildContent()
     {
-        TableLayoutPanel content = new()
+        Panel content = new()
         {
               Dock = DockStyle.Fill
             , BackColor = PageBackground
             , Padding = new Padding(24, 24, 24, 16)
-            , ColumnCount = 2
-            , RowCount = 1
         };
 
-        content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 68F));
-        content.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 32F));
-        content.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-
-        Panel catalogCard = BuildCatalogCard();
-        catalogCard.Margin = new Padding(0, 0, 12, 0);
-
-        Panel toolsCard = BuildDataToolsCard();
-        toolsCard.Margin = new Padding(12, 0, 0, 0);
-
-        content.Controls.Add(catalogCard, 0, 0);
-        content.Controls.Add(toolsCard, 1, 0);
+        content.Controls.Add(BuildCatalogCard());
         return content;
     }
 
@@ -242,145 +220,6 @@ public sealed class CafeteriaAdministrationDialog : Form
         layout.Controls.Add(actions, 0, 2);
         card.Controls.Add(layout);
         return card;
-    }
-
-    private Panel BuildDataToolsCard()
-    {
-        Panel card = CreateCard();
-
-        TableLayoutPanel layout = new()
-        {
-              Dock = DockStyle.Fill
-            , BackColor = Color.White
-            , ColumnCount = 1
-            , RowCount = 4
-        };
-
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 76F));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 178F));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 218F));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-
-        Panel titleArea = new()
-        {
-              Dock = DockStyle.Fill
-            , BackColor = Color.White
-        };
-
-        Label title = new()
-        {
-              AutoSize = true
-            , ForeColor = BodyText
-            , Font = new Font("Segoe UI", 15F, FontStyle.Bold)
-            , Location = new Point(0, 2)
-            , Text = "FFP Data Tools"
-        };
-
-        Label detail = new()
-        {
-              AutoSize = true
-            , ForeColor = MutedText
-            , Font = new Font("Segoe UI", 9.5F)
-            , Location = new Point(2, 38)
-            , Text = "Controlled imports through Cafeteria Services."
-        };
-
-        titleArea.Controls.Add(title);
-        titleArea.Controls.Add(detail);
-
-        Panel lunchItemsTool = BuildToolPanel
-        (
-              "Lunch Item Bootstrap"
-            , "Adds LunchItems that are missing from this POS. Existing products and prices are never overwritten, and FFP-prefixed codes are ignored."
-            , this.importFromFfp
-        );
-        lunchItemsTool.Margin = new Padding(0, 0, 0, 12);
-
-        Panel transactionsTool = BuildToolPanel
-        (
-              "Current-Month Cutover Import"
-            , "Imports legacy allocations, ID-card purchases and stipends for the current month. The import is idempotent and safe to rerun before cutover."
-            , this.importCurrentMonth
-        );
-        transactionsTool.Margin = new Padding(0, 0, 0, 12);
-
-        Label note = new()
-        {
-              Dock = DockStyle.Fill
-            , ForeColor = MutedText
-            , Font = new Font("Segoe UI", 9F)
-            , Padding = new Padding(2, 12, 2, 0)
-            , Text = "Imported legacy transactions remain traceable to their original EmployeeIDScans ID and do not overwrite native Aegis sales."
-        };
-
-        layout.Controls.Add(titleArea, 0, 0);
-        layout.Controls.Add(lunchItemsTool, 0, 1);
-        layout.Controls.Add(transactionsTool, 0, 2);
-        layout.Controls.Add(note, 0, 3);
-        card.Controls.Add(layout);
-        return card;
-    }
-
-    private static Panel BuildToolPanel
-    (
-          string titleText
-        , string detailText
-        , Button actionButton
-    )
-    {
-        Panel tool = new()
-        {
-              Dock = DockStyle.Fill
-            , BackColor = SectionBackground
-            , BorderStyle = BorderStyle.FixedSingle
-            , Padding = new Padding(14)
-        };
-
-        TableLayoutPanel layout = new()
-        {
-              Dock = DockStyle.Fill
-            , BackColor = SectionBackground
-            , ColumnCount = 1
-            , RowCount = 3
-        };
-
-        layout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
-        layout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-        layout.RowStyles.Add(new RowStyle(SizeType.Absolute, 46F));
-
-        Label title = new()
-        {
-              Dock = DockStyle.Fill
-            , ForeColor = BodyText
-            , Font = new Font("Segoe UI", 11F, FontStyle.Bold)
-            , Text = titleText
-        };
-
-        Label detail = new()
-        {
-              Dock = DockStyle.Fill
-            , ForeColor = MutedText
-            , Font = new Font("Segoe UI", 9F)
-            , Text = detailText
-        };
-
-        FlowLayoutPanel buttonHost = new()
-        {
-              Dock = DockStyle.Fill
-            , BackColor = SectionBackground
-            , FlowDirection = FlowDirection.LeftToRight
-            , WrapContents = false
-            , Padding = new Padding(0, 4, 0, 0)
-        };
-        buttonHost.Controls.Add(actionButton);
-
-        layout.Controls.Add(title, 0, 0);
-        layout.Controls.Add(detail, 0, 1);
-        layout.Controls.Add(buttonHost, 0, 2);
-        tool.Controls.Add(layout);
-        return tool;
     }
 
     private Control BuildFooter()
