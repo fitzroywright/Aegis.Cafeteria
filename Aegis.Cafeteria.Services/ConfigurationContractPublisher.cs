@@ -183,6 +183,10 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
         Add(requirements, "security-admin-groups", "Security:AdministrativeGroups", "Administrative Groups", false, false, "Groups treated as Cafeteria administrators.");
         Add(requirements, "management-groups", "ManagementApi:AuthorizedGroups", "Management API Groups", false, false, "Groups allowed to perform management operations.");
 
+        Add(requirements, "external-publication-batch", "ExternalPublication:BatchSize", "External Publication Batch Size", false, false, "Maximum service-owned external ledger operations processed in one publication cycle.");
+        Add(requirements, "external-publication-retry", "ExternalPublication:RetryIntervalSeconds", "External Publication Retry Interval", false, false, "Seconds between service-owned external ledger publication cycles.");
+        Add(requirements, "external-publication-poison", "ExternalPublication:PoisonMessageAttemptLimit", "External Publication Poison Attempt Limit", false, false, "Maximum failed publication attempts before an external ledger operation is held for operator attention.");
+
         Add(requirements, "month-opening", "MonthOpening:Enabled", "Month Opening Enabled", false, false, "Enable automatic month opening.");
         Add(requirements, "month-opening-hour", "MonthOpening:RunHourLocal", "Month Opening Hour", false, false, "Local hour for month-opening worker.", null, "MonthOpening:Enabled=true");
 
