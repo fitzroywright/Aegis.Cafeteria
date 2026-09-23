@@ -857,7 +857,7 @@ public sealed class MainWindow : Window
         status.Text = account.Customer.IsCashCustomer
             ? "Cash customer ready"
             : "Cafeteria Services synchronization active";
-        customerPaymentButton.IsEnabled = !account.Customer.IsCashCustomer && account.Customer.IsEligibleForCredit && !account.Period.IsClosed && account.FinancialStatus.EmployeeAmountDue > 0m;
+        customerPaymentButton.IsEnabled = CustomerPaymentPolicy.Evaluate(account).Allowed;
         UpdateCustomerDisplay(account);
         UpdateCheckoutState();
     }
@@ -902,9 +902,13 @@ public sealed class MainWindow : Window
         cartTotal.Text = $"Total: {Money(total)}";
         if (currentCustomer is not null)
         {
-            var accountAmount = currentCustomer.Customer.IsCashCustomer || !currentCustomer.Customer.IsEligibleForCredit
-                ? 0m
-                : Math.Min(total, currentCustomer.FinancialStatus.TotalAvailableToSpend);
+            bool accountAllowed = !currentCustomer.Customer.IsCashCustomer && currentCustomer.Customer.IsEligibleForCredit;
+            decimal accountAmount = TenderQuoteCalculator.DefaultCafeteriaAccountAmount
+            (
+                  total
+                , currentCustomer.FinancialStatus.TotalAvailableToSpend
+                , accountAllowed
+            );
             cafeteriaTender.Text = accountAmount.ToString("0.00");
             cashTender.Text = "0.00";
         }
@@ -914,14 +918,14 @@ public sealed class MainWindow : Window
     private async Task CheckoutAsync()
     {
         if (currentCustomer is null || cart.Count == 0) return;
-        if (!TryGetPayment(out var accountAmount, out _, out var cashApplied, out var remaining, out _))
+        if (!TryGetPayment(out var accountAmount, out _, out var cashApplied, out TenderQuote? quote))
         {
             status.Text = "Enter valid cafeteria-account and cash amounts";
             return;
         }
-        if (remaining > 0m)
+        if (quote is null || !quote.IsComplete)
         {
-            status.Text = $"Payment incomplete - {Money(remaining)} still due";
+            status.Text = $"Payment incomplete - {Money(quote?.RemainingAmount ?? cart.Sum(item => item.Total))} still due";
             return;
         }
 
@@ -963,14 +967,15 @@ public sealed class MainWindow : Window
 
     private async Task RecordCustomerPaymentAsync()
     {
-        if (currentCustomer is null || currentCustomer.Customer.IsCashCustomer || !currentCustomer.Customer.IsEligibleForCredit) return;
-        var due = currentCustomer.FinancialStatus.EmployeeAmountDue;
-        if (due <= 0m)
+        if (currentCustomer is null) return;
+        CustomerPaymentEligibility eligibility = CustomerPaymentPolicy.Evaluate(currentCustomer);
+        if (!eligibility.Allowed)
         {
-            status.Text = "This customer has no outstanding cafeteria responsibility to pay.";
+            status.Text = eligibility.Reason ?? "Customer payment is not available.";
             return;
         }
 
+        decimal due = eligibility.MaximumPayment;
         var dialog = new CustomerPaymentWindow(currentCustomer.Customer.Name, due);
         var confirmed = await dialog.ShowDialog<bool>(this);
         if (!confirmed) return;
@@ -993,7 +998,7 @@ public sealed class MainWindow : Window
         finally
         {
             if (currentCustomer is not null)
-                customerPaymentButton.IsEnabled = !currentCustomer.Customer.IsCashCustomer && currentCustomer.Customer.IsEligibleForCredit && !currentCustomer.Period.IsClosed && currentCustomer.FinancialStatus.EmployeeAmountDue > 0m;
+                customerPaymentButton.IsEnabled = CustomerPaymentPolicy.Evaluate(currentCustomer).Allowed;
         }
     }
 
@@ -1215,8 +1220,9 @@ public sealed class MainWindow : Window
         var hasCustomer = currentCustomer is not null;
         var hasOrder = hasCustomer && cart.Count > 0;
         checkoutButton.IsEnabled = hasOrder &&
-            TryGetPayment(out _, out _, out _, out var remaining, out _) &&
-            remaining == 0m;
+            TryGetPayment(out _, out _, out _, out TenderQuote? quote) &&
+            quote is not null &&
+            quote.IsComplete;
         voidButton.IsEnabled = operatorSession.IsAuthenticated && hasOrder;
         refundButton.IsEnabled = operatorSession.IsAuthenticated && hasCustomer;
 
@@ -1282,7 +1288,7 @@ public sealed class MainWindow : Window
 
     private void UpdatePaymentState()
     {
-        if (!TryGetPayment(out var accountAmount, out _, out _, out var remaining, out var change))
+        if (!TryGetPayment(out _, out _, out _, out TenderQuote? quote) || quote is null)
         {
             paymentRemaining.Text = "Remaining: —";
             changeDue.Text = "Change: —";
@@ -1290,46 +1296,71 @@ public sealed class MainWindow : Window
             return;
         }
 
-        paymentRemaining.Text = $"Remaining: {Money(remaining)}";
-        changeDue.Text = $"Change: {Money(change)}";
-        var subsidy = currentCustomer?.Customer.IsEligibleForCredit == true ? currentCustomer.FinancialStatus.SubsidyAmountRemaining : 0m;
-        newResponsibility.Text = $"New Customer Responsibility: {Money(Math.Max(0m, accountAmount - subsidy))}";
-        paymentRemaining.Foreground = remaining > 0m ? Brushes.Red : Brushes.Green;
-        changeDue.Foreground = change > 0m ? Brushes.Green : Brushes.Gray;
+        paymentRemaining.Text = $"Remaining: {Money(quote.RemainingAmount)}";
+        changeDue.Text = $"Change: {Money(quote.ChangeAmount)}";
+        newResponsibility.Text = $"New Customer Responsibility: {Money(quote.NewCustomerResponsibility)}";
+        paymentRemaining.Foreground = quote.RemainingAmount > 0m ? Brushes.Red : Brushes.Green;
+        changeDue.Foreground = quote.ChangeAmount > 0m ? Brushes.Green : Brushes.Gray;
         UpdateCheckoutState();
     }
 
-    private bool TryGetPayment(
-        out decimal accountAmount,
-        out decimal cashReceived,
-        out decimal cashApplied,
-        out decimal remaining,
-        out decimal change)
+    private bool TryGetPayment
+    (
+          out decimal accountAmount
+        , out decimal cashReceived
+        , out decimal cashApplied
+        , out TenderQuote? quote
+    )
     {
         accountAmount = 0m;
         cashReceived = 0m;
         cashApplied = 0m;
-        remaining = cart.Sum(x => x.Total);
-        change = 0m;
+        quote = null;
 
-        if (!decimal.TryParse(cafeteriaTender.Text, out accountAmount) ||
-            !decimal.TryParse(cashTender.Text, out cashReceived) ||
-            accountAmount < 0m || cashReceived < 0m)
+        if (!decimal.TryParse(cafeteriaTender.Text, out accountAmount)
+            || !decimal.TryParse(cashTender.Text, out cashReceived)
+            || accountAmount < 0m
+            || cashReceived < 0m)
+        {
             return false;
+        }
 
-        var total = cart.Sum(x => x.Total);
-        var maxAccount = currentCustomer is null || currentCustomer.Customer.IsCashCustomer || !currentCustomer.Customer.IsEligibleForCredit
-            ? 0m
-            : Math.Min(total, currentCustomer.FinancialStatus.TotalAvailableToSpend);
-        if (accountAmount > maxAccount)
+        decimal total = cart.Sum(item => item.Total);
+        bool accountAllowed =
+            currentCustomer is not null
+            && !currentCustomer.Customer.IsCashCustomer
+            && currentCustomer.Customer.IsEligibleForCredit;
+
+        decimal availableToSpend = accountAllowed && currentCustomer is not null
+            ? currentCustomer.FinancialStatus.TotalAvailableToSpend
+            : 0m;
+        decimal subsidyRemaining = accountAllowed && currentCustomer is not null
+            ? currentCustomer.FinancialStatus.SubsidyAmountRemaining
+            : 0m;
+
+        try
+        {
+            quote = TenderQuoteCalculator.Calculate
+            (
+                  total
+                , availableToSpend
+                , subsidyRemaining
+                , accountAllowed
+                , creditSalesAllowed: false
+                , accountAmount
+                , cashReceived
+                , useEmployeeCredit: false
+            );
+        }
+        catch (InvalidOperationException)
+        {
             return false;
+        }
 
-        var cashNeeded = Math.Max(0m, total - accountAmount);
-        cashApplied = Math.Min(cashReceived, cashNeeded);
-        remaining = Math.Max(0m, cashNeeded - cashReceived);
-        change = Math.Max(0m, cashReceived - cashNeeded);
+        cashApplied = quote.CashApplied;
         return true;
     }
+
     private void ApplyTheme()
     {
         var navy = new SolidColorBrush(Color.Parse("#182D44"));
