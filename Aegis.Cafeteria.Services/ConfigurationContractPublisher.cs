@@ -2,6 +2,7 @@ using Aegis.Cafeteria.Services.Engineering.Diagnostics;
 using System.Net;
 using System.Reflection;
 using System.Text.Json.Nodes;
+using Common.Diagnostics;
 using Common.Registration;
 using Common.Secrets;
 
@@ -19,6 +20,12 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
             AegisControlPlaneService.Configuration,
             logger,
             configurationKey: "Aegis:Configuration:Url");
+
+        string operationsUrl = AegisControlPlaneEndpoints.ResolvePublic(
+            configuration,
+            AegisControlPlaneService.Operations,
+            logger,
+            configurationKey: "Aegis:Operations:Url");
 
         string path = configuration["AegisConfiguration:ContractPath"]
             ?? Path.Combine(environment.ContentRootPath, "configuration", "Aegis.Cafeteria.Services.configuration-contract.json");
@@ -73,6 +80,13 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
                     : "/var/lib/aegis/cafeteria-services/registration-identity.json");
 
             using HttpClient client = new();
+            using HttpClient lifecycleClient = new();
+            ILifecycleEventSink lifecycle = CreateLifecycleSink(
+                operationsUrl,
+                lifecycleClient,
+                identityFile,
+                instanceId);
+
             var registration = new RegistrationLifecycleClient(
                 client,
                 new RegistrationLifecycleOptions(
@@ -80,8 +94,13 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
                     ApplicationId,
                     instanceId,
                     identityFile,
-                    TimeSpan.FromSeconds(10)),
-                logger: logger);
+                    TimeSpan.FromSeconds(Math.Clamp(
+                        configuration.GetValue("Aegis:Registration:RequestTimeoutSeconds", 30),
+                        5,
+                        120)),
+                    RunbookReference: "docs/RUNBOOK.md"),
+                logger: logger,
+                lifecycleEventSink: lifecycle);
 
             RegistrationLifecycleStatus status =
                 await registration.StepAsync(
@@ -139,6 +158,49 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
             logger.LogWarning(exception, "Unable to register Aegis.Cafeteria.Services; service remains operational and will retry.");
             return false;
         }
+    }
+
+    private static ILifecycleEventSink CreateLifecycleSink(
+        string operationsUrl,
+        HttpClient client,
+        string identityFile,
+        string instanceId)
+    {
+        if (!Uri.TryCreate(
+                operationsUrl.TrimEnd('/') + "/api/operations/activity/observe",
+                UriKind.Absolute,
+                out Uri? endpoint))
+            return new NullLifecycleEventSink();
+
+        var store = new FileRegistrationIdentityStore(identityFile);
+        return new HttpLifecycleEventSink(
+            client,
+            new HttpLifecycleEventSinkOptions(endpoint, TimeSpan.FromSeconds(10)),
+            async (request, lifecycleEvent, cancellationToken) =>
+            {
+                RegistrationIdentityDocument identity =
+                    await store.LoadOrCreateAsync(
+                        ApplicationId,
+                        instanceId,
+                        cancellationToken);
+
+                if (string.IsNullOrWhiteSpace(identity.Credential))
+                    return;
+
+                request.Headers.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue(
+                        "Bearer",
+                        identity.Credential);
+                request.Headers.TryAddWithoutValidation(
+                    "X-Aegis-Application-Id",
+                    identity.ApplicationId);
+                request.Headers.TryAddWithoutValidation(
+                    "X-Aegis-Instance-Id",
+                    identity.InstanceId);
+                request.Headers.TryAddWithoutValidation(
+                    "X-Aegis-Installation-Id",
+                    identity.InstallationId);
+            });
     }
 
     private async Task<JsonArray> BuildRequirementsAsync(ISecretProvider secrets, CancellationToken cancellationToken)
