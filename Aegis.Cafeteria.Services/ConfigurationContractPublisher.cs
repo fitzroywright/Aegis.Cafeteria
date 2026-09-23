@@ -88,6 +88,7 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
                     new JsonObject
                     {
                         ["displayName"] = "Aegis Cafeteria Services",
+                        ["module"] = "Aegis.Cafeteria.Services",
                         ["presentation"] = new JsonObject
                         {
                             ["iconUrl"] = configuration["Aegis:Presentation:IconUrl"],
