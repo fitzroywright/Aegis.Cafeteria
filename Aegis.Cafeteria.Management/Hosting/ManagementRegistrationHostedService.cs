@@ -64,6 +64,19 @@ internal sealed class ManagementRegistrationHostedService(
                 ["siteId"] = NullIfBlank(configuration["Deployment:SiteId"] ?? configuration["Site:Id"]),
                 ["instanceId"] = instanceId,
                 ["description"] = "Independent management web interface for Aegis Cafeteria.",
+                ["runbookReference"] = "docs/RUNBOOK.md",
+                ["presentation"] = new JsonObject
+                {
+                    ["shortName"] = "Cafeteria Management",
+                    ["accent"] = "gold"
+                },
+                ["runtimeEnvironment"] = new JsonObject
+                {
+                    ["machineName"] = Environment.MachineName,
+                    ["operatingSystem"] = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+                    ["processArchitecture"] = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
+                    ["frameworkDescription"] = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription
+                },
                 ["diagnostics"] = new JsonObject
                 {
                     ["baseUrl"] = NullIfBlank(publicUrl),
@@ -119,6 +132,11 @@ internal sealed class ManagementRegistrationHostedService(
                     {
                         ["displayName"] = "Aegis Cafeteria Management",
                         ["module"] = "Aegis.Cafeteria.Management",
+                        ["presentation"] = new JsonObject
+                        {
+                            ["shortName"] = "Cafeteria Management",
+                            ["accent"] = "gold"
+                        },
                         ["publicUrl"] = publicUrl,
                         ["servicesUrl"] = servicesUrl,
                         ["hostname"] = Environment.MachineName
