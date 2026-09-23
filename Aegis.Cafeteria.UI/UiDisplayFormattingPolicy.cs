@@ -2,7 +2,6 @@ namespace Aegis.Cafeteria.UI;
 
 using Aegis.Cafeteria.Presentation;
 using System.Globalization;
-using System.Reflection;
 
 internal static class UiDisplayFormattingPolicy
 {
@@ -88,12 +87,11 @@ internal static class UiDisplayFormattingPolicy
             string format = column.DefaultCellStyle.Format;
             if (string.IsNullOrWhiteSpace(format))
             {
-                eventArgs.Value = $"({Math.Abs(value):#,##0.##})";
+                eventArgs.Value = CafeteriaDisplay.NegativeNumber(value);
                 eventArgs.FormattingApplied = true;
             }
         };
 
-        ConfigureRefundSelectionFilter(grid);
     }
 
     private static void ApplyCustomerDisplayGridTheme(DataGridView grid)
@@ -186,19 +184,7 @@ internal static class UiDisplayFormattingPolicy
     }
 
     private static bool TryFormatTime(string value, out string formatted)
-    {
-        string[] acceptedFormats = ["H:mm", "HH:mm", "H:mm:ss", "HH:mm:ss", "h:mm tt", "h:mm:ss tt"];
-        if (TimeOnly.TryParseExact(value.Trim(), acceptedFormats, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out TimeOnly time))
-        {
-            formatted = time.Second == 0
-                ? time.ToString("h:mm tt", CultureInfo.CurrentCulture)
-                : time.ToString("h:mm:ss tt", CultureInfo.CurrentCulture);
-            return true;
-        }
-
-        formatted = value;
-        return false;
-    }
+        => CafeteriaDisplay.TryFormatTime(value, out formatted);
 
     private static bool TryNormalizeNegativeText(string text, out string normalized)
     {
@@ -232,79 +218,6 @@ internal static class UiDisplayFormattingPolicy
         }
 
         return false;
-    }
-
-    private static void ConfigureRefundSelectionFilter(DataGridView grid)
-    {
-        if (!IsRefundSelectionGrid(grid) || grid.DataSource is not BindingSource source)
-        {
-            return;
-        }
-
-        BindingSource filtered = new();
-        grid.DataSource = filtered;
-
-        void RefreshFilteredRows()
-        {
-            List<RefundSelectionTransactionRow> rows = [];
-            foreach (object? item in source.List)
-            {
-                RefundSelectionTransactionRow? row = MapRefundSelectionRow(item);
-                if (row is not null && !string.Equals(row.Kind, "Refund", StringComparison.OrdinalIgnoreCase))
-                {
-                    rows.Add(row);
-                }
-            }
-
-            filtered.DataSource = rows;
-        }
-
-        source.DataSourceChanged += (_, _) => RefreshFilteredRows();
-        source.ListChanged += (_, _) => RefreshFilteredRows();
-        RefreshFilteredRows();
-    }
-
-    private static RefundSelectionTransactionRow? MapRefundSelectionRow(object? source)
-    {
-        if (source is null)
-        {
-            return null;
-        }
-
-        Type type = source.GetType();
-        PropertyInfo? dateProperty = type.GetProperty("Date");
-        PropertyInfo? kindProperty = type.GetProperty("Kind");
-        PropertyInfo? descriptionProperty = type.GetProperty("Description");
-        PropertyInfo? amountProperty = type.GetProperty("Amount");
-        PropertyInfo? accountProperty = type.GetProperty("Account");
-        PropertyInfo? cashProperty = type.GetProperty("Cash");
-        PropertyInfo? referenceProperty = type.GetProperty("ReferenceId");
-
-        if (dateProperty?.GetValue(source) is not DateTime date
-            || kindProperty?.GetValue(source) is not string kind
-            || descriptionProperty?.GetValue(source) is not string description
-            || referenceProperty?.GetValue(source) is not Guid referenceId)
-        {
-            return null;
-        }
-
-        decimal amount = Convert.ToDecimal(amountProperty?.GetValue(source) ?? 0m, CultureInfo.InvariantCulture);
-        decimal account = Convert.ToDecimal(accountProperty?.GetValue(source) ?? 0m, CultureInfo.InvariantCulture);
-        decimal cash = Convert.ToDecimal(cashProperty?.GetValue(source) ?? 0m, CultureInfo.InvariantCulture);
-        return new RefundSelectionTransactionRow(date, kind, description, amount, account, cash, referenceId);
-    }
-
-    private static bool IsRefundSelectionGrid(DataGridView grid)
-    {
-        Control? owningPanel = grid.Parent;
-        if (owningPanel is null)
-        {
-            return false;
-        }
-
-        return DescendantsAndSelf(owningPanel)
-            .OfType<Button>()
-            .Any(button => string.Equals(button.Text, "Refund Selected", StringComparison.OrdinalIgnoreCase));
     }
 
     private static bool TryGetDecimal(object? value, out decimal number)
