@@ -95,7 +95,7 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
             .AsArray()
             .Select(x => x!.GetValue<int>())
             .ToArray();
-        Assert.Equal([5, 4, 3, 2, 1], levels);
+        Assert.Equal(new[] { 5, 4, 3, 2, 1 }, levels);
     }
 
     [Fact]
