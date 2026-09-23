@@ -9,7 +9,9 @@ public enum CafeteriaServiceEventKind
     MonthlyAllocation = 3,
     MonthlyAllocationRecalculation = 4,
     DevelopmentReset = 5,
-    AccountPeriodClose = 6
+    AccountPeriodClose = 6,
+    ProductCatalogImport = 7,
+    LegacyTransactionImport = 8
 }
 
 public sealed record CafeteriaServiceEventEnvelope(
@@ -89,3 +91,33 @@ public sealed record AccountPeriodCloseServiceEvent
 {
     public string ProcessedBy => ClosedBy;
 }
+
+
+public sealed record ProductCatalogImportServiceEvent
+(
+      Guid OperationId
+    , int SourceProductId
+    , string SourceCode
+    , string Name
+    , decimal Price
+    , string ImportedBy
+    , DateTimeOffset ImportedAt
+);
+
+public sealed record LegacyTransactionImportServiceEvent
+(
+      Guid OperationId
+    , long SourceId
+    , int CustomerId
+    , int Year
+    , int Month
+    , DateTimeOffset OccurredAt
+    , string IdName
+    , string Description
+    , decimal ScanValue
+    , string UserName
+    , string ScanCode
+    , int ScanType
+    , string ImportedBy
+    , DateTimeOffset ImportedAt
+);
