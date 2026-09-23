@@ -1029,7 +1029,12 @@ public sealed class MainWindow : Window
             return;
         }
 
-        IProductCatalogMaintenance maintenance = this.services.GetRequiredService<IProductCatalogMaintenance>();
+        IProductCatalogMaintenance maintenance = new AuthorizedProductCatalogMaintenance
+        (
+              this.services.GetRequiredService<IProductCatalogMaintenance>()
+            , this.managerAuthorization
+            , manager.UserId
+        );
         ProductMaintenanceWindow window = new(maintenance);
         await window.ShowDialog(this);
         await LoadProductsAsync();
