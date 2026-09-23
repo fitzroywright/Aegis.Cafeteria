@@ -17,6 +17,9 @@ internal static class CafeteriaDiagnosticIds
     internal const string WorkforceSource = "CAFETERIA.SERVICES.WORKFORCE-SOURCE";
     internal const string HolidaySource = "CAFETERIA.SERVICES.HOLIDAY-SOURCE";
     internal const string PublicationQueue = "CAFETERIA.SERVICES.PUBLICATION-QUEUE";
+    internal const string AccountingGateway = "CAFETERIA.SERVICES.ACCOUNTING-GATEWAY";
+    internal const string ProductReferenceSource = "CAFETERIA.SERVICES.PRODUCT-REFERENCE-SOURCE";
+    internal const string Messaging = "CAFETERIA.SERVICES.MESSAGING";
     internal const string FundingPolicy = "CAFETERIA.SERVICES.FUNDING-POLICY";
     internal const string CustomerLookup = "CAFETERIA.SERVICES.CUSTOMER-LOOKUP";
     internal const string RecoveryReadiness = "CAFETERIA.SERVICES.RECOVERY-READINESS";
@@ -240,6 +243,84 @@ public sealed class CafeteriaPublicationQueueDiagnosticLevelTest(
         {
             return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
         }
+    }
+}
+
+public sealed class CafeteriaAccountingGatewayDiagnosticLevelTest(
+    IExternalAccountingGateway accounting) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.AccountingGateway;
+    public string Name => "External accounting gateway";
+    public string Owner => "Aegis.Cafeteria.Services";
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            IReadOnlyList<ExternalAccountSummary> summaries =
+                await accounting.GetAccountSummariesAsync(cancellationToken);
+            return EngineeringDiagnosticPolicy.Passed(
+                TestId,
+                Name,
+                "External accounting gateway read path is reachable.",
+                $"AccountSummaries={summaries.Count}");
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+public sealed class CafeteriaProductReferenceSourceDiagnosticLevelTest(
+    ILunchItemBootstrapSource products) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.ProductReferenceSource;
+    public string Name => "Product reference source";
+    public string Owner => "Aegis.Cafeteria.Services";
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            IReadOnlyList<ExternalProductSnapshot> items =
+                await products.GetLunchItemsAsync(cancellationToken);
+            return items.Count > 0
+                ? EngineeringDiagnosticPolicy.Passed(TestId, Name, "Product reference source is reachable.", $"Items={items.Count}")
+                : EngineeringDiagnosticPolicy.Warning(TestId, Name, "Product reference source is reachable but returned no items.");
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+public sealed class CafeteriaMessagingDiagnosticLevelTest(
+    IConfiguration configuration) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.Messaging;
+    public string Name => "Messaging configuration";
+    public string Owner => "Aegis.Cafeteria.Services";
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
+    public bool IsDestructive => false;
+
+    public Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        bool messagingEnabled = configuration.GetValue("Messaging:Enabled", false);
+        bool emailEnabled = configuration.GetValue("ScheduledEmail:Enabled", false);
+        if (!messagingEnabled && !emailEnabled)
+            return Task.FromResult(EngineeringDiagnosticPolicy.Warning(TestId, Name, "No outbound messaging channel is enabled."));
+
+        return Task.FromResult(EngineeringDiagnosticPolicy.Passed(
+            TestId,
+            Name,
+            "At least one outbound messaging path is enabled.",
+            $"MessagingEnabled={messagingEnabled}; ScheduledEmailEnabled={emailEnabled}"));
     }
 }
 
