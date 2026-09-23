@@ -9,6 +9,7 @@ internal static class CafeteriaConfigurationCodeDefaults
     private static readonly ManagementApiOptions Management = new();
     private static readonly MonthOpeningOptions MonthOpening = new();
     private static readonly ScheduledEmailOptions Email = new();
+    private static readonly ExternalPublicationOptions ExternalPublication = new();
     private static readonly CafeteriaLoggingOptions Logging = new();
 
     public static string? Get(string key) => key switch
@@ -27,6 +28,11 @@ internal static class CafeteriaConfigurationCodeDefaults
         "FfpIntegration:TrustServerCertificate" => "false", // BuildTrustedFfpOptions uses GetValue(..., false).
 
         "ManagementApi:AuthorizedGroups" => List(Management.AuthorizedGroups),
+
+        "ExternalPublication:BatchSize" => Number(ExternalPublication.BatchSize),
+        "ExternalPublication:RetryIntervalSeconds" => Number(ExternalPublication.RetryIntervalSeconds),
+        "ExternalPublication:PoisonMessageAttemptLimit" => Number(ExternalPublication.PoisonMessageAttemptLimit),
+
         "MonthOpening:Enabled" => Bool(MonthOpening.Enabled),
         "MonthOpening:RunHourLocal" => Number(MonthOpening.RunHourLocal),
 
