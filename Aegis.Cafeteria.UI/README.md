@@ -30,3 +30,7 @@ Customer Search is universal: NFC -> Code -> TRN -> Name. The lookup-type dropdo
 ## Administration parity
 
 Windows and Linux both provide price maintenance and employee email preferences administration through Cafeteria Services. FFP transaction mappings, legacy imports, and direct FFP database configuration are not POS responsibilities.
+
+## Configuration ownership
+
+POS configuration is limited to terminal-local concerns: local SQLite and terminal identity, UI behavior, local health/logging, manager authorization timeout, deployment/control-plane identity, and Cafeteria Services connectivity. External-system database settings, transaction mappings, publication batching/retry/poison policy, month-opening policy, imports, and scheduled messaging belong to Cafeteria Services or Cafeteria Management and must not be added to POS configuration.
