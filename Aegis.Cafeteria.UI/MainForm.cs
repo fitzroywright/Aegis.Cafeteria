@@ -426,7 +426,12 @@ public sealed class MainForm : Form
             return;
         }
 
-        IProductCatalogMaintenance maintenance = this.services.GetRequiredService<IProductCatalogMaintenance>();
+        IProductCatalogMaintenance maintenance = new AuthorizedProductCatalogMaintenance
+        (
+              this.services.GetRequiredService<IProductCatalogMaintenance>()
+            , this.managerAuthorization
+            , manager.UserId
+        );
         using CafeteriaAdministrationDialog dialog = new(maintenance);
         dialog.ShowDialog(this);
         await LoadProductsAsync();
