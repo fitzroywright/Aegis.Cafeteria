@@ -24,7 +24,6 @@ public static class CafeteriaInfrastructure
     {
         services.AddSingleton(runtime);
         services.AddSingleton(runtime.Persistence);
-        services.AddSingleton(runtime.FfpIntegration);
         services.AddSingleton(runtime.Health);
         services.AddSingleton(runtime.Messaging);
         services.AddSingleton(runtime.Services);
@@ -49,8 +48,7 @@ public static class CafeteriaInfrastructure
         services.AddSingleton<CustomerAccountChangeNotifier>();
         services.AddSingleton<ICustomerAccountChangeNotifier>(serviceProvider => serviceProvider.GetRequiredService<CustomerAccountChangeNotifier>());
 
-        if (runtime.FfpIntegration.Enabled) ConfigureLocalFfpProjection(services);
-        if (runtime.FfpIntegration.Enabled && runtime.Services.Enabled) ConfigureOnlineFfpIntegration(services, runtime);
+        if (runtime.Services.Enabled) ConfigureOnlineCafeteriaIntegration(services, runtime);
 
         services.AddSingleton<IProductCatalogMaintenance>(serviceProvider => new EfProductCatalogMaintenance(serviceProvider.GetRequiredService<IDbContextFactory<LocalCafeteriaDbContext>>(), serviceProvider.GetService<ILunchItemBootstrapSource>(), serviceProvider.GetService<IFfpMonthImportService>()));
         services.AddSingleton<MonthlyAllocationCalculator>();
@@ -73,16 +71,9 @@ public static class CafeteriaInfrastructure
         return services;
     }
 
-    private static void ConfigureLocalFfpProjection(IServiceCollection services)
-    {
-        services.AddSingleton<IExternalLedgerOutbox, EfFfpLedgerOutbox>();
-        services.AddSingleton<IExternalLedgerProjectionService, ExternalLedgerProjectionService>();
-    }
-
-    private static void ConfigureOnlineFfpIntegration(IServiceCollection services, CafeteriaRuntimeOptions runtime)
+    private static void ConfigureOnlineCafeteriaIntegration(IServiceCollection services, CafeteriaRuntimeOptions runtime)
     {
         services.AddHttpClient<ServicesIntegrationGateway>(client => ConfigureServicesHttpClient(client, runtime.Services)).AddHttpMessageHandler<PosServicesTokenHandler>();
-        services.AddSingleton<IExternalAccountingGateway>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
         services.AddSingleton<IWorkforceReferenceSource>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
         services.AddSingleton<ILunchItemBootstrapSource>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
         services.AddSingleton<IFfpMonthImportSource>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
@@ -90,7 +81,6 @@ public static class CafeteriaInfrastructure
         services.AddSingleton<IWorkforceReferenceCache, EfFfpReferenceCache>();
         services.AddSingleton<ReferenceDataRefreshService>();
         services.AddHostedService<FfpReferenceRefreshWorker>();
-        services.AddHostedService<FfpLedgerPublisherWorker>();
     }
 
     private static void ConfigureCafeteriaServicesIntegration(IServiceCollection services, CafeteriaServicesOptions options)
