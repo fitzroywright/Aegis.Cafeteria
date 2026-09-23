@@ -1,6 +1,7 @@
 namespace Aegis.Cafeteria.UI;
 
 using Aegis.Cafeteria.Application.Orders;
+using Aegis.Cafeteria.Presentation;
 
 internal sealed class TenderDialog : Form
 {
@@ -169,9 +170,9 @@ internal sealed class TenderDialog : Form
         table.SetColumnSpan(heading, 2);
 
         table.Controls.Add(Caption("Order Total"), 0, 1);
-        table.Controls.Add(ValueLabel(this.total.ToString("C2")), 1, 1);
+        table.Controls.Add(ValueLabel(CafeteriaDisplay.Money(this.total)), 1, 1);
         table.Controls.Add(Caption("Available to Spend"), 0, 2);
-        table.Controls.Add(ValueLabel(availableCredit.ToString("C2"), Blue), 1, 2);
+        table.Controls.Add(ValueLabel(CafeteriaDisplay.Money(availableCredit), Blue), 1, 2);
         table.Controls.Add(Caption("Employee Card"), 0, 3);
         table.Controls.Add(this.account, 1, 3);
         table.Controls.Add(Caption("Cash Received"), 0, 4);
@@ -280,11 +281,11 @@ internal sealed class TenderDialog : Form
 
         TenderQuote quote = CurrentQuote;
 
-        this.credit.Text = quote.CreditAmount.ToString("C2");
+        this.credit.Text = CafeteriaDisplay.Money(quote.CreditAmount);
         this.credit.ForeColor = quote.CreditAmount > 0m ? Orange : Muted;
-        this.remaining.Text = quote.RemainingAmount.ToString("C2");
-        this.change.Text = quote.ChangeAmount.ToString("C2");
-        this.newResponsibility.Text = quote.NewCustomerResponsibility.ToString("C2");
+        this.remaining.Text = CafeteriaDisplay.Money(quote.RemainingAmount);
+        this.change.Text = CafeteriaDisplay.Money(quote.ChangeAmount);
+        this.newResponsibility.Text = CafeteriaDisplay.Money(quote.NewCustomerResponsibility);
         this.newResponsibility.ForeColor = quote.NewCustomerResponsibility > 0m ? Orange : Green;
         this.remaining.ForeColor = quote.RemainingAmount > 0m ? Color.Firebrick : Green;
         this.change.ForeColor = quote.ChangeAmount > 0m ? Green : SystemColors.ControlText;
