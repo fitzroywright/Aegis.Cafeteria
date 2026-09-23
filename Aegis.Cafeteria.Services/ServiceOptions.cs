@@ -45,3 +45,11 @@ public sealed class ServiceBackupOptions
     public int RunHourLocal { get; init; } = 2;
     public int RetentionDays { get; init; } = 30;
 }
+
+
+public sealed class ExternalPublicationOptions
+{
+    public int BatchSize { get; init; } = 100;
+    public int RetryIntervalSeconds { get; init; } = 15;
+    public int PoisonMessageAttemptLimit { get; init; } = 25;
+}
