@@ -1424,9 +1424,6 @@ public sealed class MainForm : Form
                 DateTimeOffset.Now,
                 reasonDialog.Reason);
             await this.persistenceStore.SaveOrderAsync(order);
-            var externalProjection = this.services.GetService<IExternalLedgerProjectionService>();
-            if (externalProjection is not null && !accountBeforeRefund.Customer.IsCashCustomer)
-                await externalProjection.PublishRefundAsync(accountBeforeRefund, order, refund);
 
             if (!accountBeforeRefund.Customer.IsCashCustomer)
             {
