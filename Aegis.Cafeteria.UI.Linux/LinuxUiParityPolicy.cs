@@ -1,7 +1,6 @@
 namespace Aegis.Cafeteria.UI.Linux;
 
 using Aegis.Cafeteria.Presentation;
-using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
@@ -119,19 +118,7 @@ internal static class LinuxUiParityPolicy
     }
 
     private static bool TryFormatTime(string value, out string formatted)
-    {
-        string[] formats = ["H:mm", "HH:mm", "H:mm:ss", "HH:mm:ss", "h:mm tt", "h:mm:ss tt"];
-        if (TimeOnly.TryParseExact(value.Trim(), formats, CultureInfo.InvariantCulture, DateTimeStyles.AllowWhiteSpaces, out TimeOnly time))
-        {
-            formatted = time.Second == 0
-                ? time.ToString("h:mm tt", CultureInfo.CurrentCulture)
-                : time.ToString("h:mm:ss tt", CultureInfo.CurrentCulture);
-            return true;
-        }
-
-        formatted = value;
-        return false;
-    }
+        => CafeteriaDisplay.TryFormatTime(value, out formatted);
 
     private static IEnumerable<Control> DescendantsAndSelf(Control root)
     {
