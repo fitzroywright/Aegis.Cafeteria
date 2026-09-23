@@ -11,6 +11,7 @@ using System.Diagnostics;
 using IOPath = System.IO.Path;
 using Aegis.Cafeteria.Domain.Identification;
 using Aegis.Cafeteria.Infrastructure.Configuration;
+using Aegis.Cafeteria.Infrastructure.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Avalonia;
 using Avalonia.Controls;
@@ -344,6 +345,11 @@ public sealed class MainWindow : Window
         MenuItem priceMaintenance = new() { Header = "Price Maintenance..." };
         priceMaintenance.Click += async (_, _) => await OpenProductMaintenanceAsync();
         administration.Items.Add(priceMaintenance);
+
+        MenuItem emailPreferences = new() { Header = "Employee Email Preferences..." };
+        emailPreferences.Click += async (_, _) => await OpenEmployeeEmailPreferencesAsync();
+        administration.Items.Add(emailPreferences);
+
         administration.Items.Add(new Separator());
         MenuItem diagnostics = new() { Header = "Diagnostics" };
         diagnostics.Click += (_, _) => OpenEngineeringDiagnostics();
