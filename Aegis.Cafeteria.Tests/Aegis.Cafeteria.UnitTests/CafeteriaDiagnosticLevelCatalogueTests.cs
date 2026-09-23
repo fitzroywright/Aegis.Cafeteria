@@ -36,6 +36,25 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
     }
 
     [Fact]
+    public void Every_Cafeteria_diagnostic_is_associated_with_an_allowed_module()
+    {
+        IDiagnosticLevelLocalTest[] tests = Catalogue();
+
+        Assert.All(
+            tests,
+            test => Assert.Contains(test.Owner, CafeteriaDiagnosticModules.All));
+    }
+
+    [Fact]
+    public void Required_Cafeteria_modules_are_defined()
+    {
+        Assert.Contains(CafeteriaDiagnosticModules.Servers, CafeteriaDiagnosticModules.All);
+        Assert.Contains(CafeteriaDiagnosticModules.Pos, CafeteriaDiagnosticModules.All);
+        Assert.Contains(CafeteriaDiagnosticModules.PosUi, CafeteriaDiagnosticModules.All);
+        Assert.Contains(CafeteriaDiagnosticModules.Management, CafeteriaDiagnosticModules.All);
+    }
+
+    [Fact]
     public void Level_5_and_4_tests_are_non_destructive()
     {
         IDiagnosticLevelLocalTest[] tests = Catalogue();
