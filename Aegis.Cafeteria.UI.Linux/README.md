@@ -1,9 +1,9 @@
 # Linux POS — v52
 
-The Linux/Avalonia POS uses the same local-only persistence, FFP reference/publication architecture, and Common.Security operator authentication as Windows.
+The Linux/Avalonia POS uses the same local offline persistence, Cafeteria Services integration boundary, and Common.Security operator authentication as Windows. FFP transaction mappings and direct FFP database configuration are service-side concerns, not POS concerns.
 
 ## Current parity baseline
-- Food For The Poor Jamaica cafeteria theme and maximized window.
+- Cafeteria theme and maximized window.
 - Common.Security operator sign-in before POS use.
 - Cashier and terminal audit recorded on completed sales.
 - Card/code/private-ID identification and live employee-name search.
@@ -26,7 +26,7 @@ The Linux/Avalonia POS uses the same local-only persistence, FFP reference/publi
 Set `RecentTransactionCount` to `0` to hide the dashboard list.
 
 ## Deliberate remaining differences
-Windows remains the production reference for the dedicated second-monitor customer display and the full Report Center date/filter/export dialog. v52 does not duplicate those pieces on Linux because they can be added independently without changing the transaction engine or schema.
+Windows remains the production reference for the full Report Center date/filter/export dialog. Linux now includes the dedicated second-monitor customer display; the shared transaction engine and schema remain unchanged.
 
 No central Aegis database or SignalR service is required. Local SQLite schema remains version 48.
 
