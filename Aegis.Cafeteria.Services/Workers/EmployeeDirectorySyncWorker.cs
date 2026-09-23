@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 public sealed class EmployeeDirectorySyncWorker(
     IWorkforceReferenceSource workforceSource,
     EmployeeDirectoryMetadataCache directoryCache,
+    MonthOpeningWorker monthOpening,
     ILogger<EmployeeDirectorySyncWorker> logger) : BackgroundService
 {
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromMinutes(15);
@@ -35,6 +36,18 @@ public sealed class EmployeeDirectorySyncWorker(
                     "Background AD employee metadata sync refreshed {DirectoryCount} of {EmployeeCount} eligible employees",
                     records.Count,
                     employees.Count);
+
+                DateTime now = DateTime.Now;
+                logger.LogInformation(
+                    "Allocation lifecycle {Stage}: employee refresh is ensuring current-period allocations for {Year}-{Month:D2}",
+                    "EmployeeRefreshTrigger",
+                    now.Year,
+                    now.Month);
+                await monthOpening.EnsureCurrentPeriodAllocationsAsync(
+                    now.Year,
+                    now.Month,
+                    "EmployeeRefresh",
+                    stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

@@ -2,6 +2,7 @@ using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Accounts;
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Domain.Services;
+using Aegis.Cafeteria.Infrastructure.ActiveDirectory;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Infrastructure.Ffp;
 using Aegis.Cafeteria.Services.Development;
@@ -171,6 +172,9 @@ internal static class CafeteriaServicesHost
     {
         services.AddSingleton<MonthOpeningWorker>();
         services.AddHostedService(sp => sp.GetRequiredService<MonthOpeningWorker>());
+        services.AddSingleton<EmployeeDirectoryMetadataCache>();
+        services.AddSingleton<EmployeeDirectorySyncWorker>();
+        services.AddHostedService(sp => sp.GetRequiredService<EmployeeDirectorySyncWorker>());
         services.AddSingleton<ServiceFfpPublisherWorker>();
         services.AddHostedService(sp => sp.GetRequiredService<ServiceFfpPublisherWorker>());
         services.AddSingleton<FfpEmailReportSource>();
