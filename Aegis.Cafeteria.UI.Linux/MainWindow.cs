@@ -1227,7 +1227,7 @@ public sealed class MainWindow : Window
         var hasCustomer = currentCustomer is not null;
         var hasOrder = hasCustomer && cart.Count > 0;
         checkoutButton.IsEnabled = hasOrder &&
-            TryGetPayment(out _, out _, out TenderQuote? quote) &&
+            TryGetPayment(out _, out _, out _, out TenderQuote? quote) &&
             quote is not null &&
             quote.IsComplete;
         voidButton.IsEnabled = operatorSession.IsAuthenticated && hasOrder;
@@ -1296,7 +1296,7 @@ public sealed class MainWindow : Window
 
     private void UpdatePaymentState()
     {
-        if (!TryGetPayment(out _, out _, out TenderQuote? quote) || quote is null)
+        if (!TryGetPayment(out _, out _, out _, out TenderQuote? quote) || quote is null)
         {
             paymentRemaining.Text = "Remaining: —";
             changeDue.Text = "Change: —";
