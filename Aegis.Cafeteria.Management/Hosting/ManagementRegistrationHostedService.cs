@@ -1,6 +1,7 @@
 using System.Net;
 using System.Reflection;
 using System.Text.Json.Nodes;
+using Common.Diagnostics;
 using Common.Registration;
 
 namespace Aegis.Cafeteria.Management;
@@ -19,11 +20,16 @@ internal sealed class ManagementRegistrationHostedService(
             AegisControlPlaneService.Configuration,
             logger,
             configurationKey: "Aegis:Configuration:Url");
+        string operationsUrl = AegisControlPlaneEndpoints.ResolvePublic(
+            configuration,
+            AegisControlPlaneService.Operations,
+            logger,
+            configurationKey: "Aegis:Operations:Url");
 
         while (!stoppingToken.IsCancellationRequested)
         {
             RegistrationLifecycleState state =
-                await TryRegisterAsync(configurationUrl, stoppingToken);
+                await TryRegisterAsync(configurationUrl, operationsUrl, stoppingToken);
 
             TimeSpan delay = state switch
             {
@@ -38,7 +44,10 @@ internal sealed class ManagementRegistrationHostedService(
         }
     }
 
-    private async Task<RegistrationLifecycleState> TryRegisterAsync(string configurationUrl, CancellationToken cancellationToken)
+    private async Task<RegistrationLifecycleState> TryRegisterAsync(
+        string configurationUrl,
+        string operationsUrl,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -60,7 +69,7 @@ internal sealed class ManagementRegistrationHostedService(
                     ["baseUrl"] = NullIfBlank(publicUrl),
                     ["healthPath"] = "/health",
                     ["supportsRemoteDiagnostics"] = false,
-                    ["supportsOperationalTelemetry"] = false,
+                    ["supportsOperationalTelemetry"] = true,
                     ["authenticationScheme"] = "None",
                     ["supportedLevels"] = new JsonArray()
                 },
@@ -82,6 +91,13 @@ internal sealed class ManagementRegistrationHostedService(
                     : "/var/lib/aegis/cafeteria-management/registration-identity.json");
 
             using HttpClient client = new();
+            using HttpClient lifecycleClient = new();
+            ILifecycleEventSink lifecycle = CreateLifecycleSink(
+                operationsUrl,
+                lifecycleClient,
+                identityFile,
+                instanceId);
+
             var registration = new RegistrationLifecycleClient(
                 client,
                 new RegistrationLifecycleOptions(
@@ -89,14 +105,20 @@ internal sealed class ManagementRegistrationHostedService(
                     ApplicationId,
                     instanceId,
                     identityFile,
-                    TimeSpan.FromSeconds(10)),
-                logger: logger);
+                    TimeSpan.FromSeconds(Math.Clamp(
+                        configuration.GetValue("Aegis:Registration:RequestTimeoutSeconds", 30),
+                        5,
+                        120)),
+                    RunbookReference: "docs/RUNBOOK.md"),
+                logger: logger,
+                lifecycleEventSink: lifecycle);
 
             RegistrationLifecycleStatus result =
                 await registration.StepAsync(
                     new JsonObject
                     {
                         ["displayName"] = "Aegis Cafeteria Management",
+                        ["module"] = "Aegis.Cafeteria.Management",
                         ["publicUrl"] = publicUrl,
                         ["servicesUrl"] = servicesUrl,
                         ["hostname"] = Environment.MachineName
@@ -135,6 +157,49 @@ internal sealed class ManagementRegistrationHostedService(
             logger.LogWarning(exception, "Unable to register Aegis.Cafeteria.Management; Management remains operational and will retry.");
             return RegistrationLifecycleState.Error;
         }
+    }
+
+    private static ILifecycleEventSink CreateLifecycleSink(
+        string operationsUrl,
+        HttpClient client,
+        string identityFile,
+        string instanceId)
+    {
+        if (!Uri.TryCreate(
+                operationsUrl.TrimEnd('/') + "/api/operations/activity/observe",
+                UriKind.Absolute,
+                out Uri? endpoint))
+            return new NullLifecycleEventSink();
+
+        var store = new FileRegistrationIdentityStore(identityFile);
+        return new HttpLifecycleEventSink(
+            client,
+            new HttpLifecycleEventSinkOptions(endpoint, TimeSpan.FromSeconds(10)),
+            async (request, lifecycleEvent, cancellationToken) =>
+            {
+                RegistrationIdentityDocument identity =
+                    await store.LoadOrCreateAsync(
+                        ApplicationId,
+                        instanceId,
+                        cancellationToken);
+
+                if (string.IsNullOrWhiteSpace(identity.Credential))
+                    return;
+
+                request.Headers.Authorization =
+                    new System.Net.Http.Headers.AuthenticationHeaderValue(
+                        "Bearer",
+                        identity.Credential);
+                request.Headers.TryAddWithoutValidation(
+                    "X-Aegis-Application-Id",
+                    identity.ApplicationId);
+                request.Headers.TryAddWithoutValidation(
+                    "X-Aegis-Instance-Id",
+                    identity.InstanceId);
+                request.Headers.TryAddWithoutValidation(
+                    "X-Aegis-Installation-Id",
+                    identity.InstallationId);
+            });
     }
 
     private static JsonObject Requirement(string id, string displayName, string key, bool required, string? value)
