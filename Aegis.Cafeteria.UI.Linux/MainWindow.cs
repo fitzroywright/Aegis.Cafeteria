@@ -359,6 +359,14 @@ public sealed class MainWindow : Window
         return menu;
     }
 
+    private async Task OpenEmployeeEmailPreferencesAsync()
+    {
+        CafeteriaServicesClient servicesClient = this.services.GetRequiredService<CafeteriaServicesClient>();
+        EmployeeEmailPreferencesWindow window = new(this.identification, servicesClient);
+        await window.ShowDialog(this);
+        RegisterActivity();
+    }
+
     private void OpenEngineeringDiagnostics()
     {
         CafeteriaServicesOptions cafeteriaServices = this.services.GetRequiredService<CafeteriaServicesOptions>();
