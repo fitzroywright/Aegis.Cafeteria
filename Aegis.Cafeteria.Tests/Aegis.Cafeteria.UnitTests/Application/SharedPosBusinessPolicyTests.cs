@@ -61,9 +61,9 @@ public sealed class SharedPosBusinessPolicyTests
         order.Complete
         (
             [
-                new PaymentAllocation(PaymentMethod.CafeteriaAccount, 500m),
-                new PaymentAllocation(PaymentMethod.Credit, 300m),
-                new PaymentAllocation(PaymentMethod.Cash, 200m)
+                new OrderPayment(Guid.NewGuid(), PaymentMethod.CafeteriaAccount, 500m, now),
+                new OrderPayment(Guid.NewGuid(), PaymentMethod.Credit, 300m, now),
+                new OrderPayment(Guid.NewGuid(), PaymentMethod.Cash, 200m, now)
             ],
             now
         );
@@ -83,8 +83,29 @@ public sealed class SharedPosBusinessPolicyTests
             , new AccountPeriodView(2026, 9, 20, 0m, 0m, closed)
             , new CustomerFinancialStatusView
             (
-                  1000m, 500m, 500m, 0m, 1000m, 1000m, 0m, 0m, 0m, 0m, 0m
-                , 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, amountDue, 0m, 0m
+                  CreditLimit: 1000m
+                , SubsidyLimit: 500m
+                , SubsidyUsed: 0m
+                , SubsidyAmountRemaining: 500m
+                , NonSubsidyAmountRemaining: 500m
+                , TotalAvailableToSpend: 1000m
+                , CarriedForwardDebt: 0m
+                , GrossCustomerLiability: amountDue
+                , TotalOrderSales: 0m
+                , CafeteriaAccountSpending: 0m
+                , CashSpending: 0m
+                , AdditionalCreditApproved: 0m
+                , AdditionalCreditUsed: 0m
+                , AdditionalCreditRemaining: 0m
+                , StipendCashPaid: 0m
+                , StipendCardReduction: 0m
+                , PriorPeriodSettlements: 0m
+                , PriorPeriodRefundCredits: 0m
+                , CustomerPayments: 0m
+                , CustomerResponsibility: amountDue
+                , EmployeeAmountDue: amountDue
+                , TotalRefunds: 0m
+                , CurrentCreditSaleDebt: 0m
             )
             , []
             , new FfpPublicationStatus(false, 0, 0, null, null)
