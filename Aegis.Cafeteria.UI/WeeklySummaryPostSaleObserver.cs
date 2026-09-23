@@ -24,11 +24,6 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
         Order order,
         CancellationToken cancellationToken = default)
     {
-        if (account.Customer.IsCashCustomer || !account.Customer.IsEligibleForCredit)
-        {
-            return;
-        }
-
         CustomerNotificationPreferenceSnapshot preference;
         try
         {
@@ -45,18 +40,19 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
             preference = new CustomerNotificationPreferenceSnapshot(account.Customer.Id, false, false, null);
         }
 
-        // A completed preference decision is respected in every environment. Development must not
-        // repeatedly prompt after the employee/cashier has already chosen Yes or No.
-        if (preference.PreferenceAsked)
+        WeeklySummaryPromptDecision decision = WeeklySummaryPromptPolicy.Evaluate
+        (
+              account
+            , preference.PreferenceAsked
+            , preference.EmailAddress
+        );
+
+        if (!decision.ShouldPrompt)
         {
             return;
         }
 
-        string suggestedEmail = !string.IsNullOrWhiteSpace(preference.EmailAddress)
-            ? preference.EmailAddress
-            : account.Customer.EmailAddress;
-
-        using WeeklySummaryOptInDialog dialog = new(account.Customer.Name, suggestedEmail);
+        using WeeklySummaryOptInDialog dialog = new(account.Customer.Name, decision.SuggestedEmail);
         IWin32Window? owner = System.Windows.Forms.Application.OpenForms
             .Cast<Form>()
             .FirstOrDefault(form => form is MainForm && form.Visible);
