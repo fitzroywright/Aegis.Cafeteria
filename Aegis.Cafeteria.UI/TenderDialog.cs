@@ -60,12 +60,22 @@ internal sealed class TenderDialog : Form
 
     public decimal CafeteriaAccountAmount => CurrentEditorValue(this.account);
     public decimal CashReceived => CurrentEditorValue(this.cashReceived);
-    public decimal CashAmount => Math.Min(CashReceived, Math.Max(0m, this.total - CafeteriaAccountAmount));
-    public decimal CreditAmount => this.useCredit.Checked
-        ? Math.Max(0m, this.total - CafeteriaAccountAmount - CashAmount)
-        : 0m;
-    public decimal RemainingAmount => Math.Max(0m, this.total - CafeteriaAccountAmount - CashAmount - CreditAmount);
-    public decimal ChangeAmount => Math.Max(0m, CashReceived - Math.Max(0m, this.total - CafeteriaAccountAmount));
+    private TenderQuote CurrentQuote => TenderQuoteCalculator.Calculate
+    (
+          this.total
+        , this.maximumAccountAmount
+        , this.subsidyRemaining
+        , cafeteriaAccountAllowed: this.maximumAccountAmount > 0m
+        , creditSalesAllowed: this.creditSalesAllowed
+        , cafeteriaAccountAmount: CafeteriaAccountAmount
+        , cashReceived: CashReceived
+        , useEmployeeCredit: this.useCredit.Checked
+    );
+
+    public decimal CashAmount => CurrentQuote.CashApplied;
+    public decimal CreditAmount => CurrentQuote.CreditAmount;
+    public decimal RemainingAmount => CurrentQuote.RemainingAmount;
+    public decimal ChangeAmount => CurrentQuote.ChangeAmount;
 
     public TenderDialog(decimal total, decimal availableCredit, decimal subsidyRemaining)
         : this(new TenderDialogOptions(total, availableCredit, subsidyRemaining, false))
@@ -110,7 +120,17 @@ internal sealed class TenderDialog : Form
         {
             if (!TryCurrentEditorValue(this.account, out decimal accountAmount) ||
                 !TryCurrentEditorValue(this.cashReceived, out decimal cashReceived) ||
-                Math.Max(0m, this.total - accountAmount - Math.Min(cashReceived, Math.Max(0m, this.total - accountAmount)) - CreditAmount) > 0m)
+                !TenderQuoteCalculator.Calculate
+                (
+                      this.total
+                    , this.maximumAccountAmount
+                    , this.subsidyRemaining
+                    , cafeteriaAccountAllowed: this.maximumAccountAmount > 0m
+                    , creditSalesAllowed: this.creditSalesAllowed
+                    , cafeteriaAccountAmount: accountAmount
+                    , cashReceived: cashReceived
+                    , useEmployeeCredit: this.useCredit.Checked
+                ).IsComplete)
             {
                 return;
             }
@@ -258,18 +278,17 @@ internal sealed class TenderDialog : Form
             return;
         }
 
-        decimal employeeCardResponsibility = Math.Max(0m, CafeteriaAccountAmount - this.subsidyRemaining);
-        decimal addedResponsibility = employeeCardResponsibility + CreditAmount;
+        TenderQuote quote = CurrentQuote;
 
-        this.credit.Text = CreditAmount.ToString("C2");
-        this.credit.ForeColor = CreditAmount > 0m ? Orange : Muted;
-        this.remaining.Text = RemainingAmount.ToString("C2");
-        this.change.Text = ChangeAmount.ToString("C2");
-        this.newResponsibility.Text = addedResponsibility.ToString("C2");
-        this.newResponsibility.ForeColor = addedResponsibility > 0m ? Orange : Green;
-        this.remaining.ForeColor = RemainingAmount > 0m ? Color.Firebrick : Green;
-        this.change.ForeColor = ChangeAmount > 0m ? Green : SystemColors.ControlText;
-        this.complete.Enabled = RemainingAmount == 0m;
+        this.credit.Text = quote.CreditAmount.ToString("C2");
+        this.credit.ForeColor = quote.CreditAmount > 0m ? Orange : Muted;
+        this.remaining.Text = quote.RemainingAmount.ToString("C2");
+        this.change.Text = quote.ChangeAmount.ToString("C2");
+        this.newResponsibility.Text = quote.NewCustomerResponsibility.ToString("C2");
+        this.newResponsibility.ForeColor = quote.NewCustomerResponsibility > 0m ? Orange : Green;
+        this.remaining.ForeColor = quote.RemainingAmount > 0m ? Color.Firebrick : Green;
+        this.change.ForeColor = quote.ChangeAmount > 0m ? Green : SystemColors.ControlText;
+        this.complete.Enabled = quote.IsComplete;
     }
 
     private static decimal CurrentEditorValue(NumericUpDown control)
