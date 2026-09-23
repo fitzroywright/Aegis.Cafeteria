@@ -26,3 +26,7 @@ Press **Esc** during an uncompleted transaction to abandon the customer/cart and
 
 ### v58 customer identification
 Customer Search is universal: NFC -> Code -> TRN -> Name. The lookup-type dropdown is removed. While idle the customer field is focused so keyboard-wedge NFC readers can identify a customer without cashier mode selection. Empty Find opens/browses employees. Only NFC, Code and TRN are cached as identifiers; Name is the directory-search fallback.
+
+## Administration parity
+
+Windows and Linux both provide price maintenance and employee email preferences administration through Cafeteria Services. FFP transaction mappings, legacy imports, and direct FFP database configuration are not POS responsibilities.
