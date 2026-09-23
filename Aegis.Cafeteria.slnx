@@ -4,6 +4,7 @@
     <Project Path="Aegis.Cafeteria.Application/Aegis.Cafeteria.Application.csproj" />
     <Project Path="Aegis.Cafeteria.Infrastructure/Aegis.Cafeteria.Infrastructure.csproj" />
     <Project Path="Aegis.Cafeteria.Reporting/Aegis.Cafeteria.Reporting.csproj" />
+    <Project Path="Aegis.Cafeteria.Presentation/Aegis.Cafeteria.Presentation.csproj" />
     <Project Path="Aegis.Cafeteria.UI/Aegis.Cafeteria.UI.csproj" />
     <Project Path="Aegis.Cafeteria.UI.Linux/Aegis.Cafeteria.UI.Linux.csproj" />
     <Project Path="Aegis.Cafeteria.Services/Aegis.Cafeteria.Services.csproj" />
