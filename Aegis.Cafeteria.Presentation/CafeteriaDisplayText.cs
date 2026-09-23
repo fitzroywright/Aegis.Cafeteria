@@ -32,6 +32,14 @@ public static class CafeteriaDisplayText
         return $"{month} • {account.Period.EligibleWorkingDays} eligible work days";
     }
 
+    public static string RemainingOriginalTender
+    (
+          decimal accountAmount
+        , decimal creditAmount
+        , decimal cashAmount
+    )
+        => $"Remaining original tender: {EmployeeCard} {CafeteriaDisplay.Money(accountAmount)}, {EmployeeCredit} {CafeteriaDisplay.Money(creditAmount)}, {Cash} {CafeteriaDisplay.Money(cashAmount)}";
+
     public static string TransactionTender(decimal accountAmount, decimal creditAmount, decimal cashAmount)
     {
         List<string> parts = [];
