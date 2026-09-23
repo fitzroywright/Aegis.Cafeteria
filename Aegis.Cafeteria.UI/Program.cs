@@ -86,7 +86,6 @@ internal static class Program
                 serviceProvider => new CustomerPaymentWorkflow
                 (
                       serviceProvider.GetRequiredService<ICafeteriaPersistenceStore>()
-                    , serviceProvider.GetService<IExternalLedgerProjectionService>()
                 )
             );
 
