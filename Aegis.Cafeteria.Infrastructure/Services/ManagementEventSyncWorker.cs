@@ -462,7 +462,7 @@ public sealed class ManagementEventSyncWorker : BackgroundService
                     , Amount = import.ScanValue
                     , PayloadJson = JsonSerializer.Serialize
                     (
-                        new ExternalFfpTransactionSnapshot
+                        new LegacyTransactionLedgerSnapshot
                         (
                               import.SourceId
                             , import.CustomerId
