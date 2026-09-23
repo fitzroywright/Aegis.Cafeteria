@@ -8,6 +8,7 @@ using Aegis.Cafeteria.Infrastructure;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Infrastructure.Logging;
 using Aegis.Cafeteria.Infrastructure.Persistence;
+using Aegis.Cafeteria.Infrastructure.Registration;
 using Aegis.Cafeteria.Infrastructure.Security;
 using Aegis.Cafeteria.Infrastructure.Secrets;
 using Aegis.Cafeteria.Reporting;
@@ -63,6 +64,8 @@ internal static class Program
             builder.Logging.AddCafeteriaLogging(runtime.Logging, runtime.Persistence.TerminalId);
             builder.Services.AddCafeteriaPos(runtime);
             builder.Services.AddCafeteriaReporting();
+
+            RegisterControlPlaneModules(builder, runtime, "Windows");
             builder.Services.AddSingleton<IEmployeeParticipationQuery, EfEmployeeParticipationQuery>();
 
             OperatorSecurityOptions securityOptions = builder.Configuration.GetSection("Security").Get<OperatorSecurityOptions>()
@@ -158,6 +161,41 @@ internal static class Program
                 MessageBoxIcon.Error
             );
         }
+    }
+
+    private static void RegisterControlPlaneModules(
+        HostApplicationBuilder builder,
+        CafeteriaRuntimeOptions runtime,
+        string platform)
+    {
+        string instanceId = CafeteriaRegistrationIdentity.BuildInstanceId(
+            runtime.Persistence.TerminalId,
+            platform);
+        string? siteId = builder.Configuration["Deployment:SiteId"];
+
+        builder.Services.AddCafeteriaControlPlaneRegistration(
+            new CafeteriaControlPlaneRegistrationOptions(
+                "Aegis.Cafeteria.POS",
+                "Aegis Cafeteria POS",
+                "Aegis.Cafeteria.POS",
+                instanceId,
+                CafeteriaRegistrationIdentity.BuildIdentityFilePath(
+                    "Aegis.Cafeteria.POS",
+                    instanceId),
+                platform,
+                siteId));
+
+        builder.Services.AddCafeteriaControlPlaneRegistration(
+            new CafeteriaControlPlaneRegistrationOptions(
+                "Aegis.Cafeteria.POS.UI",
+                "Aegis Cafeteria POS UI",
+                "Aegis.Cafeteria.POS.UI",
+                instanceId,
+                CafeteriaRegistrationIdentity.BuildIdentityFilePath(
+                    "Aegis.Cafeteria.POS.UI",
+                    instanceId),
+                platform,
+                siteId));
     }
 
     private static bool AuthenticateOperator(IHost host, StartupSplashController splash)
