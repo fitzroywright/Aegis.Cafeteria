@@ -68,7 +68,9 @@ public static class CafeteriaRuntimeOptionsResolver
     {
         IConfigurationSection p = configuration.GetSection("Persistence");
         IConfigurationSection log = configuration.GetSection("Logging");
-        IConfigurationSection ffp = configuration.GetSection("FfpIntegration");
+        IConfigurationSection ffp = allowDirectFfpDatabase
+            ? configuration.GetSection("FfpIntegration")
+            : new ConfigurationBuilder().AddInMemoryCollection().Build().GetSection("FfpIntegration");
         IConfigurationSection health = configuration.GetSection("Health");
         IConfigurationSection messaging = configuration.GetSection("Messaging");
         IConfigurationSection svc = configuration.GetSection("CafeteriaServices");
@@ -77,7 +79,7 @@ public static class CafeteriaRuntimeOptionsResolver
             : new BitwardenSecretsManagerOptions();
         bool servicesEnabled = svc.GetValue("Enabled", false);
         bool developmentDataEnabled = configuration.GetSection("DevelopmentData").GetValue("Enabled", false);
-        bool ffpEnabled = ffp.GetValue("Enabled", true);
+        bool ffpEnabled = allowDirectFfpDatabase && ffp.GetValue("Enabled", true);
         string? configuredFfpConnectionString = ffp["ConnectionString"];
         string ffpConnectionString = string.Empty;
 
