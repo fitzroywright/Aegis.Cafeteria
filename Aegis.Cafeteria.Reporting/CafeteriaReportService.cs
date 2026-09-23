@@ -39,7 +39,7 @@ public sealed class CafeteriaReportService(
             CafeteriaReportKind.OutstandingDebt => await ResponsibilityAsync(filter, cancellationToken, true),
             CafeteriaReportKind.RefundVoidAudit => await RefundVoidAuditAsync(filter, cancellationToken),
             CafeteriaReportKind.AdditionalCreditAudit => await AdditionalCreditAuditAsync(filter, cancellationToken),
-            CafeteriaReportKind.FfpReconciliation => await FfpReconciliationAsync(filter, cancellationToken),
+            CafeteriaReportKind.ExternalSystemReconciliation => await ExternalSystemReconciliationAsync(filter, cancellationToken),
             _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
         };
     }
@@ -419,14 +419,14 @@ public sealed class CafeteriaReportService(
 
         var policyProvider = services.GetRequiredService<ICafeteriaRatePolicyProvider>();
         var policy = await policyProvider.GetAsync(ct)
-            ?? throw new InvalidOperationException("Cafeteria funding policy is unavailable. Refresh FFP reference data before generating the Canteen Summary.");
+            ?? throw new InvalidOperationException("Cafeteria funding policy is unavailable. Refresh cafeteria reference data before generating the Canteen Summary.");
 
         var holidays = (await db.Holidays.AsNoTracking().ToListAsync(ct))
             .Select(x => x.Date)
             .ToHashSet();
         var workDays = CountWorkingDays(f.From, f.To, holidays);
         var subsidyRate = policy.SubsidyCost;
-        var ffpAmount = subsidyRate * workDays;
+        var companyAmount = subsidyRate * workDays;
 
         var usage = new Dictionary<int, decimal>();
         foreach (var order in orders)
@@ -455,15 +455,15 @@ public sealed class CafeteriaReportService(
             .Select(x =>
             {
                 var customer = customers[x.Key];
-                var employeeFfpAmount = customer.IsEligibleForCredit ? ffpAmount : 0m;
-                var deduction = Math.Max(0m, x.Value - employeeFfpAmount);
+                var employeeCompanyAmount = customer.IsEligibleForCredit ? companyAmount : 0m;
+                var deduction = Math.Max(0m, x.Value - employeeCompanyAmount);
                 return Row(
                     ("department", string.IsNullOrWhiteSpace(customer.Department) ? "Unassigned" : customer.Department),
                     ("employee", customer.Name),
                     ("amountUsed", x.Value),
                     ("workDays", customer.IsEligibleForCredit ? workDays : 0),
-                    ("ffpPayment", customer.IsEligibleForCredit ? subsidyRate : 0m),
-                    ("ffpAmount", employeeFfpAmount),
+                    ("companyPayment", customer.IsEligibleForCredit ? subsidyRate : 0m),
+                    ("companyAmount", employeeCompanyAmount),
                     ("deduction", deduction));
             })
             .OrderBy(x => Convert.ToString(x["department"], System.Globalization.CultureInfo.InvariantCulture))
@@ -471,14 +471,14 @@ public sealed class CafeteriaReportService(
             .ToArray();
 
         var totalUsed = rows.Sum(x => Convert.ToDecimal(x["amountUsed"], System.Globalization.CultureInfo.InvariantCulture));
-        var totalFfp = rows.Sum(x => Convert.ToDecimal(x["ffpAmount"], System.Globalization.CultureInfo.InvariantCulture));
+        var totalCompany = rows.Sum(x => Convert.ToDecimal(x["companyAmount"], System.Globalization.CultureInfo.InvariantCulture));
         var totalDeduction = rows.Sum(x => Convert.ToDecimal(x["deduction"], System.Globalization.CultureInfo.InvariantCulture));
 
         return Doc(
             CafeteriaReportKind.CanteenSummary,
             "Canteen Summary",
             f,
-            [new("Amount used", totalUsed), new("FFP amount", totalFfp), new("Deduction", totalDeduction)],
+            [new("Amount used", totalUsed), new("Company amount", totalCompany), new("Deduction", totalDeduction)],
             [],
             [new("Canteen summary detail",
                 [
@@ -486,8 +486,8 @@ public sealed class CafeteriaReportService(
                     new("employee", "Employee Name"),
                     new("amountUsed", "Amt Used", "currency"),
                     new("workDays", "Work Days", "integer"),
-                    new("ffpPayment", "FFP Pmt", "currency"),
-                    new("ffpAmount", "FFP Amt", "currency"),
+                    new("companyPayment", "Company Pmt", "currency"),
+                    new("companyAmount", "Company Amt", "currency"),
                     new("deduction", "Deduction", "currency")
                 ], rows)]);
     }
@@ -504,11 +504,11 @@ public sealed class CafeteriaReportService(
     private async Task<ReportDocument> FfpReconciliationAsync(ReportFilter f,CancellationToken ct)
     {
         var gateway=services.GetService<IExternalAccountingGateway>();
-        if(gateway is null)return Doc(CafeteriaReportKind.FfpReconciliation,"FFP reconciliation",f,[],[],[],["FFP integration is disabled; live reconciliation is unavailable."]);
-        var ffp=(await gateway.GetAccountSummariesAsync(ct)).ToDictionary(x=>x.CustomerId);var positions=await LoadAccountPositionsAsync(f,ct);var latest=positions.GroupBy(x=>x.View.Customer.Id).Select(g=>g.OrderByDescending(x=>x.Year).ThenByDescending(x=>x.Month).First()).ToArray();
-        var rows=latest.Select(x=>{ffp.TryGetValue(x.View.Customer.Id,out var e);var a=x.View.FinancialStatus;var ffpLimit=e?.CreditLimit??0;var ffpBalance=e?.AvailableBalance??0;return Row(("employee",x.View.Customer.Name),("cafeteriaLimit",a.CreditLimit),("ffpLimit",ffpLimit),("limitDiff",a.CreditLimit-ffpLimit),("cafeteriaBalance",a.TotalAvailableToSpend),("ffpBalance",ffpBalance),("balanceDiff",a.TotalAvailableToSpend-ffpBalance));}).ToArray();
+        if(gateway is null)return Doc(CafeteriaReportKind.ExternalSystemReconciliation,"External system reconciliation",f,[],[],[],["External accounting integration is unavailable; live reconciliation cannot run."]);
+        var external=(await gateway.GetAccountSummariesAsync(ct)).ToDictionary(x=>x.CustomerId);var positions=await LoadAccountPositionsAsync(f,ct);var latest=positions.GroupBy(x=>x.View.Customer.Id).Select(g=>g.OrderByDescending(x=>x.Year).ThenByDescending(x=>x.Month).First()).ToArray();
+        var rows=latest.Select(x=>{external.TryGetValue(x.View.Customer.Id,out var e);var a=x.View.FinancialStatus;var externalLimit=e?.CreditLimit??0;var externalBalance=e?.AvailableBalance??0;return Row(("employee",x.View.Customer.Name),("cafeteriaLimit",a.CreditLimit),("externalLimit",externalLimit),("limitDiff",a.CreditLimit-externalLimit),("cafeteriaBalance",a.TotalAvailableToSpend),("externalBalance",externalBalance),("balanceDiff",a.TotalAvailableToSpend-externalBalance));}).ToArray();
         var mismatches=rows.Count(x=>Math.Abs(Convert.ToDecimal(x["limitDiff"]))>0.01m||Math.Abs(Convert.ToDecimal(x["balanceDiff"]))>0.01m);
-        return Doc(CafeteriaReportKind.FfpReconciliation,"FFP reconciliation",f,[new("Employees checked",rows.Length,"integer"),new("Mismatches",mismatches,"integer")],[],[new("Balance comparison",[new("employee","Employee"),new("cafeteriaLimit","Cafeteria credit limit","currency"),new("ffpLimit","FFP credit limit","currency"),new("limitDiff","Limit difference","currency"),new("cafeteriaBalance","Cafeteria available","currency"),new("ffpBalance","FFP available","currency"),new("balanceDiff","Balance difference","currency")],rows)]);
+        return Doc(CafeteriaReportKind.ExternalSystemReconciliation,"External system reconciliation",f,[new("Employees checked",rows.Length,"integer"),new("Mismatches",mismatches,"integer")],[],[new("Balance comparison",[new("employee","Employee"),new("cafeteriaLimit","Cafeteria credit limit","currency"),new("externalLimit","External credit limit","currency"),new("limitDiff","Limit difference","currency"),new("cafeteriaBalance","Cafeteria available","currency"),new("externalBalance","External available","currency"),new("balanceDiff","Balance difference","currency")],rows)]);
     }
 
     private async Task<SalesData> LoadSalesAsync(ReportFilter f,CancellationToken ct)
