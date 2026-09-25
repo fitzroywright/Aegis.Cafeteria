@@ -104,7 +104,6 @@ internal static class CafeteriaServicesHost
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaSecretsCredentialDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaPublicationQueueDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaLedgerDiagnosticLevelTest>();
-        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaProductReferenceSourceDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaMessagingDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaFundingPolicyDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaCustomerLookupDiagnosticLevelTest>();
@@ -177,9 +176,6 @@ internal static class CafeteriaServicesHost
         services.AddHostedService(sp => sp.GetRequiredService<CafeteriaOperationsFlowPublisher>());
         services.AddSingleton<ServiceEventStore>();
         services.AddSingleton<CustomerCreditPolicyStore>();
-        services.AddSingleton<CafeteriaFundingPolicyStore>();
-        services.AddSingleton<FundingPolicyManagementService>();
-        services.AddSingleton<ICafeteriaFundingPolicySource>(sp => sp.GetRequiredService<CafeteriaFundingPolicyStore>());
         services.AddHttpContextAccessor();
         services.AddScoped<IAdditionalCreditAuthorizer, AuthenticatedAdditionalCreditAuthorizer>();
         services.AddScoped<AdditionalCreditService>();
