@@ -50,7 +50,7 @@ public sealed class ExternalPublicationWorker(
 
     internal async Task<int> PublishBatchAsync(CancellationToken cancellationToken)
     {
-        IReadOnlyList<CafeteriaServiceEventEnvelope> pending = await events.GetPendingFfpPublicationAsync(
+        IReadOnlyList<CafeteriaServiceEventEnvelope> pending = await events.GetPendingExternalPublicationAsync(
             Math.Clamp(options.BatchSize, 1, 500),
             Math.Max(1, options.PoisonMessageAttemptLimit),
             cancellationToken);
@@ -64,7 +64,7 @@ public sealed class ExternalPublicationWorker(
                 if (transaction is not null)
                     await publisher.PublishAsync(transaction, cancellationToken);
 
-                await events.RecordFfpAttemptAsync(
+                await events.RecordPublicationAttemptAsync(
                     envelope.OperationId,
                     null,
                     true,
@@ -74,7 +74,7 @@ public sealed class ExternalPublicationWorker(
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                await events.RecordFfpAttemptAsync(
+                await events.RecordPublicationAttemptAsync(
                     envelope.OperationId,
                     exception.Message,
                     false,
