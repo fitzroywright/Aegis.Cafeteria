@@ -45,4 +45,39 @@ public sealed class MonthlyAllocationCalculatorTests
         var sut = new MonthlyAllocationCalculator();
         Assert.Equal(0, sut.CountWorkingDays(2026, 9, Array.Empty<DateOnly>(), new DateOnly(2026, 10, 1)));
     }
+
+    [Fact]
+    public void CountEligibleWorkingDays_UsesAuthoritativeCalendarAndEffectiveDate()
+    {
+        MonthlyAllocationCalculator sut = new();
+        DateOnly[] workingDays =
+        [
+              new DateOnly(2026, 9, 14)
+            , new DateOnly(2026, 9, 15)
+            , new DateOnly(2026, 9, 16)
+            , new DateOnly(2026, 9, 18)
+            , new DateOnly(2026, 9, 21)
+        ];
+
+        int count = sut.CountEligibleWorkingDays(
+            workingDays,
+            new DateOnly(2026, 9, 16));
+
+        Assert.Equal(3, count);
+    }
+
+    [Fact]
+    public void CountEligibleWorkingDays_DoesNotInventWeekdaysMissingFromPolicy()
+    {
+        MonthlyAllocationCalculator sut = new();
+        DateOnly[] workingDays =
+        [
+              new DateOnly(2026, 9, 14)
+            , new DateOnly(2026, 9, 16)
+        ];
+
+        Assert.Equal(
+            2,
+            sut.CountEligibleWorkingDays(workingDays, null));
+    }
 }
