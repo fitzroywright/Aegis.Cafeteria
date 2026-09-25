@@ -22,7 +22,6 @@ EngineeringEndpoints.Map(app);
 PosEndpoints.Map(app);
 CustomerManagementEndpoints.Map(app);
 FinancialManagementEndpoints.Map(app);
-ImportToolsEndpoints.Map(app);
 MigrationEndpoints.Map(app);
 ManagementConsoleEndpoints.Map(app);
 MonthOpeningEndpoints.Map(app);
