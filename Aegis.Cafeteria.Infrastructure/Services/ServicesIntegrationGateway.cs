@@ -40,9 +40,6 @@ public sealed class ServicesIntegrationGateway(HttpClient http) :
     public async Task<IReadOnlyList<ExternalProductSnapshot>> GetLunchItemsAsync(CancellationToken cancellationToken = default)
         => await http.GetFromJsonAsync<ExternalProductSnapshot[]>("api/reference/products", cancellationToken) ?? [];
 
-    public async Task<IReadOnlyList<ExternalAccountSummary>> GetAccountSummariesAsync(CancellationToken cancellationToken = default)
-        => await http.GetFromJsonAsync<ExternalAccountSummary[]>("api/integration/accounts", cancellationToken) ?? [];
-
     public async Task PublishLedgerEntryAsync(ExternalLedgerEntry entry, CancellationToken cancellationToken = default)
     {
         using HttpResponseMessage response = await http.PostAsJsonAsync("api/integration/ledger", entry, cancellationToken);
