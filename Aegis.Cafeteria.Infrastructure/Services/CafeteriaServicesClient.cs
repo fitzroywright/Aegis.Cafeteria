@@ -12,6 +12,14 @@ public sealed record CustomerNotificationPreferenceSnapshot
     , string? EmailAddress
 );
 
+public sealed record ManagerReportSettingsSnapshot
+(
+      bool WeeklySummaryEnabled
+    , string? EmailAddress
+    , DayOfWeek WeeklySummaryDay
+    , int WeeklySummaryHourLocal
+);
+
 public sealed record MonthOperationResult
 (
       int Year
@@ -83,6 +91,23 @@ public sealed class CafeteriaServicesClient(HttpClient http)
             cancellationToken: cancellationToken
         ) ?? throw new InvalidOperationException("Cafeteria Services returned no notification preference.");
     }
+    public async Task<ManagerReportSettingsSnapshot> GetManagerReportSettingsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using HttpResponseMessage response = await http.GetAsync(
+            "api/management/report-settings",
+            cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw await CreateServiceExceptionAsync(response, cancellationToken);
+        }
+
+        return await response.Content.ReadFromJsonAsync<ManagerReportSettingsSnapshot>(
+            cancellationToken: cancellationToken)
+            ?? throw new InvalidOperationException("Cafeteria Services returned no manager report settings.");
+    }
+
     public async Task<MonthOperationResult> RetryMonthOpeningAsync(
         int year,
         int month,
