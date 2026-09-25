@@ -33,7 +33,7 @@ The helper configures the `github-common` source and immediately performs a rest
 
 ## Management authentication
 
-Management credentials are submitted to Cafeteria Services for Common.Security authentication. Management receives a short-lived service token for authorized proxy calls. Treat that token as sensitive and never log it.
+Management is now hosted directly by Cafeteria Services under `/management/`; there is no separate Aegis.Cafeteria.Management process. Credentials are submitted to Cafeteria Services for Common.Security authentication. Services stores a short-lived management session and returns only an HttpOnly SameSite management cookie. Treat the underlying service token as sensitive and never log it.
 
 ## SQL
 
