@@ -25,6 +25,16 @@
       "example": "Configured through deployment configuration or the application secret provider."
     },
     {
+      "id": "ffp-integration-plane-url",
+      "displayName": "FFP Integration Plane URL",
+      "kind": "ExternalService",
+      "required": true,
+      "purpose": "Authoritative boundary for Cafeteria policy, employee facts and outbound employee ID scan publication.",
+      "configurationKey": "IntegrationPlane:BaseUrl",
+      "isConfigured": false,
+      "example": "https://ffp-integration.internal"
+    },
+    {
       "id": "openbao-url",
       "displayName": "OpenBao URL",
       "kind": "ExternalService",
