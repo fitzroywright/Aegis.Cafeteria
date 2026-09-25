@@ -19,10 +19,13 @@ public sealed class EfRecentTransactionQuery(IDbContextFactory<LocalCafeteriaDbC
         await using LocalCafeteriaDbContext db = await factory.CreateDbContextAsync(cancellationToken);
 
         // SQLite does not reliably translate DateTimeOffset range comparison/order operations.
-        // Keep the SQL part to a status/header projection, then apply the local calendar date and
-        // sort in memory. Only the selected order details are loaded afterwards.
+        // Bound the SQL query by the monotonic revision index first, then apply the local calendar
+        // date in memory. This avoids loading the entire completed-order history for every refresh.
+        int scanLimit = Math.Max(2000, take * 100);
         var completedHeaders = await db.Orders.AsNoTracking()
             .Where(x => x.Status == (int)OrderStatus.Completed && x.CompletedAt.HasValue)
+            .OrderByDescending(x => x.Revision)
+            .Take(scanLimit)
             .Select(x => new { x.Id, x.CustomerId, x.CompletedAt, x.CashierUserId, x.TerminalId })
             .ToListAsync(cancellationToken);
 
