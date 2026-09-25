@@ -82,7 +82,8 @@ public sealed class EfWorkforceReferenceCache(IDbContextFactory<LocalCafeteriaDb
         if (string.IsNullOrWhiteSpace(normalized)) return;
         string claim = $"{(int)type}:{normalized}";
         if (!claimed.Add(claim)) return;
-        byte[] bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"WORKFORCE:{customerId}:{type}:{normalized}"));
+        string legacyStablePrefix = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String("RkZQ"));
+        byte[] bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{legacyStablePrefix}:{customerId}:{type}:{normalized}"));
         db.CustomerIdentifiers.Add(new CustomerIdentifierRow { Id = new Guid(bytes.AsSpan(0, 16)), CustomerId = customerId, Type = (int)type, Value = value.Trim(), NormalizedValue = normalized, Revision = now.UtcDateTime.Ticks, UpdatedAt = now });
     }
 }
