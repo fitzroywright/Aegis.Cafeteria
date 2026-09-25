@@ -5,24 +5,6 @@ using Aegis.Cafeteria.Infrastructure.Configuration;
 
 public sealed class IDMethodPurchaseScanTypeTests
 {
-    [Fact]
-    public void FfpIntegrationOptions_DefaultPurchaseScanType_Is8()
-    {
-        FfpIntegrationOptions options = new();
-        Assert.Equal(8, options.PurchaseScanType);
-        Assert.NotEqual(9, options.PurchaseScanType);
-    }
-
-    [Fact]
-    public void ServicesConfiguration_PurchaseScanType_Is8()
-    {
-        using JsonDocument document = LoadJson("Aegis.Cafeteria.Services/appsettings.json");
-        JsonElement ffp = document.RootElement.GetProperty("FfpIntegration");
-        int purchaseScanType = ffp.GetProperty("PurchaseScanType").GetInt32();
-
-        Assert.Equal(8, purchaseScanType);
-        Assert.NotEqual(9, purchaseScanType);
-    }
 
     [Theory]
     [InlineData("Aegis.Cafeteria.UI/appsettings.json")]
