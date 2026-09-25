@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 public sealed class LocalCafeteriaDbContext(DbContextOptions<LocalCafeteriaDbContext> options) : CafeteriaDbContextBase(options)
 {
     public DbSet<FfpLedgerOutboxRow> FfpLedgerOutbox => Set<FfpLedgerOutboxRow>();
-    public DbSet<FfpImportedTransactionRow> FfpImportedTransactions => Set<FfpImportedTransactionRow>();
     public DbSet<LocalSchemaInfoRow> LocalSchemaInfo => Set<LocalSchemaInfoRow>();
     public DbSet<ManagementEventInboxRow> ManagementEventInbox => Set<ManagementEventInboxRow>();
     public DbSet<PosTransactionOutboxRow> PosTransactionOutbox => Set<PosTransactionOutboxRow>();
@@ -22,14 +21,6 @@ public sealed class LocalCafeteriaDbContext(DbContextOptions<LocalCafeteriaDbCon
         b.Entity<FfpLedgerOutboxRow>().Property(x => x.Code).HasMaxLength(256);
         b.Entity<FfpLedgerOutboxRow>().Property(x => x.CreatedBy).HasMaxLength(128);
         b.Entity<FfpLedgerOutboxRow>().Property(x => x.LastError).HasMaxLength(2000);
-
-        b.Entity<FfpImportedTransactionRow>().ToTable("FfpImportedTransactions");
-        b.Entity<FfpImportedTransactionRow>().HasKey(x => x.SourceId);
-        b.Entity<FfpImportedTransactionRow>().HasIndex(x => new { x.CustomerId, x.Year, x.Month, x.OccurredAt });
-        b.Entity<FfpImportedTransactionRow>().Property(x => x.IdName).HasMaxLength(128);
-        b.Entity<FfpImportedTransactionRow>().Property(x => x.Description).HasMaxLength(2000);
-        b.Entity<FfpImportedTransactionRow>().Property(x => x.UserName).HasMaxLength(128);
-        b.Entity<FfpImportedTransactionRow>().Property(x => x.ScanCode).HasMaxLength(128);
 
         b.Entity<ManagementEventInboxRow>().ToTable("ManagementEventInbox");
         b.Entity<ManagementEventInboxRow>().HasKey(x => x.OperationId);
