@@ -68,6 +68,12 @@ public sealed class MonthClosingWorker(
             throw new InvalidOperationException("Only a completed month can be closed.");
         }
 
+        if (await events.HasPendingFinancialPublicationForPeriodAsync(year, month, cancellationToken))
+        {
+            throw new InvalidOperationException(
+                $"Month {year:D4}-{month:D2} still has unpublished financial events and cannot be closed yet.");
+        }
+
         IReadOnlyDictionary<int, MonthlyAllocationServiceEvent> allocations =
             await events.GetCurrentMonthlyAllocationsAsync(year, month, cancellationToken);
 
