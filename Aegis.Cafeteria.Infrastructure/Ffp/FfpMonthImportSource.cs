@@ -10,9 +10,9 @@ using Microsoft.Data.SqlClient;
 /// Legacy purchase rows may use IDName for the actual item name, so import selection uses the exact
 /// legacy scan-type mapping: 3 = allocation, 8 = purchase, 4 = stipend.
 /// </summary>
-public sealed class FfpMonthImportSource(FfpIntegrationOptions options) : IFfpMonthImportSource
+public sealed class FfpMonthImportSource(FfpIntegrationOptions options) : IMonthImportSource
 {
-    public async Task<FfpMonthImportSnapshot> GetMonthAsync
+    public async Task<MonthImportSnapshot> GetMonthAsync
     (
           int year
         , int month
@@ -72,8 +72,8 @@ FROM dbo.Employees AS e
 WHERE e.EligibleForLunchTicket = 1
 ORDER BY e.ID;";
 
-        List<ExternalFfpTransactionSnapshot> transactions = [];
-        List<ExternalFfpAccountSnapshot> accounts = [];
+        List<ExternalTransactionSnapshot> transactions = [];
+        List<ExternalAccountSnapshot> accounts = [];
 
         await using SqlConnection connection = new(options.ConnectionString);
         await connection.OpenAsync(cancellationToken);
@@ -92,7 +92,7 @@ ORDER BY e.ID;";
             {
                 transactions.Add
                 (
-                    new ExternalFfpTransactionSnapshot
+                    new ExternalTransactionSnapshot
                     (
                           Convert.ToInt64(reader.GetValue(0))
                         , Convert.ToInt32(reader.GetValue(1))
@@ -115,7 +115,7 @@ ORDER BY e.ID;";
             {
                 accounts.Add
                 (
-                    new ExternalFfpAccountSnapshot
+                    new ExternalAccountSnapshot
                     (
                           Convert.ToInt32(reader.GetValue(0))
                         , Convert.ToDecimal(reader.GetValue(1))
@@ -125,7 +125,7 @@ ORDER BY e.ID;";
             }
         }
 
-        return new FfpMonthImportSnapshot
+        return new MonthImportSnapshot
         (
               year
             , month
