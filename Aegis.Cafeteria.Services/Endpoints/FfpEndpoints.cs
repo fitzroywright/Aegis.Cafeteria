@@ -14,7 +14,6 @@ internal static class FfpEndpoints
         app.MapGet("/api/ffp/customers", GetCustomersAsync).RequireAuthorization("CafeteriaPos");
         app.MapGet("/api/ffp/holidays", GetHolidaysAsync).RequireAuthorization("CafeteriaPos");
         app.MapGet("/api/ffp/lunch-items", GetProductsAsync).RequireAuthorization("CafeteriaPos");
-        app.MapGet("/api/ffp/month-import", GetMonthImportAsync).RequireAuthorization("CafeteriaPos");
         app.MapGet("/api/ffp/accounts", GetAccountsAsync).RequireAuthorization("CafeteriaPos");
         app.MapPost("/api/ffp/ledger", PublishLedgerEndpointAsync).RequireAuthorization("CafeteriaPos");
     }
@@ -24,7 +23,6 @@ internal static class FfpEndpoints
         app.MapGet("/api/reference/customers", GetCustomersAsync).RequireAuthorization("CafeteriaPos");
         app.MapGet("/api/reference/holidays", GetHolidaysAsync).RequireAuthorization("CafeteriaPos");
         app.MapGet("/api/reference/products", GetProductsAsync).RequireAuthorization("CafeteriaPos");
-        app.MapGet("/api/integration/month-import", GetMonthImportAsync).RequireAuthorization("CafeteriaPos");
         app.MapGet("/api/integration/accounts", GetAccountsAsync).RequireAuthorization("CafeteriaPos");
         app.MapPost("/api/integration/ledger", PublishLedgerEndpointAsync).RequireAuthorization("CafeteriaPos");
     }
@@ -34,9 +32,6 @@ internal static class FfpEndpoints
 
     private static async Task<IResult> GetProductsAsync(ILunchItemBootstrapSource source, CancellationToken ct)
         => Results.Ok(await source.GetLunchItemsAsync(ct));
-
-    private static async Task<IResult> GetMonthImportAsync(int year, int month, IMonthImportSource source, CancellationToken ct)
-        => Results.Ok(await source.GetMonthAsync(year, month, ct));
 
     private static async Task<IResult> GetAccountsAsync(IExternalAccountingGateway gateway, CancellationToken ct)
         => Results.Ok(await gateway.GetAccountSummariesAsync(ct));
