@@ -3,6 +3,12 @@ using System.Net.Http.Json;
 
 MigrationOptions options = MigrationOptions.Parse(args);
 
+if (options.Mode == MigrationMode.ProductBootstrap)
+{
+    await RunProductBootstrapAsync(options);
+    return;
+}
+
 Console.WriteLine($"Aegis.Cafeteria legacy migration - {options.Year:D4}-{options.Month:D2}");
 Console.WriteLine($"Source: {options.Server} / {options.Database}");
 Console.WriteLine($"Mode: {(options.Execute ? "EXECUTE" : "DRY RUN")}");
@@ -51,6 +57,39 @@ if (!response.IsSuccessStatusCode)
 Console.WriteLine("Migration accepted by Cafeteria Services.");
 Console.WriteLine(responseBody);
 
+static async Task RunProductBootstrapAsync(MigrationOptions options)
+{
+    Console.WriteLine("Aegis.Cafeteria product catalog bootstrap");
+    Console.WriteLine($"Services: {options.ServicesUrl}");
+    Console.WriteLine($"Mode: {(options.Execute ? "EXECUTE" : "DRY RUN")}");
+
+    using HttpClientHandler handler = new()
+    {
+        UseDefaultCredentials = true
+    };
+    using HttpClient http = new(handler)
+    {
+        BaseAddress = new Uri(options.ServicesUrl.TrimEnd('/') + "/"),
+        Timeout = TimeSpan.FromMinutes(5)
+    };
+
+    using HttpResponseMessage response = options.Execute
+        ? await http.PostAsJsonAsync("api/migration/product-bootstrap", new { })
+        : await http.GetAsync("api/migration/product-bootstrap");
+
+    string responseBody = await response.Content.ReadAsStringAsync();
+    if (!response.IsSuccessStatusCode)
+    {
+        throw new InvalidOperationException(
+            $"Product bootstrap endpoint returned HTTP {(int)response.StatusCode}: {responseBody}");
+    }
+
+    Console.WriteLine(options.Execute
+        ? "Product bootstrap executed."
+        : "Product bootstrap dry run complete. Re-run with --execute to create import events.");
+    Console.WriteLine(responseBody);
+}
+
 static async Task<LegacyMonthMigrationRequest> ReadLegacyMonthAsync(MigrationOptions options)
 {
     DateTime start = new(options.Year, options.Month, 1);
@@ -88,8 +127,8 @@ ORDER BY e.ID;";
 
     SqlConnectionStringBuilder builder = new()
     {
-        DataSource = options.Server,
-        InitialCatalog = options.Database,
+        DataSource = options.Server!,
+        InitialCatalog = options.Database!,
         IntegratedSecurity = true,
         Encrypt = options.Encrypt,
         TrustServerCertificate = options.TrustServerCertificate,
@@ -179,10 +218,17 @@ internal sealed record LegacyAccountMigrationItem
     , decimal AvailableBalance
 );
 
+internal enum MigrationMode
+{
+    LegacyMonth,
+    ProductBootstrap
+}
+
 internal sealed record MigrationOptions
 (
-      string Server
-    , string Database
+      MigrationMode Mode
+    , string? Server
+    , string? Database
     , string ServicesUrl
     , int Year
     , int Month
@@ -209,8 +255,12 @@ internal sealed record MigrationOptions
             values[key] = value;
         }
 
-        string server = Required(values, "server");
-        string database = Required(values, "database");
+        MigrationMode mode = values.ContainsKey("product-bootstrap")
+            ? MigrationMode.ProductBootstrap
+            : MigrationMode.LegacyMonth;
+
+        string? server = mode == MigrationMode.LegacyMonth ? Required(values, "server") : null;
+        string? database = mode == MigrationMode.LegacyMonth ? Required(values, "database") : null;
         string servicesUrl = Required(values, "services-url");
 
         int year = values.TryGetValue("year", out string? yearText) && int.TryParse(yearText, out int parsedYear)
@@ -232,7 +282,8 @@ internal sealed record MigrationOptions
 
         return new MigrationOptions
         (
-              server
+              mode
+            , server
             , database
             , servicesUrl
             , year
