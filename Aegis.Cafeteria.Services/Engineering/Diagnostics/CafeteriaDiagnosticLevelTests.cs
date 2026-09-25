@@ -605,8 +605,7 @@ public sealed class CafeteriaAuditTrailIntegrityDiagnosticLevelTest(
                 : EngineeringDiagnosticPolicy.Failed(
                     TestId,
                     Name,
-                    result.Error ?? "Audit trail integrity verification failed.",
-                    $"FirstInvalidAuditId={result.FirstInvalidAuditId}; VerifiedRows={result.VerifiedRows}; LegacyRows={result.LegacyRows}");
+                    $"{result.Error ?? "Audit trail integrity verification failed."} FirstInvalidAuditId={result.FirstInvalidAuditId}; VerifiedRows={result.VerifiedRows}; LegacyRows={result.LegacyRows}");
         }
         catch (Exception exception)
         {
