@@ -184,3 +184,14 @@ Cafeteria.Services
 ```
 
 Organization-specific names appear only in the final adapter that translates the generic integration contracts to that organization's systems. For the current deployment, that final adapter may know about FFP Manager SQL tables such as LunchItems, Employees, Holidays and EmployeeIDScans. Cafeteria does not.
+
+
+## Durable integration state
+
+Cafeteria Services persists integration state in its own SQLite database.
+
+Employee facts and the employee change-feed version are stored in `IntegrationEmployeeCache` and `IntegrationState`. The integration plugin no longer writes a JSON employee cache file.
+
+The last successfully validated policy for each year/month is stored in `ValidatedPolicyCache`. On normal startup the plugin tries the Integration Plane first; if the plane is temporarily unavailable, the last validated policy for that period may be used. An explicit management policy reload remains strict and must reach the authoritative provider.
+
+Plugin replacement is restart-only. Cafeteria Services does not hot-unload or hot-swap integration plugin assemblies.
