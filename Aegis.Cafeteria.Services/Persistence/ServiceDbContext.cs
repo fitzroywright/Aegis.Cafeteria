@@ -19,9 +19,12 @@ public sealed class ServiceDbContext(DbContextOptions<ServiceDbContext> options)
         b.Entity<ServiceEventRow>().Property(x => x.Sequence).ValueGeneratedOnAdd();
         b.Entity<ServiceEventRow>().HasIndex(x => x.OperationId).IsUnique();
         b.Entity<ServiceEventRow>().HasIndex(x => new { x.CustomerId, x.Kind, x.OccurredAt });
-        b.Entity<ServiceEventRow>().HasIndex(x => x.FfpPublishedAt);
+        b.Entity<ServiceEventRow>().HasIndex(x => x.ExternalPublishedAt);
         b.Entity<ServiceEventRow>().Property(x => x.PayloadJson).HasMaxLength(8000);
-        b.Entity<ServiceEventRow>().Property(x => x.FfpLastError).HasMaxLength(2000);
+        b.Entity<ServiceEventRow>().Property(x => x.ExternalPublishedAt).HasColumnName("FfpPublishedAt");
+        b.Entity<ServiceEventRow>().Property(x => x.PublicationAttemptCount).HasColumnName("FfpAttemptCount");
+        b.Entity<ServiceEventRow>().Property(x => x.PublicationLastAttemptAt).HasColumnName("FfpLastAttemptAt");
+        b.Entity<ServiceEventRow>().Property(x => x.PublicationLastError).HasColumnName("FfpLastError").HasMaxLength(2000);
 
         b.Entity<AuditTrailRow>().ToTable("AuditTrail");
         b.Entity<AuditTrailRow>().HasKey(x => x.Id);
