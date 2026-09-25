@@ -325,6 +325,38 @@ public sealed class ServiceEventStore
             .ToArray();
     }
 
+    public async Task<bool> HasPendingFinancialPublicationForPeriodAsync
+    (
+          int year
+        , int month
+        , CancellationToken cancellationToken = default
+    )
+    {
+        DateTimeOffset start = new(year, month, 1, 0, 0, 0, TimeSpan.Zero);
+        DateTimeOffset end = start.AddMonths(1);
+        int[] financialKinds =
+        [
+              (int)CafeteriaServiceEventKind.AdditionalCredit
+            , (int)CafeteriaServiceEventKind.Stipend
+            , (int)CafeteriaServiceEventKind.MonthlyAllocation
+            , (int)CafeteriaServiceEventKind.MonthlyAllocationRecalculation
+        ];
+
+        await using ServiceDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
+
+        return await database.Events
+            .AsNoTracking()
+            .AnyAsync
+            (
+                serviceEvent =>
+                       serviceEvent.OccurredAt >= start
+                    && serviceEvent.OccurredAt < end
+                    && financialKinds.Contains(serviceEvent.Kind)
+                    && serviceEvent.FfpPublishedAt == null
+                , cancellationToken
+            );
+    }
+
     public async Task RecordFfpAttemptAsync
     (
           Guid operationId
