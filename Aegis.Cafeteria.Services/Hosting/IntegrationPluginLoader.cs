@@ -31,14 +31,13 @@ internal static class IntegrationPluginLoader
             throw new InvalidOperationException(
                 "IntegrationPlugin:AssemblyPath is required.");
 
-        string assemblyPath = Path.IsPathRooted(configuredPath)
-            ? configuredPath
-            : Path.GetFullPath(
-                Path.Combine(builder.Environment.ContentRootPath, configuredPath));
+        string assemblyPath = ResolveAssemblyPath(
+            configuredPath,
+            builder.Environment.ContentRootPath);
 
         if (!File.Exists(assemblyPath))
             throw new FileNotFoundException(
-                "Configured Cafeteria integration plugin assembly was not found.",
+                $"Configured Cafeteria integration plugin assembly was not found. Checked content root '{builder.Environment.ContentRootPath}' and application base '{AppContext.BaseDirectory}'.",
                 assemblyPath);
 
         Assembly assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(
@@ -88,5 +87,27 @@ internal static class IntegrationPluginLoader
                 serviceProvider => serviceProvider.GetRequiredService(
                     implementation));
         }
+    }
+    private static string ResolveAssemblyPath(
+        string configuredPath,
+        string contentRootPath)
+    {
+        if (Path.IsPathRooted(configuredPath))
+        {
+            return Path.GetFullPath(configuredPath);
+        }
+
+        string contentRootCandidate = Path.GetFullPath(
+            Path.Combine(contentRootPath, configuredPath));
+
+        if (File.Exists(contentRootCandidate))
+        {
+            return contentRootCandidate;
+        }
+
+        string applicationBaseCandidate = Path.GetFullPath(
+            Path.Combine(AppContext.BaseDirectory, configuredPath));
+
+        return applicationBaseCandidate;
     }
 }
