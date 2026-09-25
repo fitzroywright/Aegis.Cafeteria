@@ -34,6 +34,24 @@ public sealed class MonthlyAllocationCalculator
         return count;
     }
 
+    public int CountEligibleWorkingDays(
+        IEnumerable<DateOnly> workingDayCalendar,
+        DateOnly? eligibleFrom)
+    {
+        ArgumentNullException.ThrowIfNull(workingDayCalendar);
+
+        DateOnly[] workingDays = workingDayCalendar
+            .Distinct()
+            .OrderBy(date => date)
+            .ToArray();
+
+        if (workingDays.Length == 0)
+            return 0;
+
+        DateOnly effectiveStart = eligibleFrom ?? workingDays[0];
+        return workingDays.Count(date => date >= effectiveStart);
+    }
+
     public MonthlyCreditAllocation Calculate(int customerId, int year, int month, int workingDays, bool eligible, decimal creditLimitPrice, decimal subsidyCost, DateTimeOffset calculatedAt)
         => new(customerId, year, month, workingDays, eligible, creditLimitPrice, subsidyCost, calculatedAt);
 }
