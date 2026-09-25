@@ -12,7 +12,7 @@ public sealed class LocalCafeteriaDbContext(DbContextOptions<LocalCafeteriaDbCon
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
-        b.Entity<ExternalLedgerOutboxRow>().ToTable("FfpLedgerOutbox");
+        b.Entity<ExternalLedgerOutboxRow>().ToTable("ExternalLedgerOutbox");
         b.Entity<ExternalLedgerOutboxRow>().HasKey(x => x.OperationId);
         b.Entity<ExternalLedgerOutboxRow>().HasIndex(x => new { x.State, x.OccurredAt });
         b.Entity<ExternalLedgerOutboxRow>().Property(x => x.Description).HasMaxLength(1000);
