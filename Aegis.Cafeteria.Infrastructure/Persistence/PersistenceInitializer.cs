@@ -38,8 +38,7 @@ public sealed class PersistenceInitializer(
             await ValidateExistingDatabaseIsCurrentAsync(db, ct);
             await EnsureCustomerDirectoryColumnsAsync(db, ct);
             await EnsureOrderIdentificationColumnsAsync(db, ct);
-            await EnsureFfpLedgerOutboxIdentificationColumnsAsync(db, ct);
-            await EnsureFfpImportedTransactionsTableAsync(db, ct);
+            await EnsureExternalLedgerOutboxIdentificationColumnsAsync(db, ct);
         }
 
         await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;", ct);
@@ -50,30 +49,6 @@ public sealed class PersistenceInitializer(
         logger.LogInformation(
             "Local SQLite persistence initialized at schema version {SchemaVersion} with WAL, FULL synchronous durability and foreign keys enabled",
             CurrentLocalSchemaVersion);
-    }
-
-    private static async Task EnsureFfpImportedTransactionsTableAsync(LocalCafeteriaDbContext db, CancellationToken ct)
-    {
-        await db.Database.ExecuteSqlRawAsync
-        (
-            @"CREATE TABLE IF NOT EXISTS FfpImportedTransactions (
-                  SourceId INTEGER NOT NULL CONSTRAINT PK_FfpImportedTransactions PRIMARY KEY
-                , CustomerId INTEGER NOT NULL
-                , Year INTEGER NOT NULL
-                , Month INTEGER NOT NULL
-                , OccurredAt TEXT NOT NULL
-                , IdName TEXT NOT NULL
-                , Description TEXT NOT NULL
-                , ScanValue TEXT NOT NULL
-                , UserName TEXT NOT NULL
-                , ScanCode TEXT NOT NULL
-                , ScanType INTEGER NOT NULL
-                , ImportedAt TEXT NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS IX_FfpImportedTransactions_CustomerId_Year_Month_OccurredAt
-                ON FfpImportedTransactions(CustomerId, Year, Month, OccurredAt);",
-            ct
-        );
     }
 
     private static async Task EnsureCustomerDirectoryColumnsAsync(LocalCafeteriaDbContext db, CancellationToken ct)
@@ -117,7 +92,7 @@ public sealed class PersistenceInitializer(
             ct);
     }
 
-    private static async Task EnsureFfpLedgerOutboxIdentificationColumnsAsync(LocalCafeteriaDbContext db, CancellationToken ct)
+    private static async Task EnsureExternalLedgerOutboxIdentificationColumnsAsync(LocalCafeteriaDbContext db, CancellationToken ct)
     {
         if (!await TableExistsAsync(db, "FfpLedgerOutbox", ct)) return;
 
