@@ -146,6 +146,7 @@ internal sealed class EmployeeAmountDueWindow : Window
         finally
         {
             ToggleBusy(false);
+            this.send.IsEnabled = true;
         }
     }
 
