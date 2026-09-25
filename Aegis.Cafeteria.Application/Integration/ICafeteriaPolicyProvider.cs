@@ -35,7 +35,7 @@ public sealed record CafeteriaPolicySnapshot(
             throw new InvalidOperationException("Cafeteria policy credit-limit rate must be positive.");
         if (DailyCompanySubsidyRate < 0m || DailyCompanySubsidyRate > DailyCreditLimitRate)
             throw new InvalidOperationException("Cafeteria policy subsidy rate is invalid.");
-        if (!Enum.IsDefined(SubsidyConsumptionMode))
+        if (!Enum.IsDefined(typeof(SubsidyConsumptionMode), SubsidyConsumptionMode))
             throw new InvalidOperationException("Cafeteria policy subsidy consumption mode is invalid.");
         if (string.IsNullOrWhiteSpace(Version))
             throw new InvalidOperationException("Cafeteria policy version is required.");
