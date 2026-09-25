@@ -43,10 +43,10 @@ public sealed class WeeklyCustomerSummaryServiceTests
         }
     }
 
-    private sealed class PublicationStatus : IFfpPublicationStatusProvider
+    private sealed class PublicationStatus : IExternalPublicationStatusProvider
     {
-        public Task<FfpPublicationStatus> GetAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(new FfpPublicationStatus(true, 0, 0, DateTimeOffset.UtcNow, null));
+        public Task<ExternalPublicationStatus> GetAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new ExternalPublicationStatus(true, 0, 0, DateTimeOffset.UtcNow, null));
     }
 
     private sealed class Messages : ICafeteriaMessagingGateway
