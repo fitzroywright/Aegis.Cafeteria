@@ -14,7 +14,7 @@ public sealed class CafeteriaPolicyStartupWorker(
         CafeteriaPolicySnapshot policy = await policyProvider.GetPolicyAsync(
             now.Year,
             now.Month,
-            forceReload: true,
+            forceReload: false,
             cancellationToken: cancellationToken);
 
         logger.LogInformation(
