@@ -4,7 +4,6 @@ using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Plugin.Integration;
-using Aegis.Cafeteria.Services.Development;
 using Aegis.Cafeteria.Services.Email;
 using Aegis.Cafeteria.Services.Persistence;
 using Aegis.Cafeteria.Services.Reporting;
