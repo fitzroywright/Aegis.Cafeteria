@@ -60,22 +60,6 @@ public sealed class ExternalPublicationWorker(
         {
             try
             {
-                DateTimeOffset? latestResetAt = await events.GetLatestDevelopmentResetAtAsync(cancellationToken);
-
-                if (latestResetAt is DateTimeOffset resetAt
-                    && envelope.OccurredAt <= resetAt
-                    && envelope.Kind != CafeteriaServiceEventKind.DevelopmentReset)
-                {
-                    await events.RecordFfpAttemptAsync(
-                        envelope.OperationId,
-                        null,
-                        true,
-                        cancellationToken);
-
-                    count++;
-                    continue;
-                }
-
                 CafeteriaOutboundTransaction? transaction = BuildTransaction(envelope);
                 if (transaction is not null)
                     await publisher.PublishAsync(transaction, cancellationToken);
@@ -119,7 +103,6 @@ public sealed class ExternalPublicationWorker(
             CafeteriaServiceEventKind.MonthlyAllocation => BuildMonthlyAllocation(envelope),
             CafeteriaServiceEventKind.MonthlyAllocationRecalculation => BuildMonthlyAllocationRecalculation(envelope),
             CafeteriaServiceEventKind.AccountPeriodClose => null,
-            CafeteriaServiceEventKind.DevelopmentReset => null,
             CafeteriaServiceEventKind.ProductCatalogImport => null,
             CafeteriaServiceEventKind.LegacyTransactionImport => null,
             CafeteriaServiceEventKind.PosTransaction => null,
