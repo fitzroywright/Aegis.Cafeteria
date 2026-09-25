@@ -32,7 +32,6 @@ internal static class CafeteriaServicesHost
         string serviceDb = CafeteriaServiceDatabase.ResolveConnectionString(builder.Configuration);
 
         RegisterOptions(builder.Services, management, monthOpening, scheduledEmail, externalPublication);
-        builder.Services.AddHttpClient("CafeteriaIntegrationPlane");
         IntegrationPluginLoader.Register(builder);
         RegisterDiagnosticLevel(builder);
         RegisterIntegrationGateways(builder.Services);
