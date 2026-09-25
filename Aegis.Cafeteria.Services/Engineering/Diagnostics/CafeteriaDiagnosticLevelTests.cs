@@ -1,6 +1,7 @@
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Services.Persistence;
 using Aegis.Cafeteria.Services.Email;
+using Aegis.Cafeteria.Services.Reporting;
 using Common.Diagnostics;
 using Common.Secrets;
 using Microsoft.EntityFrameworkCore;
@@ -34,7 +35,7 @@ internal static class CafeteriaDiagnosticIds
     internal const string HolidaySource = "CAFETERIA.SERVICES.HOLIDAY-SOURCE";
     internal const string SecretsCredential = "CAFETERIA.SERVICES.SECRETS.CREDENTIAL";
     internal const string PublicationQueue = "CAFETERIA.SERVICES.PUBLICATION-QUEUE";
-    internal const string AccountingGateway = "CAFETERIA.SERVICES.ACCOUNTING-GATEWAY";
+    internal const string CafeteriaLedger = "CAFETERIA.SERVICES.CAFETERIA-LEDGER";
     internal const string ProductReferenceSource = "CAFETERIA.SERVICES.PRODUCT-REFERENCE-SOURCE";
     internal const string Messaging = "CAFETERIA.SERVICES.MESSAGING";
     internal const string FundingPolicy = "CAFETERIA.SERVICES.FUNDING-POLICY";
@@ -296,30 +297,38 @@ public sealed class CafeteriaPublicationQueueDiagnosticLevelTest(
     }
 }
 
-public sealed class CafeteriaAccountingGatewayDiagnosticLevelTest(
-    IExternalAccountingGateway accounting) : IDiagnosticLevelLocalTest
+public sealed class CafeteriaLedgerDiagnosticLevelTest(
+    CafeteriaLedgerQuery ledger) : IDiagnosticLevelLocalTest
 {
-    public string TestId => CafeteriaDiagnosticIds.AccountingGateway;
-    public string Name => "External accounting gateway";
+    public string TestId => CafeteriaDiagnosticIds.CafeteriaLedger;
+    public string Name => "Cafeteria financial ledger";
     public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
     public bool IsDestructive => false;
 
-    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(
+        CancellationToken cancellationToken)
     {
         try
         {
-            IReadOnlyList<ExternalAccountSummary> summaries =
-                await accounting.GetAccountSummariesAsync(cancellationToken);
+            DateTime today = DateTime.Today;
+            IReadOnlyList<CafeteriaLedgerLine> lines = await ledger.GetMonthAsync(
+                today.Year,
+                today.Month,
+                cancellationToken);
+
             return EngineeringDiagnosticPolicy.Passed(
                 TestId,
                 Name,
-                "External accounting gateway read path is reachable.",
-                $"AccountSummaries={summaries.Count}");
+                "Cafeteria-owned financial ledger is readable.",
+                $"Month={today:yyyy-MM}; Entries={lines.Count}");
         }
         catch (Exception exception)
         {
-            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+            return EngineeringDiagnosticPolicy.Failed(
+                TestId,
+                Name,
+                exception.Message);
         }
     }
 }
