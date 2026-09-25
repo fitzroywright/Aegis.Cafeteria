@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 public sealed class WeeklyCustomerSummaryService(
     IWeeklyTransactionSummaryQuery query,
     IWeeklySummaryDispatchStore dispatchStore,
-    IFfpPublicationStatusProvider publicationStatus,
+    IExternalPublicationStatusProvider publicationStatus,
     ICafeteriaMessagingGateway messaging,
     ILogger<WeeklyCustomerSummaryService> logger)
 {
@@ -16,7 +16,7 @@ public sealed class WeeklyCustomerSummaryService(
         if (weekEnd < weekStart) throw new ArgumentException("Week end cannot precede week start.", nameof(weekEnd));
 
         IReadOnlyList<WeeklyTransactionSummary> summaries = await query.GetAsync(weekStart, weekEnd, cancellationToken);
-        FfpPublicationStatus publication = await publicationStatus.GetAsync(cancellationToken);
+        ExternalPublicationStatus publication = await publicationStatus.GetAsync(cancellationToken);
         CafeteriaReportStatus reportStatus = CafeteriaReportStatus.FromPublicationStatus(publication);
         int sent = 0;
 
