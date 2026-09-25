@@ -248,8 +248,6 @@ async function initialize() {
     document.getElementById('signedInUser').textContent = session.displayName || session.userName || 'Manager';
 
     const now = new Date();
-    document.getElementById('monthYear').value = now.getFullYear();
-    document.getElementById('monthNumber').value = now.getMonth() + 1;
     document.getElementById('reportYear').value = now.getFullYear();
     document.getElementById('reportMonth').value = now.getMonth() + 1;
 
@@ -314,17 +312,6 @@ wire('saveFunding', async () => {
     const dailyCompanySubsidyRate = Number(document.getElementById('dailySubsidyRate').value);
     const response = await api('/api/management/funding-policy', { method: 'PUT', body: JSON.stringify({ dailyCreditLimitRate, dailyCompanySubsidyRate }) });
     showResult('Rates saved', response);
-});
-wire('recalculateMonth', async () => {
-    const year = Number(document.getElementById('monthYear').value);
-    const month = Number(document.getElementById('monthNumber').value);
-    const response = await api(`/api/month-opening/recalculate?year=${year}&month=${month}`, { method: 'POST', body: '{}' });
-    const eligibleWorkingDays = Number(response.eligibleWorkingDays ?? 0);
-    const dailyCreditLimitRate = Number(response.dailyCreditLimitRate ?? 0);
-    const dailyCompanySubsidyRate = Number(response.dailyCompanySubsidyRate ?? 0);
-    const monthlyCreditLimit = eligibleWorkingDays * dailyCreditLimitRate;
-    const monthlyCompanySubsidy = Math.min(monthlyCreditLimit, eligibleWorkingDays * dailyCompanySubsidyRate);
-    showResult('Month recalculation completed', { ...response, monthlyCreditLimit, monthlyCompanySubsidy, employeeFundedAllocation: Math.max(0, monthlyCreditLimit - monthlyCompanySubsidy) });
 });
 wire('loadPayrollReport', async () => {
     const year = Number(document.getElementById('reportYear').value);
