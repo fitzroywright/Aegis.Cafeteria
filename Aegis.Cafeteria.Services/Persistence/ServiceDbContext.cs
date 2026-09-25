@@ -11,8 +11,6 @@ public sealed class ServiceDbContext(DbContextOptions<ServiceDbContext> options)
     public DbSet<CustomerNotificationPreferenceRow> CustomerNotificationPreferences => Set<CustomerNotificationPreferenceRow>();
     public DbSet<ManagerReportSettingsRow> ManagerReportSettings => Set<ManagerReportSettingsRow>();
     public DbSet<OutboundEmailRow> OutboundEmails => Set<OutboundEmailRow>();
-    public DbSet<CafeteriaFundingPolicyRow> FundingPolicies => Set<CafeteriaFundingPolicyRow>();
-    public DbSet<CafeteriaFundingPolicyHistoryRow> FundingPolicyHistory => Set<CafeteriaFundingPolicyHistoryRow>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -65,19 +63,6 @@ public sealed class ServiceDbContext(DbContextOptions<ServiceDbContext> options)
         b.Entity<OutboundEmailRow>().Property(x => x.Recipient).HasMaxLength(320);
         b.Entity<OutboundEmailRow>().Property(x => x.Subject).HasMaxLength(500);
         b.Entity<OutboundEmailRow>().Property(x => x.LastError).HasMaxLength(2000);
-
-        b.Entity<CafeteriaFundingPolicyRow>().ToTable("CafeteriaFundingPolicy");
-        b.Entity<CafeteriaFundingPolicyRow>().HasKey(x => x.Id);
-        b.Entity<CafeteriaFundingPolicyRow>().Property(x => x.DailyCreditLimitRate).HasPrecision(18, 2);
-        b.Entity<CafeteriaFundingPolicyRow>().Property(x => x.DailyCompanySubsidyRate).HasPrecision(18, 2);
-        b.Entity<CafeteriaFundingPolicyRow>().Property(x => x.UpdatedBy).HasMaxLength(256);
-
-        b.Entity<CafeteriaFundingPolicyHistoryRow>().ToTable("CafeteriaFundingPolicyHistory");
-        b.Entity<CafeteriaFundingPolicyHistoryRow>().HasKey(x => x.Id);
-        b.Entity<CafeteriaFundingPolicyHistoryRow>().Property(x => x.Id).ValueGeneratedOnAdd();
-        b.Entity<CafeteriaFundingPolicyHistoryRow>().Property(x => x.DailyCreditLimitRate).HasPrecision(18, 2);
-        b.Entity<CafeteriaFundingPolicyHistoryRow>().Property(x => x.DailyCompanySubsidyRate).HasPrecision(18, 2);
-        b.Entity<CafeteriaFundingPolicyHistoryRow>().Property(x => x.UpdatedBy).HasMaxLength(256);
 
         b.Entity<ScheduledDispatchRow>().HasKey(x => x.DispatchKey);
         b.Entity<ScheduledDispatchRow>().Property(x => x.DispatchKey).HasMaxLength(256);
