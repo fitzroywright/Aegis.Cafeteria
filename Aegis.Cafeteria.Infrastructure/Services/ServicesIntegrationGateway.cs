@@ -8,7 +8,7 @@ public sealed class ServicesIntegrationGateway(HttpClient http) :
       IExternalAccountingGateway
     , IWorkforceReferenceSource
     , ILunchItemBootstrapSource
-    , IFfpMonthImportSource
+    , IMonthImportSource
 {
     public async Task<IReadOnlyList<ExternalCustomerSnapshot>> GetCustomersAsync(CancellationToken cancellationToken = default)
     {
@@ -36,24 +36,24 @@ public sealed class ServicesIntegrationGateway(HttpClient http) :
     }
 
     public async Task<IReadOnlyCollection<DateOnly>> GetHolidaysAsync(int year, int month, CancellationToken cancellationToken = default)
-        => await http.GetFromJsonAsync<DateOnly[]>($"api/ffp/holidays?year={year}&month={month}", cancellationToken) ?? [];
+        => await http.GetFromJsonAsync<DateOnly[]>($"api/reference/holidays?year={year}&month={month}", cancellationToken) ?? [];
 
     public async Task<IReadOnlyList<ExternalProductSnapshot>> GetLunchItemsAsync(CancellationToken cancellationToken = default)
-        => await http.GetFromJsonAsync<ExternalProductSnapshot[]>("api/ffp/lunch-items", cancellationToken) ?? [];
+        => await http.GetFromJsonAsync<ExternalProductSnapshot[]>("api/reference/products", cancellationToken) ?? [];
 
-    public async Task<FfpMonthImportSnapshot> GetMonthAsync(int year, int month, CancellationToken cancellationToken = default)
-        => await http.GetFromJsonAsync<FfpMonthImportSnapshot>($"api/ffp/month-import?year={year}&month={month}", cancellationToken)
+    public async Task<MonthImportSnapshot> GetMonthAsync(int year, int month, CancellationToken cancellationToken = default)
+        => await http.GetFromJsonAsync<MonthImportSnapshot>($"api/integration/month-import?year={year}&month={month}", cancellationToken)
             ?? throw new InvalidOperationException("Cafeteria Services returned no current-month import payload.");
 
     public async Task<IReadOnlyList<ExternalAccountSummary>> GetAccountSummariesAsync(CancellationToken cancellationToken = default)
-        => await http.GetFromJsonAsync<ExternalAccountSummary[]>("api/ffp/accounts", cancellationToken) ?? [];
+        => await http.GetFromJsonAsync<ExternalAccountSummary[]>("api/integration/accounts", cancellationToken) ?? [];
 
     public async Task PublishLedgerEntryAsync(ExternalLedgerEntry entry, CancellationToken cancellationToken = default)
     {
-        using HttpResponseMessage response = await http.PostAsJsonAsync("api/ffp/ledger", entry, cancellationToken);
+        using HttpResponseMessage response = await http.PostAsJsonAsync("api/integration/ledger", entry, cancellationToken);
         response.EnsureSuccessStatusCode();
     }
 
     private async Task<ExternalCustomerSnapshot[]> GetCustomersOnceAsync(CancellationToken cancellationToken)
-        => await http.GetFromJsonAsync<ExternalCustomerSnapshot[]>("api/ffp/customers", cancellationToken) ?? [];
+        => await http.GetFromJsonAsync<ExternalCustomerSnapshot[]>("api/reference/customers", cancellationToken) ?? [];
 }
