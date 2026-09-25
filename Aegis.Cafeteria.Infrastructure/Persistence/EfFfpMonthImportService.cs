@@ -9,20 +9,20 @@ using System.Text.Json;
 
 public sealed class EfFfpMonthImportService
 (
-      IFfpMonthImportSource source
+      IMonthImportSource source
     , IDbContextFactory<LocalCafeteriaDbContext> factory
-) : IFfpMonthImportService
+) : IMonthImportService
 {
     private const string ImportedFfpTransactionEventType = "ImportedFfpTransaction";
 
-    public async Task<FfpMonthImportResult> ImportAsync
+    public async Task<MonthImportResult> ImportAsync
     (
           int year
         , int month
         , CancellationToken cancellationToken = default
     )
     {
-        FfpMonthImportSnapshot snapshot = await source.GetMonthAsync(year, month, cancellationToken);
+        MonthImportSnapshot snapshot = await source.GetMonthAsync(year, month, cancellationToken);
         await using LocalCafeteriaDbContext db = await factory.CreateDbContextAsync(cancellationToken);
 
         HashSet<long> existingIds = (await db.FfpImportedTransactions
@@ -36,7 +36,7 @@ public sealed class EfFfpMonthImportService
         int importedTransactions = 0;
         decimal netImportedScanValue = 0m;
 
-        foreach (ExternalFfpTransactionSnapshot transaction in snapshot.Transactions)
+        foreach (ExternalTransactionSnapshot transaction in snapshot.Transactions)
         {
             bool newTransaction = existingIds.Add(transaction.SourceId);
             if (newTransaction)
@@ -104,7 +104,7 @@ public sealed class EfFfpMonthImportService
 
         await db.SaveChangesAsync(cancellationToken);
 
-        return new FfpMonthImportResult
+        return new MonthImportResult
         (
               snapshot.Year
             , snapshot.Month
