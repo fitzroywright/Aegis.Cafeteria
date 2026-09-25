@@ -134,7 +134,7 @@ public sealed class SharedPosBusinessPolicyTests
                 , CurrentCreditSaleDebt: 0m
             )
             , []
-            , new FfpPublicationStatus(false, 0, 0, null, null)
+            , new ExternalPublicationStatus(false, 0, 0, null, null)
             , Identification: new CustomerIdentificationContext(IDMethod.Name, "TEST")
         );
 }
