@@ -166,7 +166,7 @@ public sealed class CustomerIdentificationTests
                 new AccountPeriodView(year,month,0,0,0,false),
                 new CustomerFinancialStatusView(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
                 [],
-                new FfpPublicationStatus(false,0,0,null,null)));
+                new ExternalPublicationStatus(false,0,0,null,null)));
 
         public Task<IReadOnlyList<CustomerMonthlyTransactionView>> GetTransactionsAsync(
             int customerId, int year, int month, CancellationToken cancellationToken = default)
