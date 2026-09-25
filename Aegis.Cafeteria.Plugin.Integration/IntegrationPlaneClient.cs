@@ -44,8 +44,8 @@ public sealed class IntegrationPlaneClient :
         bool forceReload = false,
         CancellationToken cancellationToken = default)
     {
-        if (!forceReload && this.policyCache.TryGetValue((year, month), out CafeteriaPolicySnapshot? cached))
-            return cached;
+        if (!forceReload && this.policyCache.TryGetValue((year, month), out CafeteriaPolicySnapshot? memoryCached))
+            return memoryCached;
 
         try
         {
