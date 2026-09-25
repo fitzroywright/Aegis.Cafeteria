@@ -123,6 +123,10 @@ public sealed class PersistenceInitializer(
         await db.Database.ExecuteSqlRawAsync(
             "CREATE INDEX IF NOT EXISTS \"IX_Orders_IDMethod_CompletedAt\" ON \"Orders\" (\"IDMethod\", \"CompletedAt\");",
             ct);
+
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE INDEX IF NOT EXISTS \"IX_Orders_Status_Revision\" ON \"Orders\" (\"Status\", \"Revision\");",
+            ct);
     }
 
     private static async Task EnsureExternalLedgerOutboxIdentificationColumnsAsync(LocalCafeteriaDbContext db, CancellationToken ct)
