@@ -59,9 +59,23 @@ Console.WriteLine(responseBody);
 
 static async Task RunProductBootstrapAsync(MigrationOptions options)
 {
-    Console.WriteLine("Aegis.Cafeteria product catalog bootstrap");
+    Console.WriteLine("Aegis.Cafeteria product catalog migration");
+    Console.WriteLine($"Source: {options.Server} / {options.Database}");
     Console.WriteLine($"Services: {options.ServicesUrl}");
     Console.WriteLine($"Mode: {(options.Execute ? "EXECUTE" : "DRY RUN")}");
+
+    ProductMigrationRequest request = await ReadProductsAsync(options);
+
+    Console.WriteLine($"Source products: {request.Products.Count}");
+
+    if (!options.Execute)
+    {
+        foreach (ProductMigrationItem product in request.Products)
+            Console.WriteLine($"{product.ProductId}: {product.Code} | {product.Name} | {product.Price:N2}");
+
+        Console.WriteLine("Dry run complete. Re-run with --execute to submit the product migration.");
+        return;
+    }
 
     using HttpClientHandler handler = new()
     {
@@ -73,21 +87,70 @@ static async Task RunProductBootstrapAsync(MigrationOptions options)
         Timeout = TimeSpan.FromMinutes(5)
     };
 
-    using HttpResponseMessage response = options.Execute
-        ? await http.PostAsJsonAsync("api/migration/product-bootstrap", new { })
-        : await http.GetAsync("api/migration/product-bootstrap");
+    using HttpResponseMessage response = await http.PostAsJsonAsync(
+        "api/migration/products",
+        request);
 
     string responseBody = await response.Content.ReadAsStringAsync();
     if (!response.IsSuccessStatusCode)
     {
         throw new InvalidOperationException(
-            $"Product bootstrap endpoint returned HTTP {(int)response.StatusCode}: {responseBody}");
+            $"Product migration endpoint returned HTTP {(int)response.StatusCode}: {responseBody}");
     }
 
-    Console.WriteLine(options.Execute
-        ? "Product bootstrap executed."
-        : "Product bootstrap dry run complete. Re-run with --execute to create import events.");
+    Console.WriteLine("Product migration accepted by Cafeteria Services.");
     Console.WriteLine(responseBody);
+}
+
+static async Task<ProductMigrationRequest> ReadProductsAsync(MigrationOptions options)
+{
+    const string sql = @"
+SELECT
+      ID
+    , ISNULL(CONVERT(nvarchar(64), Code), '') AS Code
+    , ISNULL(CONVERT(nvarchar(256), Name), '') AS Name
+    , ISNULL(Price, 0) AS Price
+FROM dbo.LunchItems
+WHERE ISNULL(CONVERT(nvarchar(64), Code), '') <> @ReservedPolicyCode
+ORDER BY ID;";
+
+    SqlConnectionStringBuilder builder = new()
+    {
+        DataSource = options.Server!,
+        InitialCatalog = options.Database!,
+        IntegratedSecurity = true,
+        Encrypt = options.Encrypt,
+        TrustServerCertificate = options.TrustServerCertificate,
+        ApplicationName = "Aegis.Cafeteria.Migration"
+    };
+
+    List<ProductMigrationItem> products = [];
+
+    await using SqlConnection connection = new(builder.ConnectionString);
+    await connection.OpenAsync();
+
+    await using SqlCommand command = new(sql, connection);
+    command.Parameters.AddWithValue("@ReservedPolicyCode", options.ReservedPolicyCode);
+
+    await using SqlDataReader reader = await command.ExecuteReaderAsync();
+    while (await reader.ReadAsync())
+    {
+        int productId = Convert.ToInt32(reader.GetValue(0));
+        string code = Convert.ToString(reader.GetValue(1))?.Trim() ?? string.Empty;
+        string name = Convert.ToString(reader.GetValue(2))?.Trim() ?? string.Empty;
+        decimal price = Convert.ToDecimal(reader.GetValue(3));
+
+        if (productId <= 0 || string.IsNullOrWhiteSpace(name) || price < 0m)
+            continue;
+
+        products.Add(new ProductMigrationItem(
+            productId,
+            code,
+            name,
+            price));
+    }
+
+    return new ProductMigrationRequest(products);
 }
 
 static async Task<LegacyMonthMigrationRequest> ReadLegacyMonthAsync(MigrationOptions options)
@@ -189,6 +252,16 @@ ORDER BY e.ID;";
     );
 }
 
+
+internal sealed record ProductMigrationRequest(
+    IReadOnlyList<ProductMigrationItem> Products);
+
+internal sealed record ProductMigrationItem(
+    int ProductId,
+    string Code,
+    string Name,
+    decimal Price);
+
 internal sealed record LegacyMonthMigrationRequest
 (
       int Year
@@ -259,8 +332,8 @@ internal sealed record MigrationOptions
             ? MigrationMode.ProductBootstrap
             : MigrationMode.LegacyMonth;
 
-        string? server = mode == MigrationMode.LegacyMonth ? Required(values, "server") : null;
-        string? database = mode == MigrationMode.LegacyMonth ? Required(values, "database") : null;
+        string? server = Required(values, "server");
+        string? database = Required(values, "database");
         string servicesUrl = Required(values, "services-url");
 
         int year = values.TryGetValue("year", out string? yearText) && int.TryParse(yearText, out int parsedYear)
@@ -291,6 +364,10 @@ internal sealed record MigrationOptions
             , values.ContainsKey("execute")
             , !values.ContainsKey("no-encrypt")
             , values.ContainsKey("trust-server-certificate")
+            , values.TryGetValue("reserved-policy-code", out string? reservedPolicyCode)
+                && !string.IsNullOrWhiteSpace(reservedPolicyCode)
+                    ? reservedPolicyCode.Trim()
+                    : "FFP00"
         );
     }
 
