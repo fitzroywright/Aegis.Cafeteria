@@ -1,4 +1,3 @@
-using Aegis.Cafeteria.Services.Development;
 using Aegis.Cafeteria.Services.Workers;
 
 namespace Aegis.Cafeteria.Services;
@@ -11,8 +10,6 @@ internal static class MonthOpeningEndpoints
         app.MapPost("/api/month-opening/recalculate", RecalculateMonthAsync).RequireAuthorization("CafeteriaManagement");
         app.MapPost("/api/month-closing/retry", RetryMonthCloseAsync).RequireAuthorization("CafeteriaManagement");
 
-        if (app.Environment.IsDevelopment())
-            app.MapPost("/api/development/reset", ResetDevelopmentDataAsync).RequireAuthorization("CafeteriaManagement");
     }
 
     private static async Task<IResult> RunMonthOpeningAsync(int? year, int? month, MonthOpeningWorker worker, CancellationToken ct)
@@ -67,9 +64,4 @@ internal static class MonthOpeningEndpoints
         }
     }
 
-    private static async Task<IResult> ResetDevelopmentDataAsync(HttpContext http, DevelopmentDataResetService reset, CancellationToken ct)
-    {
-        DevelopmentResetResult result = await reset.ResetAsync(CafeteriaActor.Require(http), ct);
-        return Results.Ok(result);
-    }
 }
