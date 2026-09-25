@@ -11,74 +11,84 @@
     <div>
       <div class="eyebrow">FOOD FOR THE POOR JAMAICA</div>
       <h1>Cafeteria Management</h1>
-      <div class="subtitle">Operations, funding, reporting and control</div>
+      <div class="subtitle">Temporary business workflows pending FFP Manager integration</div>
     </div>
     <div class="top-actions">
       <div class="signed-in"><span class="muted-light">Signed in as</span><strong id="signedInUser">Loading…</strong></div>
       <span id="serviceStatus" class="status">Checking Services...</span>
-      <button id="diagnosticsButton" class="secondary">Diagnostics</button>
       <button id="logoutButton" class="secondary">Sign Out</button>
     </div>
   </header>
 
   <main class="page">
     <section class="hero-row">
-      <div><div class="eyebrow dark">MANAGEMENT OVERVIEW</div><h2 class="page-title">Today at a glance</h2><p class="page-copy">Key operational status and shortcuts for cafeteria management.</p></div>
-      <div class="date-chip" id="todayLabel">Today</div>
-    </section>
-
-    <section class="kpi-grid" aria-label="Management overview">
-      <article class="kpi-card"><span class="kpi-label">Services</span><strong id="kpiServices">Checking</strong><span class="kpi-note">Cafeteria Services</span></article>
-      <article class="kpi-card"><span class="kpi-label">Selected employee</span><strong id="kpiEmployee">None</strong><span class="kpi-note">Management context</span></article>
-      <article class="kpi-card"><span class="kpi-label">Report period</span><strong id="kpiPeriod">Current month</strong><span class="kpi-note">Payroll & reporting</span></article>
-      <article class="kpi-card"><span class="kpi-label">Audit exceptions</span><strong id="kpiExceptions">—</strong><span class="kpi-note">Recent failed actions</span></article>
-    </section>
-
-    <section class="card employee-card">
-      <div class="section-title"><div><span class="section-icon">01</span><div><h2>Employee</h2><p>Find an employee before performing employee-specific actions.</p></div></div><span id="selectedEmployee" class="selected">No employee selected</span></div>
-      <div class="row"><label class="grow">Find employee<input id="employeeSearch" autocomplete="off" placeholder="Name, code or TRN" /></label><button id="employeeSearchButton">Find Employee</button></div>
-      <div id="employeeResults" class="results"></div>
-    </section>
-
-    <nav class="tabs" aria-label="Cafeteria management functions">
-      <button class="tab active" data-tab="additional-credit">Additional Credit</button><button class="tab" data-tab="stipend">Stipend</button><button class="tab" data-tab="rates">Rates</button><button class="tab" data-tab="amount-due">Amount Due</button><button class="tab" data-tab="email">Email & Reports</button><button class="tab" data-tab="import-tools">Import Tools</button><button class="tab" data-tab="audit">Audit Trail</button>
-    </nav>
-
-    <section class="tab-panel active" data-panel="additional-credit"><div class="card"><div class="section-title"><div><span class="section-icon">02</span><div><h2>Additional Credit</h2><p>Manage the employee limit and approve controlled additional credit.</p></div></div></div><div class="form-grid"><label>Monthly employee limit<input id="creditLimit" type="number" min="0" step="0.01" /></label><div class="button-field"><button id="loadCreditPolicy" class="secondary">Load Limit</button><button id="saveCreditPolicy">Save Limit</button></div><label>Approval amount<input id="additionalCreditAmount" type="number" min="0.01" step="0.01" /></label><label>Reason<input id="additionalCreditReason" placeholder="Reason for approval" /></label></div><button id="approveAdditionalCredit" class="wide">Approve Additional Credit</button></div></section>
-
-    <section class="tab-panel" data-panel="stipend"><div class="card"><div class="section-title"><div><span class="section-icon">03</span><div><h2>Process Stipend</h2><p>Record an advance or reimbursement with a complete audit trail.</p></div></div></div><div class="form-grid"><label>Cash amount<input id="stipendCash" type="number" min="0.01" step="0.01" /></label><label>Card reduction<input id="stipendReduction" type="number" min="0" step="0.01" /></label><label>Payment mode<select id="stipendMode"><option value="1">Advance</option><option value="2">Reimbursement</option></select></label><label>Expense report reference<input id="stipendReference" /></label><label class="span-two">Notes<input id="stipendNotes" /></label></div><button id="processStipend" class="wide">Process Stipend</button></div></section>
-
-    <section class="tab-panel" data-panel="rates"><div class="card"><div class="section-title"><div><span class="section-icon">04</span><div><h2>Funding Rates</h2><p>Authoritative rates used by month opening and cafeteria funding calculations.</p></div></div></div><div class="form-grid"><label>Daily credit limit rate<input id="dailyCreditRate" type="number" min="0.01" step="0.01" /></label><label>Daily company subsidy rate<input id="dailySubsidyRate" type="number" min="0.01" step="0.01" /></label></div><div class="actions"><button id="loadFunding" class="secondary">Load Rates</button><button id="saveFunding">Save Rates</button></div></div></section>
-
-        <section class="tab-panel" data-panel="amount-due"><div class="card"><div class="section-title"><div><span class="section-icon">06</span><div><h2>Employee Amount Due</h2><p>Review and distribute the payroll deduction report for the selected period.</p></div></div></div><div class="form-grid"><label>Year<input id="reportYear" type="number" /></label><label>Month<input id="reportMonth" type="number" min="1" max="12" /></label></div><div class="actions"><button id="loadPayrollReport">Load Report</button><button id="sendPayrollReport" class="secondary">Resend Report</button><label class="inline-check"><input id="forcePayrollReport" type="checkbox" /> Force resend</label></div><pre id="payrollReport" class="output">No report loaded.</pre></div></section>
-
-    <section class="tab-panel" data-panel="email"><div class="card"><div class="section-title"><div><span class="section-icon">07</span><div><h2>Email & Reports</h2><p>Control management reporting delivery, send Daily Sales Reports and verify email configuration.</p></div></div></div><div class="form-grid"><label class="inline-check">Weekly manager summary<input id="managerWeeklyEnabled" type="checkbox" /></label><label>Manager email<input id="managerEmail" type="email" autocomplete="email" /></label><label>Weekly summary day<select id="managerWeeklyDay"><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option></select></label><label>Hour (0-23)<input id="managerWeeklyHour" type="number" min="0" max="23" /></label></div><div class="actions"><button id="loadReportSettings" class="secondary">Load Settings</button><button id="saveReportSettings">Save Settings</button><button id="sendTestEmail" class="secondary">Send Test Email</button></div></div></section>
-
-    <section class="tab-panel" data-panel="import-tools">
-      <div class="card">
-        <div class="section-title">
-          <div>
-            <span class="section-icon">08</span>
-            <div>
-              <h2>Import Tools</h2>
-              <p>Controlled catalog bootstrap tools. One-time transaction migration has been moved to the dedicated migration utility.</p>
-            </div>
-          </div>
-        </div>
-        <div class="import-grid">
-          <article class="tool-card">
-            <h3>Product Catalog Bootstrap</h3>
-            <p>Import missing saleable Lunch Items into POS product catalogs. Existing POS products and prices are not overwritten; funding-policy rows are ignored.</p>
-            <button id="importProducts">Import Lunch Items</button>
-          </article>
-        </div>
-        <p class="hint">Product bootstrap is performed by Cafeteria Services. Legacy transaction cutover is handled separately by Aegis.Cafeteria.Migration.</p>
+      <div>
+        <div class="eyebrow dark">TEMPORARY MANAGEMENT WORKFLOWS</div>
+        <h2 class="page-title">Employee funding actions</h2>
+        <p class="page-copy">Only functions awaiting migration into FFP Manager remain here. Cafeteria operational administration now belongs in the POS.</p>
       </div>
     </section>
 
-    <section class="tab-panel" data-panel="audit"><div class="card"><div class="section-title"><div><span class="section-icon">09</span><div><h2>Audit Trail</h2><p>Trace management actions, outcomes and exceptions.</p></div></div></div><div class="audit-filters"><label>Actor<input id="auditActor" /></label><label>Action<input id="auditAction" /></label><label>Customer ID<input id="auditCustomerId" type="number" min="1" /></label><label>Result<select id="auditSucceeded"><option value="">All</option><option value="true">Succeeded</option><option value="false">Failed</option></select></label><label>From<input id="auditFrom" type="datetime-local" /></label><label>To<input id="auditTo" type="datetime-local" /></label><label>Rows<input id="auditTake" type="number" min="1" max="500" value="100" /></label></div><div class="actions"><button id="loadAudit">Load Audit</button><button id="clearAuditFilters" class="secondary">Clear Filters</button></div><div id="auditTable" class="table-wrap"><div class="hint empty-state">No audit records loaded.</div></div></div></section>
+    <section class="card employee-card">
+      <div class="section-title">
+        <div><span class="section-icon">01</span><div><h2>Employee</h2><p>Find an employee before performing employee-specific actions.</p></div></div>
+        <span id="selectedEmployee" class="selected">No employee selected</span>
+      </div>
+      <div class="row">
+        <label class="grow">Find employee<input id="employeeSearch" autocomplete="off" placeholder="Name, code or TRN" /></label>
+        <button id="employeeSearchButton">Find Employee</button>
+      </div>
+      <div id="employeeResults" class="results"></div>
+    </section>
 
-    <section class="card activity-card"><div class="section-title"><div><span class="section-icon">✓</span><div><h2>Activity</h2><p>Latest management operation and response.</p></div></div><button id="clearResult" class="secondary small">Clear</button></div><pre id="result" class="output">Ready.</pre></section>
+    <nav class="tabs" aria-label="Temporary Cafeteria management functions">
+      <button class="tab active" data-tab="additional-credit">Additional Credit</button>
+      <button class="tab" data-tab="stipend">Stipend</button>
+      <button class="tab" data-tab="rates">Funding Rates</button>
+    </nav>
+
+    <section class="tab-panel active" data-panel="additional-credit">
+      <div class="card">
+        <div class="section-title"><div><span class="section-icon">02</span><div><h2>Additional Credit</h2><p>Temporary UI until this employee financial workflow is moved into FFP Manager.</p></div></div></div>
+        <div class="form-grid">
+          <label>Monthly employee limit<input id="creditLimit" type="number" min="0" step="0.01" /></label>
+          <div class="button-field"><button id="loadCreditPolicy" class="secondary">Load Limit</button><button id="saveCreditPolicy">Save Limit</button></div>
+          <label>Approval amount<input id="additionalCreditAmount" type="number" min="0.01" step="0.01" /></label>
+          <label>Reason<input id="additionalCreditReason" placeholder="Reason for approval" /></label>
+        </div>
+        <button id="approveAdditionalCredit" class="wide">Approve Additional Credit</button>
+      </div>
+    </section>
+
+    <section class="tab-panel" data-panel="stipend">
+      <div class="card">
+        <div class="section-title"><div><span class="section-icon">03</span><div><h2>Process Stipend</h2><p>Temporary UI until this employee payroll/finance workflow is moved into FFP Manager.</p></div></div></div>
+        <div class="form-grid">
+          <label>Cash amount<input id="stipendCash" type="number" min="0.01" step="0.01" /></label>
+          <label>Card reduction<input id="stipendReduction" type="number" min="0" step="0.01" /></label>
+          <label>Payment mode<select id="stipendMode"><option value="1">Advance</option><option value="2">Reimbursement</option></select></label>
+          <label>Expense report reference<input id="stipendReference" /></label>
+          <label class="span-two">Notes<input id="stipendNotes" /></label>
+        </div>
+        <button id="processStipend" class="wide">Process Stipend</button>
+      </div>
+    </section>
+
+    <section class="tab-panel" data-panel="rates">
+      <div class="card">
+        <div class="section-title"><div><span class="section-icon">04</span><div><h2>Funding Rates</h2><p>Temporary UI until cafeteria funding policy is maintained in FFP Manager.</p></div></div></div>
+        <div class="form-grid">
+          <label>Daily credit limit rate<input id="dailyCreditRate" type="number" min="0.01" step="0.01" /></label>
+          <label>Daily company subsidy rate<input id="dailySubsidyRate" type="number" min="0.01" step="0.01" /></label>
+        </div>
+        <div class="actions"><button id="loadFunding" class="secondary">Load Rates</button><button id="saveFunding">Save Rates</button></div>
+      </div>
+    </section>
+
+    <section class="card activity-card">
+      <div class="section-title"><div><span class="section-icon">✓</span><div><h2>Activity</h2><p>Latest management operation and response.</p></div></div><button id="clearResult" class="secondary small">Clear</button></div>
+      <pre id="result" class="output">Ready.</pre>
+    </section>
   </main>
   <script src="app.js"></script>
 </body>
