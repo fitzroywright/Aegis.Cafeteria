@@ -15,7 +15,7 @@ public sealed class CafeteriaPolicyStartupWorker(
             now.Year,
             now.Month,
             forceReload: true,
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         logger.LogInformation(
             "Loaded authoritative Cafeteria policy {Version} for {Year}-{Month:D2} with {WorkingDayCount} working days",
