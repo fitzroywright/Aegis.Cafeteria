@@ -72,14 +72,10 @@ internal static class Program
                 ?? new OperatorSecurityOptions();
             CafeteriaUiOptions uiOptions = builder.Configuration.GetSection("Ui").Get<CafeteriaUiOptions>()
                 ?? new CafeteriaUiOptions();
-            builder.Services.AddSingleton(securityOptions);
+            builder.Services.AddCafeteriaOperatorAuthentication(securityOptions);
             builder.Services.AddSingleton(uiOptions);
             builder.Services.AddSingleton<IOperatorSession, OperatorSession>();
             builder.Services.AddSingleton<IManagerAuthorizationRegistry, ManagerAuthorizationRegistry>();
-            builder.Services.AddSingleton<IOperatorAuthenticator>
-            (
-                serviceProvider => serviceProvider.GetRequiredService<ServicesOperatorAuthenticator>()
-            );
             builder.Services.AddSingleton<IRefundAuthorizer, CommonSecurityRefundAuthorizer>();
             builder.Services.AddSingleton<IOrderVoidAuthorizer, CommonSecurityOrderVoidAuthorizer>();
             builder.Services.AddSingleton<RefundService>();
@@ -112,7 +108,7 @@ internal static class Program
                 .GetAwaiter()
                 .GetResult();
 
-            splash.Update("Operator sign-in required...", "Sign in to continue through Aegis.Cafeteria.Services and Common.Security.");
+            splash.Update("Operator sign-in required...", "Sign in through Common.Security.");
             splash.Hide();
 
             if (!AuthenticateOperator(host, splash))
@@ -124,20 +120,12 @@ internal static class Program
             splash.Show();
             splash.Update
             (
-                  "Connected to Cafeteria Services..."
-                , "Operator authenticated. Refreshing cafeteria reference data."
-            );
-
-            RefreshStartupReferenceData(host, runtime, splash);
-
-            splash.Update
-            (
                   "Starting terminal services..."
-                , "Starting synchronization, transaction publishing, and realtime updates."
+                , "Opening the POS from the local cache. Synchronization will continue in the background."
             );
             host.StartAsync().GetAwaiter().GetResult();
 
-            splash.Ready("Cafeteria Services is connected and the terminal is ready.");
+            splash.Ready("Cafeteria is ready. Background synchronization will refresh reference data.");
             Thread.Sleep(250);
             splash.Close();
 
@@ -214,81 +202,8 @@ internal static class Program
         return login.ShowDialog() == DialogResult.OK;
     }
 
-    private static void RefreshStartupReferenceData
-    (
-          IHost host
-        , CafeteriaRuntimeOptions runtime
-        , StartupSplashController splash
-    )
-    {
-        if (!runtime.Services.Enabled)
-        {
-            return;
-        }
-
-        TimeSpan timeout = TimeSpan.FromSeconds(runtime.Services.StartupRefreshTimeoutSeconds);
-        using CancellationTokenSource cancellation = new(timeout);
-
-        try
-        {
-            ReferenceDataRefreshService refresh = host.Services.GetRequiredService<ReferenceDataRefreshService>();
-
-            splash.Update
-            (
-                  "Refreshing employees..."
-                , "Loading current employee and cafeteria eligibility data from Cafeteria Services."
-            );
-            refresh.RefreshCustomersAsync(cancellation.Token)
-                .GetAwaiter()
-                .GetResult();
-
-            splash.Update
-            (
-                  "Refreshing holidays..."
-                , "Loading the current working-day calendar from Cafeteria Services."
-            );
-            DateOnly today = DateOnly.FromDateTime(DateTime.Today);
-            refresh.RefreshHolidaysAsync(today, cancellation.Token)
-                .GetAwaiter()
-                .GetResult();
-        }
-        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
-        {
-            ILogger logger = host.Services.GetRequiredService<ILoggerFactory>()
-                .CreateLogger("Aegis.Cafeteria.Startup");
-            logger.LogWarning
-            (
-                  "Cafeteria Services startup refresh exceeded {TimeoutSeconds} seconds. Continuing with the local cache."
-                , runtime.Services.StartupRefreshTimeoutSeconds
-            );
-
-            splash.Update
-            (
-                  "Cafeteria Services is responding slowly..."
-                , "Starting with the local cache; background synchronization will continue."
-            );
-        }
-        catch (Exception exception)
-        {
-            ILogger logger = host.Services.GetRequiredService<ILoggerFactory>()
-                .CreateLogger("Aegis.Cafeteria.Startup");
-            logger.LogWarning
-            (
-                  exception
-                , "Cafeteria Services startup reference refresh failed. Continuing with the local cache."
-            );
-
-            splash.Update
-            (
-                  "Reference refresh unavailable..."
-                , "Starting with the local cache; background synchronization will retry."
-            );
-        }
-    }
-
     private static void RunTerminalUi(IHost host, CafeteriaUiOptions uiOptions)
     {
-        using WinFormsBusySynchronizationContext busyContext = WinFormsBusySynchronizationContext.Install();
         MainForm mainForm = host.Services.GetRequiredService<MainForm>();
         PosCashierUiPolicy.Apply
         (
