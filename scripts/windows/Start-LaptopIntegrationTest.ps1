@@ -24,8 +24,9 @@ Set-Location '$root'
 `$env:DOTNET_ENVIRONMENT='Development'
 `$env:ASPNETCORE_ENVIRONMENT='Development'
 `$env:ServicePersistence__ConnectionString='$serviceConnection'
-`$env:FfpIntegration__ConnectionString='Data Source=JMDB01;Initial Catalog=FFP;Integrated Security=true;Pooling=false;Encrypt=false'
-`$env:FfpIntegration__AllowWrites='true'
+`$ffpConnection = `$env:FFPMANAGER_TEST
+if ([string]::IsNullOrWhiteSpace(`$ffpConnection)) { throw 'FFPMANAGER_TEST is required for the laptop integration test.' }
+`$env:IntegrationPlugin__ConnectionString=`$ffpConnection
 `$env:DevelopmentData__Enabled='false'
 dotnet run --project src/Aegis.Cafeteria.Services/Aegis.Cafeteria.Services.csproj --urls http://localhost:5088
 "@
@@ -62,5 +63,5 @@ Write-Host "Laptop integration test started."
 Write-Host "Service DB: $serviceDb"
 Write-Host "POS DB:     $posDb"
 Write-Host "FFP integration target: JMDB01 / FFP (Windows Integrated Security)"
-Write-Host "FFP reads/writes: ENABLED in Development test environment"
+Write-Host "Cafeteria Services is the integration plane; FFP reads/writes use FFPMANAGER_TEST"
 Write-Host "Use the JMDB01/FFP test database for full end-to-end integration testing."
