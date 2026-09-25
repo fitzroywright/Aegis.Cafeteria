@@ -234,7 +234,7 @@ public sealed class PosCheckoutServiceTests
             EmployeeAmountDue: 0m,
             TotalRefunds: 0m),
         [],
-        new FfpPublicationStatus(true, 0, 0, DateTimeOffset.UtcNow, null));
+        new ExternalPublicationStatus(true, 0, 0, DateTimeOffset.UtcNow, null));
 
     private sealed class RecordingObserver(FakeStore store) : IPostSaleObserver
     {
