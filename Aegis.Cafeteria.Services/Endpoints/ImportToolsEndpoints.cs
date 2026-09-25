@@ -14,8 +14,6 @@ internal static class ImportToolsEndpoints
         app.MapPost("/api/management/import-tools/products", ImportProductsAsync)
             .RequireAuthorization("CafeteriaManagement");
 
-        app.MapPost("/api/management/import-tools/current-month", ImportCurrentMonthAsync)
-            .RequireAuthorization("CafeteriaManagement");
     }
 
     private static async Task<IResult> ImportProductsAsync
@@ -92,91 +90,6 @@ internal static class ImportToolsEndpoints
                 , ImportEventsCreated = created
                 , ExistingImportEvents = existing
                 , IgnoredItems = ignored
-                , ImportedAt = importedAt
-            }
-        );
-    }
-
-    private static async Task<IResult> ImportCurrentMonthAsync
-    (
-          int? year
-        , int? month
-        , HttpContext http
-        , IMonthImportSource source
-        , ServiceEventStore store
-        , CancellationToken ct
-    )
-    {
-        DateTimeOffset now = DateTimeOffset.Now;
-        int importYear = year ?? now.Year;
-        int importMonth = month ?? now.Month;
-
-        if (importYear is < 2000 or > 9999 || importMonth is < 1 or > 12)
-        {
-            return Results.BadRequest("A valid import year and month are required.");
-        }
-
-        string actor = CafeteriaActor.Require(http);
-        MonthImportSnapshot snapshot = await source.GetMonthAsync(importYear, importMonth, ct);
-        int created = 0;
-        int existing = 0;
-        decimal netImportedScanValue = 0m;
-        DateTimeOffset importedAt = DateTimeOffset.UtcNow;
-
-        foreach (ExternalTransactionSnapshot transaction in snapshot.Transactions)
-        {
-            Guid operationId = DeterministicOperationId($"LEGACY-IMPORT:{transaction.SourceId}");
-
-            if (await store.HasOperationAsync(operationId, ct))
-            {
-                existing++;
-                continue;
-            }
-
-            LegacyTransactionImportServiceEvent payload = new
-            (
-                  operationId
-                , transaction.SourceId
-                , transaction.CustomerId
-                , snapshot.Year
-                , snapshot.Month
-                , transaction.OccurredAt
-                , transaction.IdName
-                , transaction.Description
-                , transaction.ScanValue
-                , transaction.UserName
-                , transaction.ScanCode
-                , transaction.ScanType
-                , actor
-                , importedAt
-            );
-
-            await store.AppendAsync
-            (
-                  operationId
-                , CafeteriaServiceEventKind.LegacyTransactionImport
-                , transaction.CustomerId
-                , transaction.OccurredAt
-                , payload
-                , ct
-            );
-
-            created++;
-            netImportedScanValue += transaction.ScanValue;
-        }
-
-        return Results.Ok
-        (
-            new
-            {
-                  snapshot.Year
-                , snapshot.Month
-                , snapshot.ThroughAt
-                , ImportEventsCreated = created
-                , ExistingImportEvents = existing
-                , SourceTransactions = snapshot.Transactions.Count
-                , SourceAccounts = snapshot.Accounts.Count
-                , NetImportedScanValue = netImportedScanValue
                 , ImportedAt = importedAt
             }
         );
