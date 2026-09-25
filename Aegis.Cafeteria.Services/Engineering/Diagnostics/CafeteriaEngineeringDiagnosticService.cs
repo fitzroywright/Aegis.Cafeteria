@@ -133,8 +133,8 @@ public sealed class CafeteriaEngineeringDiagnosticService
             IReadOnlyList<ExternalCustomerSnapshot> customers = await this.workforce.GetCustomersAsync(cancellationToken);
             int eligible = customers.Count(customer => customer.IsEligibleForCafeteriaCredit);
             return eligible > 0
-                ? Passed("eligible-employees", "Eligible employee source", $"FFP returned {eligible} eligible employee(s).", $"Total source rows={customers.Count}")
-                : Failed("eligible-employees", "Eligible employee source", "FFP returned no cafeteria-eligible employees.");
+                ? Passed("eligible-employees", "Eligible employee source", $"Workforce source returned {eligible} eligible employee(s).", $"Total source rows={customers.Count}")
+                : Failed("eligible-employees", "Eligible employee source", "Workforce source returned no cafeteria-eligible employees.");
         }
         catch (Exception exception)
         {
@@ -147,17 +147,17 @@ public sealed class CafeteriaEngineeringDiagnosticService
         try
         {
             await using ServiceDbContext database = await this.databaseFactory.CreateDbContextAsync(cancellationToken);
-            int pending = await database.Events.CountAsync(row => row.FfpPublishedAt == null, cancellationToken);
-            int failed = await database.Events.CountAsync(row => row.FfpLastError != null, cancellationToken);
+            int pending = await database.Events.CountAsync(row => row.ExternalPublishedAt == null, cancellationToken);
+            int failed = await database.Events.CountAsync(row => row.PublicationLastError != null, cancellationToken);
             DateTimeOffset? lastSuccessfulSync = await database.Events
-                .Where(row => row.FfpPublishedAt != null)
-                .OrderByDescending(row => row.FfpPublishedAt)
-                .Select(row => row.FfpPublishedAt)
+                .Where(row => row.ExternalPublishedAt != null)
+                .OrderByDescending(row => row.ExternalPublishedAt)
+                .Select(row => row.ExternalPublishedAt)
                 .FirstOrDefaultAsync(cancellationToken);
             string? lastError = await database.Events
-                .Where(row => row.FfpLastError != null)
-                .OrderByDescending(row => row.FfpLastAttemptAt)
-                .Select(row => row.FfpLastError)
+                .Where(row => row.PublicationLastError != null)
+                .OrderByDescending(row => row.PublicationLastAttemptAt)
+                .Select(row => row.PublicationLastError)
                 .FirstOrDefaultAsync(cancellationToken);
 
             CafeteriaReportStatus status = CafeteriaReportStatus.FromPublicationStatus(
@@ -202,26 +202,26 @@ public sealed class CafeteriaEngineeringDiagnosticService
         try
         {
             await using ServiceDbContext database = await this.databaseFactory.CreateDbContextAsync(cancellationToken);
-            int pending = await database.Events.CountAsync(row => row.FfpPublishedAt == null, cancellationToken);
-            int failed = await database.Events.CountAsync(row => row.FfpLastError != null, cancellationToken);
+            int pending = await database.Events.CountAsync(row => row.ExternalPublishedAt == null, cancellationToken);
+            int failed = await database.Events.CountAsync(row => row.PublicationLastError != null, cancellationToken);
 
             if (failed > 0)
             {
                 return new EngineeringDiagnosticCheckResult
                 (
-                      "ffp-publication"
-                    , "FFP publication queue"
+                      "external-publication"
+                    , "External publication queue"
                     , EngineeringDiagnosticStatus.Warning
-                    , $"{failed} event(s) have recorded FFP publication errors."
+                    , $"{failed} event(s) have recorded external publication errors."
                     , $"Pending={pending}; Failed={failed}"
                 );
             }
 
-            return Passed("ffp-publication", "FFP publication queue", "No recorded FFP publication errors.", $"Pending={pending}");
+            return Passed("external-publication", "External publication queue", "No recorded external publication errors.", $"Pending={pending}");
         }
         catch (Exception exception)
         {
-            return Failed("ffp-publication", "FFP publication queue", exception.Message);
+            return Failed("external-publication", "External publication queue", exception.Message);
         }
     }
 
@@ -239,7 +239,7 @@ public sealed class CafeteriaEngineeringDiagnosticService
                       "service-events"
                     , "Service event stream"
                     , EngineeringDiagnosticStatus.Warning
-                    , "The service event stream is empty. This can be normal immediately after a Development reset."
+                    , "The service event stream is empty. This can be normal before service activity has been recorded."
                 );
             }
 
