@@ -102,7 +102,7 @@ internal static class ImportToolsEndpoints
           int? year
         , int? month
         , HttpContext http
-        , IFfpMonthImportSource source
+        , IMonthImportSource source
         , ServiceEventStore store
         , CancellationToken ct
     )
@@ -117,13 +117,13 @@ internal static class ImportToolsEndpoints
         }
 
         string actor = CafeteriaActor.Require(http);
-        FfpMonthImportSnapshot snapshot = await source.GetMonthAsync(importYear, importMonth, ct);
+        MonthImportSnapshot snapshot = await source.GetMonthAsync(importYear, importMonth, ct);
         int created = 0;
         int existing = 0;
         decimal netImportedScanValue = 0m;
         DateTimeOffset importedAt = DateTimeOffset.UtcNow;
 
-        foreach (ExternalFfpTransactionSnapshot transaction in snapshot.Transactions)
+        foreach (ExternalTransactionSnapshot transaction in snapshot.Transactions)
         {
             Guid operationId = DeterministicOperationId($"LEGACY-IMPORT:{transaction.SourceId}");
 
