@@ -202,17 +202,17 @@ public sealed class ScheduledEmailWorker : BackgroundService
         DailyLedgerSummary summary = await this.source.GetDailySummaryAsync(date, cancellationToken);
 
         await using ServiceDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
-        int pending = await database.Events.CountAsync(row => row.FfpPublishedAt == null, cancellationToken);
-        int failed = await database.Events.CountAsync(row => row.FfpLastError != null, cancellationToken);
+        int pending = await database.Events.CountAsync(row => row.ExternalPublishedAt == null, cancellationToken);
+        int failed = await database.Events.CountAsync(row => row.PublicationLastError != null, cancellationToken);
         DateTimeOffset? lastSuccessfulSync = await database.Events
-            .Where(row => row.FfpPublishedAt != null)
-            .OrderByDescending(row => row.FfpPublishedAt)
-            .Select(row => row.FfpPublishedAt)
+            .Where(row => row.ExternalPublishedAt != null)
+            .OrderByDescending(row => row.ExternalPublishedAt)
+            .Select(row => row.ExternalPublishedAt)
             .FirstOrDefaultAsync(cancellationToken);
         string? lastError = await database.Events
-            .Where(row => row.FfpLastError != null)
-            .OrderByDescending(row => row.FfpLastAttemptAt)
-            .Select(row => row.FfpLastError)
+            .Where(row => row.PublicationLastError != null)
+            .OrderByDescending(row => row.PublicationLastAttemptAt)
+            .Select(row => row.PublicationLastError)
             .FirstOrDefaultAsync(cancellationToken);
 
         bool complete = pending == 0 && failed == 0;
