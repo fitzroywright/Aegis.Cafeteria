@@ -308,6 +308,7 @@ internal sealed record MigrationOptions
     , bool Execute
     , bool Encrypt
     , bool TrustServerCertificate
+    , string ReservedPolicyCode
 )
 {
     internal static MigrationOptions Parse(string[] args)
