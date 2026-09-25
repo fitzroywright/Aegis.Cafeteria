@@ -189,7 +189,6 @@ internal static class CafeteriaServicesHost
         services.AddSingleton<StipendAccountSnapshotFactory>();
         services.AddSingleton<EngineeringDiagnosticRunStore>();
         services.AddSingleton<CafeteriaEngineeringDiagnosticService>();
-        services.AddSingleton<DevelopmentDataResetService>();
     }
 
     private static void ConfigureDevelopmentServices(WebApplicationBuilder builder)
