@@ -111,6 +111,9 @@ internal static class CafeteriaServicesHost
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaCustomerLookupDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaRecoveryReadinessDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaExhaustiveConsistencyDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaOutboundEmailQueueDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaReportDeliveryConfigurationDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaAuditTrailIntegrityDiagnosticLevelTest>();
     }
 
     private static FfpIntegrationOptions BuildFfpIntegration(WebApplicationBuilder builder)
