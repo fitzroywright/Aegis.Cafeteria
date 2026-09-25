@@ -37,12 +37,12 @@ For a requested period the complete policy contains:
 - year and month;
 - FFP00-derived daily price rate;
 - FFP00-derived daily cost/subsidy rate;
-- subsidy consumption mode;
+- optional subsidy consumption mode; when omitted, Cafeteria uses `SubsidyConsumptionMode.Standard`;
 - the actual working-day dates for the period;
 - a policy version;
 - an effective-from timestamp.
 
-A policy is rejected as a unit if it is incomplete or invalid.
+A policy is rejected as a unit if required fields are incomplete or invalid. Optional policy behaviors must have explicit Cafeteria defaults; adapters do not silently merge values from another provider.
 
 Cafeteria.Services loads the current policy at startup. Management can explicitly reload a period with:
 
@@ -69,6 +69,8 @@ The Integration Plane change feed supplies:
 Cafeteria.Services stores the latest employee snapshot and version locally. Change sets are applied to the local snapshot and persisted atomically. A service restart therefore resumes from the durable version instead of comparing records heuristically.
 
 The effective eligible-from date is used with the authoritative working-day calendar to prorate a first-month allocation. Cafeteria does not infer entitlement from a monthly working-day count.
+
+For FFP, the Integration Plane only needs to supply the FFP00-derived price and cost plus the working-day calendar. It may omit the subsidy consumption mode because FFP uses the Cafeteria default, `SubsidyConsumptionMode.Standard`. A future company adapter can explicitly provide another supported enum value when its business rules require one.
 
 ## Allocation ownership
 
