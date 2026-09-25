@@ -1,5 +1,13 @@
 namespace Aegis.Cafeteria.Application.Integration;
 
+public enum SubsidyConsumptionMode
+{
+    Standard = 0,
+    EmployerFirst = 1,
+    Proportional = 2,
+    EmployeeFirst = 3
+}
+
 public interface ICafeteriaPolicyProvider
 {
     Task<CafeteriaPolicySnapshot> GetPolicyAsync(
@@ -14,10 +22,10 @@ public sealed record CafeteriaPolicySnapshot(
     int Month,
     decimal DailyCreditLimitRate,
     decimal DailyCompanySubsidyRate,
-    string SubsidyConsumptionMode,
     IReadOnlyCollection<DateOnly> WorkingDays,
     string Version,
-    DateTimeOffset EffectiveFrom)
+    DateTimeOffset EffectiveFrom,
+    SubsidyConsumptionMode SubsidyConsumptionMode = SubsidyConsumptionMode.Standard)
 {
     public void Validate()
     {
@@ -27,8 +35,8 @@ public sealed record CafeteriaPolicySnapshot(
             throw new InvalidOperationException("Cafeteria policy credit-limit rate must be positive.");
         if (DailyCompanySubsidyRate < 0m || DailyCompanySubsidyRate > DailyCreditLimitRate)
             throw new InvalidOperationException("Cafeteria policy subsidy rate is invalid.");
-        if (string.IsNullOrWhiteSpace(SubsidyConsumptionMode))
-            throw new InvalidOperationException("Cafeteria policy subsidy consumption mode is required.");
+        if (!Enum.IsDefined(SubsidyConsumptionMode))
+            throw new InvalidOperationException("Cafeteria policy subsidy consumption mode is invalid.");
         if (string.IsNullOrWhiteSpace(Version))
             throw new InvalidOperationException("Cafeteria policy version is required.");
         if (WorkingDays is null)
