@@ -76,8 +76,8 @@ public static class CafeteriaInfrastructure
         services.AddHttpClient<ServicesIntegrationGateway>(client => ConfigureServicesHttpClient(client, runtime.Services)).AddHttpMessageHandler<PosServicesTokenHandler>();
         services.AddSingleton<IWorkforceReferenceSource>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
         services.AddSingleton<ILunchItemBootstrapSource>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
-        services.AddSingleton<IFfpMonthImportSource>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
-        services.AddSingleton<IFfpMonthImportService, EfFfpMonthImportService>();
+        services.AddSingleton<IMonthImportSource>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
+        services.AddSingleton<IMonthImportService, EfFfpMonthImportService>();
         services.AddSingleton<IWorkforceReferenceCache, EfFfpReferenceCache>();
         services.AddSingleton<ReferenceDataRefreshService>();
         services.AddHostedService<FfpReferenceRefreshWorker>();
