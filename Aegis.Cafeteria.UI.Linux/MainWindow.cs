@@ -414,7 +414,15 @@ public sealed class MainWindow : Window
     {
         ICafeteriaReportService reportService = this.services.GetRequiredService<ICafeteriaReportService>();
         IEnumerable<IReportExporter> exporters = this.services.GetServices<IReportExporter>();
-        ReportCenterWindow window = new(reportService, this.identification, this.products, exporters, kind);
+        CafeteriaServicesClient servicesClient = this.services.GetRequiredService<CafeteriaServicesClient>();
+        ReportCenterWindow window = new(
+              reportService
+            , this.identification
+            , this.products
+            , exporters
+            , kind
+            , servicesClient
+            , async () => await AuthorizeManagerAsync("Email Daily Sales Report") is not null);
         await window.ShowDialog(this);
         RegisterActivity();
     }
