@@ -4,7 +4,7 @@ using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Infrastructure.Ffp;
-using Aegis.Cafeteria.Infrastructure.IntegrationPlane;
+using Aegis.Cafeteria.Plugin.Integration;
 using Aegis.Cafeteria.Services.Development;
 using Aegis.Cafeteria.Services.Email;
 using Aegis.Cafeteria.Services.Persistence;
@@ -29,14 +29,14 @@ internal static class CafeteriaServicesHost
         builder.Configuration.AddEnvironmentVariables();
 
         FfpIntegrationOptions ffp = BuildFfpIntegration(builder);
-        IntegrationPlaneOptions integrationPlane = BuildIntegrationPlane(builder);
+        IntegrationPluginOptions integrationPlugin = BuildIntegrationPlugin(builder);
         ManagementApiOptions management = builder.Configuration.GetSection("ManagementApi").Get<ManagementApiOptions>() ?? new();
         MonthOpeningOptions monthOpening = builder.Configuration.GetSection("MonthOpening").Get<MonthOpeningOptions>() ?? new();
         ScheduledEmailOptions scheduledEmail = builder.Configuration.GetSection("ScheduledEmail").Get<ScheduledEmailOptions>() ?? new();
         ExternalPublicationOptions externalPublication = builder.Configuration.GetSection("ExternalPublication").Get<ExternalPublicationOptions>() ?? new();
         string serviceDb = CafeteriaServiceDatabase.ResolveConnectionString(builder.Configuration);
 
-        RegisterOptions(builder.Services, ffp, integrationPlane, management, monthOpening, scheduledEmail, externalPublication);
+        RegisterOptions(builder.Services, ffp, integrationPlugin, management, monthOpening, scheduledEmail, externalPublication);
         RegisterDiagnosticLevel(builder);
         RegisterIntegrationGateways(builder.Services);
         RegisterApplicationServices(builder.Services, serviceDb);
@@ -118,18 +118,18 @@ internal static class CafeteriaServicesHost
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaAuditTrailIntegrityDiagnosticLevelTest>();
     }
 
-    private static IntegrationPlaneOptions BuildIntegrationPlane(WebApplicationBuilder builder)
+    private static IntegrationPluginOptions BuildIntegrationPlugin(WebApplicationBuilder builder)
     {
-        IntegrationPlaneOptions options = builder.Configuration
-            .GetSection("IntegrationPlane")
-            .Get<IntegrationPlaneOptions>()
-            ?? new IntegrationPlaneOptions();
+        IntegrationPluginOptions options = builder.Configuration
+            .GetSection("IntegrationPlugin")
+            .Get<IntegrationPluginOptions>()
+            ?? new IntegrationPluginOptions();
 
         if (!options.Enabled)
-            throw new InvalidOperationException("Aegis.Cafeteria.Services requires the FFP Integration Plane.");
+            throw new InvalidOperationException("Aegis.Cafeteria.Services requires an integration plugin.");
 
         if (!Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _))
-            throw new InvalidOperationException("IntegrationPlane:BaseUrl is required and must be an absolute URL.");
+            throw new InvalidOperationException("IntegrationPlugin:BaseUrl is required and must be an absolute URL.");
 
         return options;
     }
@@ -177,7 +177,7 @@ internal static class CafeteriaServicesHost
     (
           IServiceCollection services
         , FfpIntegrationOptions ffp
-        , IntegrationPlaneOptions integrationPlane
+        , IntegrationPluginOptions integrationPlugin
         , ManagementApiOptions management
         , MonthOpeningOptions monthOpening
         , ScheduledEmailOptions scheduledEmail
@@ -185,7 +185,7 @@ internal static class CafeteriaServicesHost
     )
     {
         services.AddSingleton(ffp);
-        services.AddSingleton(integrationPlane);
+        services.AddSingleton(integrationPlugin);
         services.AddSingleton(management);
         services.AddSingleton(monthOpening);
         services.AddSingleton(scheduledEmail);
@@ -195,15 +195,15 @@ internal static class CafeteriaServicesHost
     private static void RegisterIntegrationGateways(IServiceCollection services)
     {
         services.AddSingleton<MonthlyAllocationCalculator>();
-        services.AddHttpClient("FfpIntegrationPlane");
-        services.AddSingleton<FfpIntegrationPlaneClient>(sp =>
-            new FfpIntegrationPlaneClient(
-                sp.GetRequiredService<IHttpClientFactory>().CreateClient("FfpIntegrationPlane"),
-                sp.GetRequiredService<IntegrationPlaneOptions>()));
-        services.AddSingleton<ICafeteriaPolicyProvider>(sp => sp.GetRequiredService<FfpIntegrationPlaneClient>());
-        services.AddSingleton<IEmployeeFactSource>(sp => sp.GetRequiredService<FfpIntegrationPlaneClient>());
-        services.AddSingleton<IEmployeeIdScanPublisher>(sp => sp.GetRequiredService<FfpIntegrationPlaneClient>());
-        services.AddSingleton<IntegrationPlaneWorkforceReferenceSource>();
+        services.AddHttpClient("CafeteriaIntegrationPlane");
+        services.AddSingleton<IntegrationPlaneClient>(sp =>
+            new IntegrationPlaneClient(
+                sp.GetRequiredService<IHttpClientFactory>().CreateClient("CafeteriaIntegrationPlane"),
+                sp.GetRequiredService<IntegrationPluginOptions>()));
+        services.AddSingleton<ICafeteriaPolicyProvider>(sp => sp.GetRequiredService<IntegrationPlaneClient>());
+        services.AddSingleton<IEmployeeFactSource>(sp => sp.GetRequiredService<IntegrationPlaneClient>());
+        services.AddSingleton<IEmployeeIdScanPublisher>(sp => sp.GetRequiredService<IntegrationPlaneClient>());
+        services.AddSingleton<IntegrationWorkforceReferenceSource>();
         services.AddSingleton<FfpSqlConnectionFactory>();
         services.AddSingleton<FfpEmployeeWorkforceSource>();
         services.AddSingleton<FfpLunchItemBootstrapSource>();
@@ -212,7 +212,7 @@ internal static class CafeteriaServicesHost
         services.AddSingleton<FfpMonthRecalculationGuard>();
         services.AddSingleton<FfpDevelopmentDataResetGateway>();
         services.AddSingleton<IExternalAccountingGateway>(sp => sp.GetRequiredService<FfpAccountingGateway>());
-        services.AddSingleton<IWorkforceReferenceSource>(sp => sp.GetRequiredService<IntegrationPlaneWorkforceReferenceSource>());
+        services.AddSingleton<IWorkforceReferenceSource>(sp => sp.GetRequiredService<IntegrationWorkforceReferenceSource>());
         services.AddSingleton<ILunchItemBootstrapSource>(sp => sp.GetRequiredService<FfpLunchItemBootstrapSource>());
         services.AddSingleton<IFundingPolicyCompatibilityGateway>(sp => sp.GetRequiredService<FfpFundingPolicyCompatibilityGateway>());
         services.AddSingleton<IMonthRecalculationGuard>(sp => sp.GetRequiredService<FfpMonthRecalculationGuard>());
