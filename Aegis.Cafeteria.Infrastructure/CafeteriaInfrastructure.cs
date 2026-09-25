@@ -18,7 +18,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Common.Security.Abstractions;
-using Common.Security.Authenticators;
+using CommonSecurityActiveDirectory = Common.Security.Authenticators.ActiveDirectory;
 using Common.Security.Options;
 
 public static class CafeteriaInfrastructure
@@ -92,7 +92,7 @@ public static class CafeteriaInfrastructure
         };
 
         services.AddSingleton(options);
-        services.AddSingleton<IAuthenticator>(_ => new ActiveDirectory(activeDirectoryOptions));
+        services.AddSingleton<IAuthenticator>(_ => new CommonSecurityActiveDirectory(activeDirectoryOptions));
         services.AddSingleton<CommonSecurityOperatorAuthenticator>();
         services.AddSingleton<IOperatorAuthenticator>(
             serviceProvider => serviceProvider.GetRequiredService<CommonSecurityOperatorAuthenticator>());
