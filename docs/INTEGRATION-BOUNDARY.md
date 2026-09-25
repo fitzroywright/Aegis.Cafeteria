@@ -17,20 +17,20 @@ Reports never cross this boundary.
 Inbound:
 
 ```text
-FFP Manager -> Integration Plane -> Aegis.Cafeteria.Services -> POS
+FFP Manager -> Aegis.Cafeteria.Services (integration plane) -> POS
 ```
 
 Outbound:
 
 ```text
-POS -> Aegis.Cafeteria.Services -> Integration Plane -> FFP Manager EmployeeIDScans
+POS -> Aegis.Cafeteria.Services (integration plane) -> FFP Manager EmployeeIDScans
 ```
 
 The POS never calls FFP Manager or the Integration Plane directly.
 
 ## Policy contract
 
-The Integration Plane is authoritative for an FFP deployment. Cafeteria does not merge partial policy values from multiple providers.
+Aegis.Cafeteria.Services is the integration plane and is authoritative for an FFP deployment. Cafeteria does not merge partial policy values from multiple providers.
 
 For a requested period the complete policy contains:
 
@@ -56,7 +56,7 @@ Reloading policy does not silently recalculate an already opened month. The exis
 
 Employee synchronization is independent from policy.
 
-The Integration Plane change feed supplies:
+The in-process FFP Manager provider inside Aegis.Cafeteria.Services supplies:
 
 - stable employee ID;
 - name;
@@ -88,7 +88,7 @@ FFP Manager does not calculate Cafeteria entitlement, balances or subsidy consum
 
 ## Outbound transactions
 
-The canonical transaction is created by Cafeteria. The Integration Plane translates it to the FFP Manager EmployeeIDScans shape.
+The canonical transaction is created by Cafeteria. Aegis.Cafeteria.Services translates it through the dynamically loaded FFP Manager provider to the EmployeeIDScans shape.
 
 The outbound contract includes:
 
@@ -102,7 +102,7 @@ The outbound contract includes:
 - user name;
 - optional identification code.
 
-The Integration Plane is responsible for translating this contract to EmployeeIDScans and preserving idempotency.
+The in-process provider is responsible for translating this contract to EmployeeIDScans and preserving idempotency.
 
 Cafeteria does not construct FFP database rows in its application layer.
 
@@ -110,7 +110,7 @@ Cafeteria does not construct FFP database rows in its application layer.
 
 The POS continues to record sales locally if Cafeteria.Services is unavailable. POS transaction events remain durably queued and retry later.
 
-Loss of FFP Manager or the Integration Plane must not stop selling.
+Loss of FFP Manager must not stop selling; the POS remains local-first and Services retries durable publication.
 
 ## Reports
 
@@ -178,12 +178,12 @@ Cafeteria core and the generic integration plugin must not contain organization-
 The generic Cafeteria side is:
 
 ```text
-Cafeteria.Services
+Cafeteria.Services (integration plane)
     -> dynamically loaded ICafeteriaIntegrationPlugin
-    -> Integration Plane
+    -> FFP Manager provider
 ```
 
-Organization-specific names appear only in the final adapter that translates the generic integration contracts to that organization's systems. For the current deployment, that final adapter may know about FFP Manager SQL tables such as LunchItems, Employees, Holidays and EmployeeIDScans. Cafeteria does not.
+Organization-specific names appear only in the final adapter that translates the generic integration contracts to that organization's systems. For the current deployment, the dynamically loaded provider runs in-process inside Cafeteria Services and may know about FFP Manager SQL tables such as LunchItems, Employees, Holidays and EmployeeIDScans. Cafeteria domain/application code does not.
 
 
 ## Durable integration state
@@ -194,4 +194,4 @@ Employee facts and the employee change-feed version are stored in `IntegrationEm
 
 The last successfully validated policy for each year/month is stored in `ValidatedPolicyCache`. On normal startup the plugin tries the Integration Plane first; if the plane is temporarily unavailable, the last validated policy for that period may be used. An explicit management policy reload remains strict and must reach the authoritative provider.
 
-Plugin replacement is restart-only. Cafeteria Services does not hot-unload or hot-swap integration plugin assemblies.
+Plugin replacement is restart-only. Cafeteria Services does not hot-unload or hot-swap integration plugin assemblies. No second HTTP integration-plane service is required.
