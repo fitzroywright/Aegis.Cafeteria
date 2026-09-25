@@ -84,6 +84,7 @@ public abstract class CafeteriaDbContextBase(DbContextOptions options) : DbConte
         b.Entity<CustomerIdentifierRow>().HasIndex(x => new { x.Type, x.NormalizedValue }).IsUnique();
         b.Entity<CustomerIdentifierRow>().HasIndex(x => x.CustomerId);
         b.Entity<OrderRow>().HasIndex(x => new { x.CustomerId, x.AccountYear, x.AccountMonth });
+        b.Entity<OrderRow>().HasIndex(x => new { x.Status, x.Revision });
         b.Entity<OrderRow>().HasIndex(x => x.CompletedAt);
         b.Entity<OrderRow>().HasIndex(x => new { x.TerminalId, x.CompletedAt });
         b.Entity<OrderRow>().HasIndex(x => new { x.CashierUserId, x.CompletedAt });
