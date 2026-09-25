@@ -12,7 +12,7 @@ public static class CashCustomerAccountViewFactory
 
     public static CustomerAccountView Create(DateOnly today)
     {
-        FfpPublicationStatus publication = new(false, 0, 0, null, null);
+        ExternalPublicationStatus publication = new(false, 0, 0, null, null);
         return new CustomerAccountView(
             new CustomerIdentityView(CashCustomerId, "Cash Customer", null, false, true),
             new AccountPeriodView(today.Year, today.Month, 0, 0m, 0m, false),
