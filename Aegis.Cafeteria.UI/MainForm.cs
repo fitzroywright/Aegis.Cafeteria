@@ -392,6 +392,18 @@ public sealed class MainForm : Form
         automaticOperations.Click += async (_, _) => await OpenAutomaticOperationsAsync();
         administration.DropDownItems.Add(automaticOperations);
 
+        ToolStripMenuItem reportEmailSettings = new("Report && Email Settings...");
+        reportEmailSettings.Click += async (_, _) => await OpenReportEmailSettingsAsync();
+        administration.DropDownItems.Add(reportEmailSettings);
+
+        ToolStripMenuItem amountDue = new("Employee Amount Due...");
+        amountDue.Click += async (_, _) => await OpenEmployeeAmountDueAsync();
+        administration.DropDownItems.Add(amountDue);
+
+        ToolStripMenuItem operationalAudit = new("Operational Audit...");
+        operationalAudit.Click += async (_, _) => await OpenOperationalAuditAsync();
+        administration.DropDownItems.Add(operationalAudit);
+
         administration.DropDownItems.Add(new ToolStripSeparator());
         ToolStripMenuItem diagnostics = new("Diagnostics");
         diagnostics.Click += (_, _) => OpenEngineeringDiagnostics();
@@ -418,6 +430,39 @@ public sealed class MainForm : Form
 
         CafeteriaServicesClient servicesClient = this.services.GetRequiredService<CafeteriaServicesClient>();
         using AutomaticOperationsDialog dialog = new(servicesClient);
+        dialog.ShowDialog(this);
+        RegisterActivity();
+    }
+
+    private async Task OpenReportEmailSettingsAsync()
+    {
+        OperatorIdentity? manager = await AuthorizeManagerAsync("Cafeteria report and email settings");
+        if (manager is null) return;
+
+        CafeteriaManagementClient client = this.services.GetRequiredService<CafeteriaManagementClient>();
+        using ReportEmailSettingsDialog dialog = new(client);
+        dialog.ShowDialog(this);
+        RegisterActivity();
+    }
+
+    private async Task OpenEmployeeAmountDueAsync()
+    {
+        OperatorIdentity? manager = await AuthorizeManagerAsync("Cafeteria Employee Amount Due report");
+        if (manager is null) return;
+
+        CafeteriaManagementClient client = this.services.GetRequiredService<CafeteriaManagementClient>();
+        using EmployeeAmountDueDialog dialog = new(client);
+        dialog.ShowDialog(this);
+        RegisterActivity();
+    }
+
+    private async Task OpenOperationalAuditAsync()
+    {
+        OperatorIdentity? manager = await AuthorizeManagerAsync("Cafeteria operational audit");
+        if (manager is null) return;
+
+        CafeteriaManagementClient client = this.services.GetRequiredService<CafeteriaManagementClient>();
+        using OperationalAuditDialog dialog = new(client);
         dialog.ShowDialog(this);
         RegisterActivity();
     }
