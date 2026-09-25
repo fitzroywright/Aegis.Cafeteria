@@ -118,6 +118,7 @@ public sealed class MainForm : Form
     private readonly BindingSource recentTransactionSource = new();
     private readonly DataGridView recentTransactionGrid = Grid();
     private readonly List<CartRow> cart = [];
+    private IReadOnlyList<ProductCatalogItem> productCatalog = [];
 
     public MainForm(
         ICustomerIdentificationService identification,
@@ -179,9 +180,6 @@ public sealed class MainForm : Form
             ApplyMainSplitLayout();
             InitializeCustomerDisplay();
             await LoadProductsAsync();
-            await LoadRecentTransactionsAsync();
-            await LoadIdleDashboardAsync();
-            await UpdateCacheStatusAsync();
             UpdateOperatorStatus();
             this.cacheStatusTimer.Start();
             if (this.uiOptions.CustomerInactivityTimeoutSeconds > 0)
@@ -191,6 +189,12 @@ public sealed class MainForm : Form
                 this.customerInactivityTimer.Start();
             }
             FocusCustomerLookup();
+
+            // Dashboard and status data are useful, but they are not part of the cashier
+            // critical path. Load them after the till is already interactive.
+            _ = LoadRecentTransactionsAsync();
+            _ = LoadIdleDashboardAsync();
+            _ = UpdateCacheStatusAsync();
         };
         FormClosing += (_, e) =>
         {
@@ -1141,10 +1145,18 @@ public sealed class MainForm : Form
     {
         try
         {
-            var rows = string.IsNullOrWhiteSpace(search)
-                ? await this.products.GetAllAsync()
-                : await this.products.SearchAsync(search, 50);
-            this.productSource.DataSource = rows.ToList();
+            if (string.IsNullOrWhiteSpace(search))
+            {
+                this.productCatalog = await this.products.GetAllAsync();
+                this.productSource.DataSource = this.productCatalog.ToList();
+                return;
+            }
+
+            string value = search.Trim();
+            this.productSource.DataSource = this.productCatalog
+                .Where(product => product.Name.Contains(value, StringComparison.OrdinalIgnoreCase))
+                .Take(50)
+                .ToList();
         }
         catch (Exception ex)
         {
@@ -1324,8 +1336,8 @@ public sealed class MainForm : Form
             }
             this.posStatus.Text = "● Sale completed";
             this.posStatus.ForeColor = Green;
-            await LoadRecentTransactionsAsync();
-            await LoadIdleDashboardAsync();
+            // Keep reporting work off the cashier critical path. The idle dashboard
+            // refreshes when the terminal returns to its ready state.
         }
         catch (Exception ex)
         {
@@ -1512,8 +1524,8 @@ public sealed class MainForm : Form
             }
             this.posStatus.Text = $"● Refund completed by {manager.UserId}";
             this.posStatus.ForeColor = Color.DarkOrange;
-            await LoadRecentTransactionsAsync();
-            await LoadIdleDashboardAsync();
+            // Keep reporting work off the cashier critical path. The idle dashboard
+            // refreshes when the terminal returns to its ready state.
         }
         catch (Exception ex)
         {
@@ -1625,6 +1637,11 @@ public sealed class MainForm : Form
         this.customerPanel.Visible = false;
         this.idlePanel.Visible = true;
         this.idlePanel.BringToFront();
+
+        // Refresh non-critical dashboard information without delaying the next sale.
+        _ = LoadRecentTransactionsAsync();
+        _ = LoadIdleDashboardAsync();
+
         this.photo.Image?.Dispose();
         this.photo.Image = null;
         this.customerDisplay?.ClearCustomer();
