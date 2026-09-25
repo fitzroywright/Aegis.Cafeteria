@@ -11,7 +11,7 @@ using System.Text;
 public sealed class ScheduledEmailWorker : BackgroundService
 {
     private readonly ScheduledEmailOptions options;
-    private readonly FfpEmailReportSource source;
+    private readonly CafeteriaEmailReportSource source;
     private readonly PayrollDeductionReportSource payrollSource;
     private readonly NotificationPreferenceStore preferences;
     private readonly OutboundEmailQueue queue;
@@ -21,7 +21,7 @@ public sealed class ScheduledEmailWorker : BackgroundService
 
     public ScheduledEmailWorker(
         ScheduledEmailOptions options,
-        FfpEmailReportSource source,
+        CafeteriaEmailReportSource source,
         PayrollDeductionReportSource payrollSource,
         SmtpEmailSender sender,
         IDbContextFactory<ServiceDbContext> factory,
