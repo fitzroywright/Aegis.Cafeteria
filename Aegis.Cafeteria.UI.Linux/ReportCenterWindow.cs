@@ -82,6 +82,8 @@ public sealed class ReportCenterWindow : Window
         , IProductCatalogQuery products
         , IEnumerable<IReportExporter> exporters
         , CafeteriaReportKind initialKind
+        , CafeteriaServicesClient servicesClient
+        , Func<Task<bool>> authorizeEmail
     )
     {
         this.reports = reports;
@@ -103,6 +105,10 @@ public sealed class ReportCenterWindow : Window
         DateTimeOffset today = DateTimeOffset.Now;
         this.from.SelectedDate = new DateTimeOffset(today.Year, today.Month, 1, 0, 0, 0, today.Offset);
         this.to.SelectedDate = today;
+        if (initialKind == CafeteriaReportKind.DailySales)
+        {
+            this.from.SelectedDate = today;
+        }
 
         ReportChoice[] choices = this.reports.Catalog
             .Select(item => new ReportChoice(item))
