@@ -20,7 +20,6 @@ internal static class CafeteriaServiceDatabase
         await using ServiceDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         await db.Database.EnsureCreatedAsync(cancellationToken);
         await EnsureSupplementalSchemaAsync(db, cancellationToken);
-        await EnsureFundingPolicyAsync(scope.ServiceProvider, db, app.Configuration, cancellationToken);
     }
 
     private static void EnsureDatabaseDirectory(string connectionString)
@@ -34,21 +33,7 @@ internal static class CafeteriaServiceDatabase
 
     private static Task EnsureSupplementalSchemaAsync(ServiceDbContext db, CancellationToken cancellationToken) =>
         db.Database.ExecuteSqlRawAsync(
-            @"CREATE TABLE IF NOT EXISTS CafeteriaFundingPolicy (
-                  Id INTEGER NOT NULL CONSTRAINT PK_CafeteriaFundingPolicy PRIMARY KEY
-                , DailyCreditLimitRate TEXT NOT NULL
-                , DailyCompanySubsidyRate TEXT NOT NULL
-                , UpdatedBy TEXT NOT NULL
-                , UpdatedAt TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS CafeteriaFundingPolicyHistory (
-                  Id INTEGER NOT NULL CONSTRAINT PK_CafeteriaFundingPolicyHistory PRIMARY KEY AUTOINCREMENT
-                , DailyCreditLimitRate TEXT NOT NULL
-                , DailyCompanySubsidyRate TEXT NOT NULL
-                , UpdatedBy TEXT NOT NULL
-                , UpdatedAt TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS CustomerNotificationPreferences (
+            @"CREATE TABLE IF NOT EXISTS CustomerNotificationPreferences (
                   CustomerId INTEGER NOT NULL CONSTRAINT PK_CustomerNotificationPreferences PRIMARY KEY
                 , PreferenceAsked INTEGER NOT NULL
                 , WeeklySummaryEnabled INTEGER NOT NULL
@@ -80,16 +65,4 @@ internal static class CafeteriaServiceDatabase
             CREATE UNIQUE INDEX IF NOT EXISTS IX_OutboundEmails_DispatchKey ON OutboundEmails (DispatchKey);
             CREATE INDEX IF NOT EXISTS IX_OutboundEmails_SentAt_NextAttemptAt ON OutboundEmails (SentAt, NextAttemptAt);",
             cancellationToken);
-
-    private static async Task EnsureFundingPolicyAsync(IServiceProvider services, ServiceDbContext db, IConfiguration configuration, CancellationToken cancellationToken)
-    {
-        if (await db.FundingPolicies.AnyAsync(cancellationToken)) return;
-
-        decimal creditRate = configuration.GetSection("FundingPolicy").GetValue("DailyCreditLimitRate", 0m);
-        decimal subsidyRate = configuration.GetSection("FundingPolicy").GetValue("DailyCompanySubsidyRate", 0m);
-        if (creditRate <= 0m || subsidyRate <= 0m) return;
-
-        CafeteriaFundingPolicyStore store = services.GetRequiredService<CafeteriaFundingPolicyStore>();
-        await store.SetFundingPolicyAsync(creditRate, subsidyRate, "CONFIGURATION");
-    }
 }
