@@ -1,6 +1,7 @@
 namespace Aegis.Cafeteria.Plugin.Integration;
 
 using Aegis.Cafeteria.Application.Integration;
+using Microsoft.Extensions.Configuration;
 using System.Net.Http.Json;
 
 public sealed class IntegrationPlaneClient :
@@ -12,18 +13,26 @@ public sealed class IntegrationPlaneClient :
     private readonly Dictionary<(int Year, int Month), CafeteriaPolicySnapshot> policyCache = [];
 
     public IntegrationPlaneClient(
-        HttpClient http,
-        IntegrationPluginOptions options)
+        IHttpClientFactory httpClientFactory,
+        IConfiguration configuration)
     {
-        if (!options.Enabled)
+        IConfigurationSection section = configuration.GetSection("IntegrationPlugin");
+
+        if (!section.GetValue("Enabled", true))
             throw new InvalidOperationException("Cafeteria integration plugin is disabled.");
 
-        if (!Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out Uri? baseUri))
+        string baseUrl = section["BaseUrl"]?.Trim() ?? string.Empty;
+        if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out Uri? baseUri))
             throw new InvalidOperationException("IntegrationPlugin:BaseUrl must be an absolute URL.");
 
-        this.http = http;
+        int timeoutSeconds = Math.Clamp(
+            section.GetValue("TimeoutSeconds", 30),
+            5,
+            120);
+
+        this.http = httpClientFactory.CreateClient("CafeteriaIntegrationPlane");
         this.http.BaseAddress = new Uri(baseUri.ToString().TrimEnd('/') + "/");
-        this.http.Timeout = TimeSpan.FromSeconds(Math.Clamp(options.TimeoutSeconds, 5, 120));
+        this.http.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
     }
 
     public async Task<CafeteriaPolicySnapshot> GetPolicyAsync(
