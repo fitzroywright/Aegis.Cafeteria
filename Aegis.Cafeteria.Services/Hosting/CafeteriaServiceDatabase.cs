@@ -63,6 +63,28 @@ internal static class CafeteriaServiceDatabase
                 , LastError TEXT NULL
             );
             CREATE UNIQUE INDEX IF NOT EXISTS IX_OutboundEmails_DispatchKey ON OutboundEmails (DispatchKey);
-            CREATE INDEX IF NOT EXISTS IX_OutboundEmails_SentAt_NextAttemptAt ON OutboundEmails (SentAt, NextAttemptAt);",
+            CREATE INDEX IF NOT EXISTS IX_OutboundEmails_SentAt_NextAttemptAt ON OutboundEmails (SentAt, NextAttemptAt);
+
+            CREATE TABLE IF NOT EXISTS IntegrationEmployeeCache (
+                  EmployeeId INTEGER NOT NULL CONSTRAINT PK_IntegrationEmployeeCache PRIMARY KEY
+                , Name TEXT NOT NULL
+                , CardIdentifier TEXT NULL
+                , IsActive INTEGER NOT NULL
+                , IsEligible INTEGER NOT NULL
+                , EligibleFrom TEXT NULL
+                , Version TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS IntegrationState (
+                  Key TEXT NOT NULL CONSTRAINT PK_IntegrationState PRIMARY KEY
+                , Value TEXT NULL
+                , UpdatedAt TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS ValidatedPolicyCache (
+                  Year INTEGER NOT NULL
+                , Month INTEGER NOT NULL
+                , PayloadJson TEXT NOT NULL
+                , ValidatedAt TEXT NOT NULL
+                , CONSTRAINT PK_ValidatedPolicyCache PRIMARY KEY (Year, Month)
+            );",
             cancellationToken);
 }
