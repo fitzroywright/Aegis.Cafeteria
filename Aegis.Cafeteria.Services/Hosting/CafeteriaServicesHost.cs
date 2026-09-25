@@ -3,7 +3,6 @@ using Aegis.Cafeteria.Application.Accounts;
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Infrastructure.Configuration;
-using Aegis.Cafeteria.Plugin.Integration;
 using Aegis.Cafeteria.Services.Email;
 using Aegis.Cafeteria.Services.Persistence;
 using Aegis.Cafeteria.Services.Reporting;
@@ -26,14 +25,15 @@ internal static class CafeteriaServicesHost
         builder.Host.UseWindowsService(options => options.ServiceName = "Aegis.Cafeteria.Services");
         builder.Configuration.AddEnvironmentVariables();
 
-        IntegrationPluginOptions integrationPlugin = BuildIntegrationPlugin(builder);
         ManagementApiOptions management = builder.Configuration.GetSection("ManagementApi").Get<ManagementApiOptions>() ?? new();
         MonthOpeningOptions monthOpening = builder.Configuration.GetSection("MonthOpening").Get<MonthOpeningOptions>() ?? new();
         ScheduledEmailOptions scheduledEmail = builder.Configuration.GetSection("ScheduledEmail").Get<ScheduledEmailOptions>() ?? new();
         ExternalPublicationOptions externalPublication = builder.Configuration.GetSection("ExternalPublication").Get<ExternalPublicationOptions>() ?? new();
         string serviceDb = CafeteriaServiceDatabase.ResolveConnectionString(builder.Configuration);
 
-        RegisterOptions(builder.Services, integrationPlugin, management, monthOpening, scheduledEmail, externalPublication);
+        RegisterOptions(builder.Services, management, monthOpening, scheduledEmail, externalPublication);
+        builder.Services.AddHttpClient("CafeteriaIntegrationPlane");
+        IntegrationPluginLoader.Register(builder);
         RegisterDiagnosticLevel(builder);
         RegisterIntegrationGateways(builder.Services);
         RegisterApplicationServices(builder.Services, serviceDb);
@@ -114,33 +114,15 @@ internal static class CafeteriaServicesHost
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaAuditTrailIntegrityDiagnosticLevelTest>();
     }
 
-    private static IntegrationPluginOptions BuildIntegrationPlugin(WebApplicationBuilder builder)
-    {
-        IntegrationPluginOptions options = builder.Configuration
-            .GetSection("IntegrationPlugin")
-            .Get<IntegrationPluginOptions>()
-            ?? new IntegrationPluginOptions();
-
-        if (!options.Enabled)
-            throw new InvalidOperationException("Aegis.Cafeteria.Services requires an integration plugin.");
-
-        if (!Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out _))
-            throw new InvalidOperationException("IntegrationPlugin:BaseUrl is required and must be an absolute URL.");
-
-        return options;
-    }
-
     private static void RegisterOptions
     (
           IServiceCollection services
-        , IntegrationPluginOptions integrationPlugin
         , ManagementApiOptions management
         , MonthOpeningOptions monthOpening
         , ScheduledEmailOptions scheduledEmail
         , ExternalPublicationOptions externalPublication
     )
     {
-        services.AddSingleton(integrationPlugin);
         services.AddSingleton(management);
         services.AddSingleton(monthOpening);
         services.AddSingleton(scheduledEmail);
@@ -150,16 +132,6 @@ internal static class CafeteriaServicesHost
     private static void RegisterIntegrationGateways(IServiceCollection services)
     {
         services.AddSingleton<MonthlyAllocationCalculator>();
-        services.AddHttpClient("CafeteriaIntegrationPlane");
-        services.AddSingleton<IntegrationPlaneClient>(sp =>
-            new IntegrationPlaneClient(
-                sp.GetRequiredService<IHttpClientFactory>().CreateClient("CafeteriaIntegrationPlane"),
-                sp.GetRequiredService<IntegrationPluginOptions>()));
-        services.AddSingleton<ICafeteriaPolicyProvider>(sp => sp.GetRequiredService<IntegrationPlaneClient>());
-        services.AddSingleton<IEmployeeFactSource>(sp => sp.GetRequiredService<IntegrationPlaneClient>());
-        services.AddSingleton<IEmployeeIdScanPublisher>(sp => sp.GetRequiredService<IntegrationPlaneClient>());
-        services.AddSingleton<IntegrationWorkforceReferenceSource>();
-        services.AddSingleton<IWorkforceReferenceSource>(sp => sp.GetRequiredService<IntegrationWorkforceReferenceSource>());
         services.AddSingleton<CafeteriaLedgerQuery>();
         services.AddSingleton<CafeteriaMonthRecalculationGuard>();
         services.AddSingleton<IMonthRecalculationGuard>(sp => sp.GetRequiredService<CafeteriaMonthRecalculationGuard>());
