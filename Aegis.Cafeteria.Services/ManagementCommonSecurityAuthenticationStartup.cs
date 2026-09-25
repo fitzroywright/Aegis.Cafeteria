@@ -66,6 +66,11 @@ public sealed class ManagementCommonSecurityAuthenticationRuntime
         return tokenStore.TryGet(token, out session);
     }
 
+    public void RemoveSession(string token)
+    {
+        tokenStore.Remove(token);
+    }
+
     public bool IsManager(AuthenticationResult result)
     {
         if (result.IsAdministrative)
@@ -487,6 +492,11 @@ public sealed class ManagementServiceTokenStore
 
         sessions[token] = session;
         return session;
+    }
+
+    public void Remove(string token)
+    {
+        sessions.TryRemove(token, out _);
     }
 
     public bool TryGet(string token, out ManagementServiceTokenSession? session)
