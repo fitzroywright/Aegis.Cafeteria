@@ -9,6 +9,7 @@ internal static class MonthOpeningEndpoints
     {
         app.MapPost("/api/month-opening/run", RunMonthOpeningAsync).RequireAuthorization("CafeteriaManagement");
         app.MapPost("/api/month-opening/recalculate", RecalculateMonthAsync).RequireAuthorization("CafeteriaManagement");
+        app.MapPost("/api/month-closing/retry", RetryMonthCloseAsync).RequireAuthorization("CafeteriaManagement");
 
         if (app.Environment.IsDevelopment())
             app.MapPost("/api/development/reset", ResetDevelopmentDataAsync).RequireAuthorization("CafeteriaManagement");
@@ -32,6 +33,32 @@ internal static class MonthOpeningEndpoints
         try
         {
             MonthRecalculationResult result = await worker.RecalculateMonthAsync(selectedYear, selectedMonth, CafeteriaActor.Require(http), ct);
+            return Results.Ok(result);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Results.Conflict(new { error = exception.Message });
+        }
+    }
+
+    private static async Task<IResult> RetryMonthCloseAsync(
+        int? year,
+        int? month,
+        MonthClosingWorker worker,
+        CancellationToken ct)
+    {
+        DateTime previous = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(-1);
+        int selectedYear = year ?? previous.Year;
+        int selectedMonth = month ?? previous.Month;
+
+        if (selectedYear < 2000 || selectedYear > 9999 || selectedMonth is < 1 or > 12)
+        {
+            return Results.BadRequest("A valid year and month are required.");
+        }
+
+        try
+        {
+            MonthCloseResult result = await worker.EnsureClosedAsync(selectedYear, selectedMonth, ct);
             return Results.Ok(result);
         }
         catch (InvalidOperationException exception)
