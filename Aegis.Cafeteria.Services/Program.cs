@@ -23,6 +23,7 @@ PosEndpoints.Map(app);
 CustomerManagementEndpoints.Map(app);
 FinancialManagementEndpoints.Map(app);
 ImportToolsEndpoints.Map(app);
+MigrationEndpoints.Map(app);
 MonthOpeningEndpoints.Map(app);
 FfpEndpoints.Map(app);
 
