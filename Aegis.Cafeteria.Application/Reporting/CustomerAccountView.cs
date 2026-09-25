@@ -8,7 +8,7 @@ public sealed record CustomerAccountView(
     AccountPeriodView Period,
     CustomerFinancialStatusView FinancialStatus,
     IReadOnlyList<CustomerMonthlyTransactionView> Transactions,
-    FfpPublicationStatus FfpPublication,
+    ExternalPublicationStatus ExternalPublication,
     CustomerFundingStatusView? Funding = null,
     CustomerIdentificationContext? Identification = null);
 
