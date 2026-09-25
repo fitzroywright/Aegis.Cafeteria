@@ -20,6 +20,7 @@ public sealed record ManagerReportSettingsRequest
 
 public sealed record TestEmailRequest(string EmailAddress);
 public sealed record DailySalesReportRequest(DateOnly Date);
+public sealed record ManagerWeeklySummaryRequest(DateOnly WeekStart);
 
 public static class EmailEndpoints
 {
@@ -123,6 +124,36 @@ public static class EmailEndpoints
                 catch (ArgumentException exception)
                 {
                     return Results.BadRequest(new { error = exception.Message });
+                }
+            }
+        ).RequireAuthorization("CafeteriaManagement");
+
+        app.MapPost
+        (
+              "/api/management/reports/weekly-manager/send"
+            , async (
+                  ManagerWeeklySummaryRequest request
+                , Aegis.Cafeteria.Services.Workers.ScheduledEmailWorker worker
+                , CancellationToken cancellationToken) =>
+            {
+                if (request.WeekStart.DayOfWeek != DayOfWeek.Monday)
+                {
+                    return Results.BadRequest(new { error = "Manager weekly summary start date must be a Monday." });
+                }
+
+                if (request.WeekStart >= DateOnly.FromDateTime(DateTime.Today))
+                {
+                    return Results.BadRequest(new { error = "Only a completed week can be resent." });
+                }
+
+                try
+                {
+                    await worker.ResendManagerWeeklySummaryAsync(request.WeekStart, cancellationToken);
+                    return Results.Accepted();
+                }
+                catch (InvalidOperationException exception)
+                {
+                    return Results.Conflict(new { error = exception.Message });
                 }
             }
         ).RequireAuthorization("CafeteriaManagement");
