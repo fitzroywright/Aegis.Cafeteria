@@ -67,7 +67,7 @@ public sealed class CustomerLookupResolverTests
             PriorPeriodSettlements: 0, PriorPeriodRefundCredits: 0, CustomerPayments: 0,
             CustomerResponsibility: 0, EmployeeAmountDue: 0, TotalRefunds: 0),
         Array.Empty<CustomerMonthlyTransactionView>(),
-        new FfpPublicationStatus(false, 0, 0, null, null));
+        new ExternalPublicationStatus(false, 0, 0, null, null));
 
     private sealed class StubIdentificationService : ICustomerIdentificationService
     {
