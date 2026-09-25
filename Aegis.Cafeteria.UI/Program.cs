@@ -117,16 +117,7 @@ internal static class Program
                 return;
             }
 
-            splash.Show();
-            splash.Update
-            (
-                  "Starting terminal services..."
-                , "Opening the POS from the local cache. Synchronization will continue in the background."
-            );
-            host.StartAsync().GetAwaiter().GetResult();
-
-            splash.Ready("Cafeteria is ready. Background synchronization will refresh reference data.");
-            Thread.Sleep(250);
+            splash.Ready("Cafeteria is ready.");
             splash.Close();
 
             try
@@ -202,6 +193,38 @@ internal static class Program
         return login.ShowDialog() == DialogResult.OK;
     }
 
+    private static async Task StartBackgroundServicesAsync(IHost host, Form owner)
+    {
+        try
+        {
+            await host.StartAsync();
+        }
+        catch (Exception exception)
+        {
+            try
+            {
+                ILogger logger = host.Services.GetRequiredService<ILoggerFactory>()
+                    .CreateLogger("Aegis.Cafeteria.BackgroundStartup");
+                logger.LogWarning(
+                    exception,
+                    "Background service startup failed after the POS became interactive. Local POS operation remains available.");
+            }
+            catch
+            {
+            }
+
+            if (!owner.IsDisposed)
+            {
+                owner.BeginInvoke(() =>
+                {
+                    // Do not block the cashier with a modal failure. Background
+                    // integration will remain degraded and diagnostics/logging
+                    // can surface the cause.
+                });
+            }
+        }
+    }
+
     private static void RunTerminalUi(IHost host, CafeteriaUiOptions uiOptions)
     {
         MainForm mainForm = host.Services.GetRequiredService<MainForm>();
@@ -232,6 +255,11 @@ internal static class Program
                     mainForm.BringToFront();
                     mainForm.Activate();
                     mainForm.Focus();
+
+                    // The till is now visible and interactive. Only now start
+                    // synchronization, Control Plane registration, telemetry,
+                    // SignalR and other hosted background services.
+                    _ = StartBackgroundServicesAsync(host, mainForm);
                 }
             );
         };
