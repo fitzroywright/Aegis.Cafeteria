@@ -15,15 +15,12 @@ internal static class IntegrationEndpoints
     {
         app.MapGet("/api/reference/customers", GetCustomersAsync).RequireAuthorization("CafeteriaPos");
         app.MapGet("/api/reference/holidays", GetHolidaysAsync).RequireAuthorization("CafeteriaPos");
-        app.MapGet("/api/reference/products", GetProductsAsync).RequireAuthorization("CafeteriaPos");
         app.MapPost("/api/integration/ledger", PublishLedgerEndpointAsync).RequireAuthorization("CafeteriaPos");
     }
 
     private static async Task<IResult> GetHolidaysAsync(int year, int month, IWorkforceReferenceSource source, CancellationToken ct)
         => Results.Ok(await source.GetHolidaysAsync(year, month, ct));
 
-    private static async Task<IResult> GetProductsAsync(ILunchItemBootstrapSource source, CancellationToken ct)
-        => Results.Ok(await source.GetLunchItemsAsync(ct));
 
     private static Task<IResult> PublishLedgerEndpointAsync(
         ExternalLedgerEntry entry,
