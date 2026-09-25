@@ -3,9 +3,9 @@ namespace Aegis.Cafeteria.Infrastructure.Ffp;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Microsoft.Data.SqlClient;
 
-internal sealed class FfpSqlConnectionFactory(FfpIntegrationOptions options)
+public sealed class FfpSqlConnectionFactory(FfpIntegrationOptions options)
 {
-    internal async Task<SqlConnection> OpenReadAsync(CancellationToken cancellationToken)
+    public async Task<SqlConnection> OpenReadAsync(CancellationToken cancellationToken)
     {
         EnsureEnabled();
         SqlConnection connection = new(options.ConnectionString);
@@ -13,7 +13,7 @@ internal sealed class FfpSqlConnectionFactory(FfpIntegrationOptions options)
         return connection;
     }
 
-    internal async Task<SqlConnection> OpenWriteAsync(CancellationToken cancellationToken)
+    public async Task<SqlConnection> OpenWriteAsync(CancellationToken cancellationToken)
     {
         EnsureEnabled();
         if (!options.AllowWrites)
