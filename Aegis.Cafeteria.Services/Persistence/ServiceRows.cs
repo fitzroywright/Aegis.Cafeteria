@@ -10,12 +10,12 @@ public sealed class ServiceEventRow
     public string PayloadJson { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
 
-    // Service-originated financial events are published directly to FFP by the service. These
-    // fields make publication durable and retryable independently of whether any POS is online.
-    public DateTimeOffset? FfpPublishedAt { get; set; }
-    public int FfpAttemptCount { get; set; }
-    public DateTimeOffset? FfpLastAttemptAt { get; set; }
-    public string? FfpLastError { get; set; }
+    // Service-originated financial events are published through the configured integration path.
+    // These fields make publication durable and retryable independently of whether any POS is online.
+    public DateTimeOffset? ExternalPublishedAt { get; set; }
+    public int PublicationAttemptCount { get; set; }
+    public DateTimeOffset? PublicationLastAttemptAt { get; set; }
+    public string? PublicationLastError { get; set; }
 }
 
 public sealed class AuditTrailRow
