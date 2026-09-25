@@ -11,11 +11,14 @@ public sealed class IntegrationPlaneClient :
 {
     private readonly HttpClient http;
     private readonly Dictionary<(int Year, int Month), CafeteriaPolicySnapshot> policyCache = [];
+    private readonly ICafeteriaPolicyCache durablePolicyCache;
 
     public IntegrationPlaneClient(
         IHttpClientFactory httpClientFactory,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ICafeteriaPolicyCache durablePolicyCache)
     {
+        this.durablePolicyCache = durablePolicyCache;
         IConfigurationSection section = configuration.GetSection("IntegrationPlugin");
 
         if (!section.GetValue("Enabled", true))
@@ -44,20 +47,38 @@ public sealed class IntegrationPlaneClient :
         if (!forceReload && this.policyCache.TryGetValue((year, month), out CafeteriaPolicySnapshot? cached))
             return cached;
 
-        CafeteriaPolicySnapshot? policy = await this.http.GetFromJsonAsync<CafeteriaPolicySnapshot>(
-            $"api/cafeteria/policy?year={year}&month={month}",
-            cancellationToken);
+        try
+        {
+            CafeteriaPolicySnapshot? policy = await this.http.GetFromJsonAsync<CafeteriaPolicySnapshot>(
+                $"api/cafeteria/policy?year={year}&month={month}",
+                cancellationToken);
 
-        if (policy is null)
-            throw new InvalidOperationException("The integration plane returned no cafeteria policy.");
+            if (policy is null)
+                throw new InvalidOperationException("The integration plane returned no cafeteria policy.");
 
-        policy.Validate();
+            policy.Validate();
 
-        if (policy.Year != year || policy.Month != month)
-            throw new InvalidOperationException("The integration plane returned policy for the wrong period.");
+            if (policy.Year != year || policy.Month != month)
+                throw new InvalidOperationException("The integration plane returned policy for the wrong period.");
 
-        this.policyCache[(year, month)] = policy;
-        return policy;
+            this.policyCache[(year, month)] = policy;
+            await this.durablePolicyCache.SaveAsync(policy, cancellationToken);
+            return policy;
+        }
+        catch when (!forceReload && !cancellationToken.IsCancellationRequested)
+        {
+            CafeteriaPolicySnapshot? cached =
+                await this.durablePolicyCache.GetAsync(
+                    year,
+                    month,
+                    cancellationToken);
+
+            if (cached is null)
+                throw;
+
+            this.policyCache[(year, month)] = cached;
+            return cached;
+        }
     }
 
     public async Task<EmployeeFactChangeSet> GetChangesAsync(
