@@ -13,8 +13,8 @@ public sealed class PersistenceInitializer(
     IDbContextFactory<LocalCafeteriaDbContext> localFactory,
     ILogger<PersistenceInitializer> logger)
 {
-    public const int CurrentLocalSchemaVersion = 73;
-    public const string CurrentProductVersion = "v73";
+    public const int CurrentLocalSchemaVersion = 74;
+    public const string CurrentProductVersion = "v74";
 
     public async Task InitializeLocalAsync(CancellationToken ct = default)
     {
@@ -35,6 +35,7 @@ public sealed class PersistenceInitializer(
         }
         else
         {
+            await UpgradeSchemaIfRequiredAsync(db, ct);
             await ValidateExistingDatabaseIsCurrentAsync(db, ct);
             await EnsureCustomerDirectoryColumnsAsync(db, ct);
             await EnsureOrderIdentificationColumnsAsync(db, ct);
@@ -49,6 +50,38 @@ public sealed class PersistenceInitializer(
         logger.LogInformation(
             "Local SQLite persistence initialized at schema version {SchemaVersion} with WAL, FULL synchronous durability and foreign keys enabled",
             CurrentLocalSchemaVersion);
+    }
+
+
+    private static async Task UpgradeSchemaIfRequiredAsync(LocalCafeteriaDbContext db, CancellationToken ct)
+    {
+        if (!await TableExistsAsync(db, "LocalSchemaInfo", ct))
+            return;
+
+        LocalSchemaInfoRow? schema = await db.LocalSchemaInfo
+            .SingleOrDefaultAsync(x => x.Id == 1, ct);
+
+        if (schema is null || schema.SchemaVersion == CurrentLocalSchemaVersion)
+            return;
+
+        if (schema.SchemaVersion != 73)
+            return;
+
+        bool oldTable = await TableExistsAsync(db, "FfpLedgerOutbox", ct);
+        bool newTable = await TableExistsAsync(db, "ExternalLedgerOutbox", ct);
+
+        if (oldTable && newTable)
+            throw new InvalidOperationException(
+                "Both legacy and current external ledger outbox tables exist. Back up the database and resolve the duplicate tables before continuing.");
+
+        if (oldTable)
+            await db.Database.ExecuteSqlRawAsync(
+                "ALTER TABLE \"FfpLedgerOutbox\" RENAME TO \"ExternalLedgerOutbox\";",
+                ct);
+
+        schema.SchemaVersion = CurrentLocalSchemaVersion;
+        schema.ProductVersion = CurrentProductVersion;
+        await db.SaveChangesAsync(ct);
     }
 
     private static async Task EnsureCustomerDirectoryColumnsAsync(LocalCafeteriaDbContext db, CancellationToken ct)
@@ -94,14 +127,14 @@ public sealed class PersistenceInitializer(
 
     private static async Task EnsureExternalLedgerOutboxIdentificationColumnsAsync(LocalCafeteriaDbContext db, CancellationToken ct)
     {
-        if (!await TableExistsAsync(db, "FfpLedgerOutbox", ct)) return;
+        if (!await TableExistsAsync(db, "ExternalLedgerOutbox", ct)) return;
 
-        HashSet<string> columns = await ReadColumnsAsync(db, "FfpLedgerOutbox", ct);
+        HashSet<string> columns = await ReadColumnsAsync(db, "ExternalLedgerOutbox", ct);
         if (!columns.Contains("Code"))
-            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FfpLedgerOutbox\" ADD COLUMN \"Code\" TEXT NULL;", ct);
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"ExternalLedgerOutbox\" ADD COLUMN \"Code\" TEXT NULL;", ct);
 
         if (!columns.Contains("CreatedBy"))
-            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FfpLedgerOutbox\" ADD COLUMN \"CreatedBy\" TEXT NOT NULL DEFAULT 'SYSTEM';", ct);
+            await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"ExternalLedgerOutbox\" ADD COLUMN \"CreatedBy\" TEXT NOT NULL DEFAULT 'SYSTEM';", ct);
     }
 
     private static async Task<bool> DatabaseContainsAnyUserTableAsync(LocalCafeteriaDbContext db, CancellationToken ct)
