@@ -174,11 +174,9 @@ internal static class CafeteriaServicesHost
         services.AddSingleton<MonthlyAllocationCalculator>();
         services.AddSingleton<FfpSqlApplicationGateway>();
         services.AddSingleton<FfpLunchItemBootstrapSource>();
-        services.AddSingleton<FfpMonthImportSource>();
         services.AddSingleton<IExternalAccountingGateway>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
         services.AddSingleton<IWorkforceReferenceSource>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
         services.AddSingleton<ILunchItemBootstrapSource>(sp => sp.GetRequiredService<FfpLunchItemBootstrapSource>());
-        services.AddSingleton<IMonthImportSource>(sp => sp.GetRequiredService<FfpMonthImportSource>());
         services.AddSingleton<IFundingPolicyCompatibilityGateway>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
         services.AddSingleton<IMonthRecalculationGuard>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
         services.AddSingleton<IDevelopmentDataResetGateway>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
