@@ -1,6 +1,6 @@
 namespace Aegis.Cafeteria.Application.Integration;
 
-public sealed record ExternalFfpTransactionSnapshot
+public sealed record ExternalTransactionSnapshot
 (
       long SourceId
     , int CustomerId
@@ -13,23 +13,23 @@ public sealed record ExternalFfpTransactionSnapshot
     , int ScanType
 );
 
-public sealed record ExternalFfpAccountSnapshot
+public sealed record ExternalAccountSnapshot
 (
       int CustomerId
     , decimal CreditLimit
     , decimal AvailableBalance
 );
 
-public sealed record FfpMonthImportSnapshot
+public sealed record MonthImportSnapshot
 (
       int Year
     , int Month
     , DateTimeOffset ThroughAt
-    , IReadOnlyList<ExternalFfpTransactionSnapshot> Transactions
-    , IReadOnlyList<ExternalFfpAccountSnapshot> Accounts
+    , IReadOnlyList<ExternalTransactionSnapshot> Transactions
+    , IReadOnlyList<ExternalAccountSnapshot> Accounts
 );
 
-public sealed record FfpMonthImportResult
+public sealed record MonthImportResult
 (
       int Year
     , int Month
@@ -39,9 +39,9 @@ public sealed record FfpMonthImportResult
     , decimal NetImportedScanValue
 );
 
-public interface IFfpMonthImportSource
+public interface IMonthImportSource
 {
-    Task<FfpMonthImportSnapshot> GetMonthAsync
+    Task<MonthImportSnapshot> GetMonthAsync
     (
           int year
         , int month
@@ -49,9 +49,9 @@ public interface IFfpMonthImportSource
     );
 }
 
-public interface IFfpMonthImportService
+public interface IMonthImportService
 {
-    Task<FfpMonthImportResult> ImportAsync
+    Task<MonthImportResult> ImportAsync
     (
           int year
         , int month
