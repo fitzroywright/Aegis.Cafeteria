@@ -134,20 +134,6 @@ public sealed class ServiceEventStore
         }
     }
 
-    public async Task<DateTimeOffset?> GetLatestDevelopmentResetAtAsync
-    (
-        CancellationToken cancellationToken = default
-    )
-    {
-        await using ServiceDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
-
-        return await database.Events
-            .AsNoTracking()
-            .Where(serviceEvent => serviceEvent.Kind == (int)CafeteriaServiceEventKind.DevelopmentReset)
-            .OrderByDescending(serviceEvent => serviceEvent.Sequence)
-            .Select(serviceEvent => (DateTimeOffset?)serviceEvent.OccurredAt)
-            .FirstOrDefaultAsync(cancellationToken);
-    }
 
     public async Task<IReadOnlyList<AdditionalCreditApproval>> GetAdditionalCreditApprovalsAsync
     (
