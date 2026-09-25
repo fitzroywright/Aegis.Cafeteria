@@ -7,7 +7,6 @@ using Aegis.Cafeteria.Application.Messaging;
 using Aegis.Cafeteria.Application.Orders;
 using Aegis.Cafeteria.Application.Reporting;
 using Aegis.Cafeteria.Infrastructure.Configuration;
-using Aegis.Cafeteria.Infrastructure.Ffp;
 using Aegis.Cafeteria.Infrastructure.Health;
 using Aegis.Cafeteria.Infrastructure.Messaging;
 using Aegis.Cafeteria.Infrastructure.Persistence;
@@ -38,7 +37,7 @@ public static class CafeteriaInfrastructure
         services.AddSingleton<IHolidayProvider, EfHolidayProvider>();
         services.AddSingleton<IWorkingDayProvider, StandardWorkingDayProvider>();
         services.AddSingleton<ICafeteriaRatePolicyProvider, EfCafeteriaRatePolicyProvider>();
-        services.AddSingleton<IFfpPublicationStatusProvider, EfFfpPublicationStatusProvider>();
+        services.AddSingleton<IExternalPublicationStatusProvider, EfExternalPublicationStatusProvider>();
         services.AddSingleton<ICustomerAccountQuery, EfCustomerAccountQuery>();
         services.AddSingleton<ICustomerIdentificationService, EfCustomerIdentificationService>();
         services.AddSingleton<IProductCatalogQuery, EfProductCatalogQuery>();
@@ -75,10 +74,9 @@ public static class CafeteriaInfrastructure
     {
         services.AddHttpClient<ServicesIntegrationGateway>(client => ConfigureServicesHttpClient(client, runtime.Services)).AddHttpMessageHandler<PosServicesTokenHandler>();
         services.AddSingleton<IWorkforceReferenceSource>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
-        services.AddSingleton<ILunchItemBootstrapSource>(serviceProvider => serviceProvider.GetRequiredService<ServicesIntegrationGateway>());
-        services.AddSingleton<IWorkforceReferenceCache, EfFfpReferenceCache>();
+        services.AddSingleton<IWorkforceReferenceCache, EfWorkforceReferenceCache>();
         services.AddSingleton<ReferenceDataRefreshService>();
-        services.AddHostedService<FfpReferenceRefreshWorker>();
+        services.AddHostedService<ReferenceRefreshWorker>();
     }
 
     private static void ConfigureCafeteriaServicesIntegration(IServiceCollection services, CafeteriaServicesOptions options)
