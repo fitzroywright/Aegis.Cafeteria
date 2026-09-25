@@ -315,11 +315,6 @@ wire('saveFunding', async () => {
     const response = await api('/api/management/funding-policy', { method: 'PUT', body: JSON.stringify({ dailyCreditLimitRate, dailyCompanySubsidyRate }) });
     showResult('Rates saved', response);
 });
-wire('runMonthOpening', async () => {
-    const year = Number(document.getElementById('monthYear').value);
-    const month = Number(document.getElementById('monthNumber').value);
-    showResult('Month Opening completed', await api(`/api/month-opening/run?year=${year}&month=${month}`, { method: 'POST', body: '{}' }));
-});
 wire('recalculateMonth', async () => {
     const year = Number(document.getElementById('monthYear').value);
     const month = Number(document.getElementById('monthNumber').value);
