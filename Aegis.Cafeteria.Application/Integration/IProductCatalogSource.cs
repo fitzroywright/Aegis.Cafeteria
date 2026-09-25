@@ -9,18 +9,6 @@ public interface IProductCatalogSource
     Task<CafeteriaCatalogSnapshot> GetCatalogAsync(CancellationToken cancellationToken = default);
 }
 
-/// <summary>
-/// Raw FFP LunchItems source used only for explicit POS product bootstrap/import.
-/// Callers must exclude the reserved funding-policy row (currently FFP00), but must not reject a
-/// legitimate sellable item merely because its code begins with FFP.
-/// </summary>
-public interface ILunchItemBootstrapSource
-{
-    Task<IReadOnlyList<ExternalProductSnapshot>> GetLunchItemsAsync(CancellationToken cancellationToken = default);
-}
-
-public sealed record ExternalProductSnapshot(int ProductId, string Code, string Name, decimal Price, decimal Cost);
-
 public sealed record CafeteriaCatalogSnapshot(
     IReadOnlyList<ExternalProductSnapshot> Products,
     string CreditLimitLunchItemCode,

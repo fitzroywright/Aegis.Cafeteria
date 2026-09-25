@@ -1,6 +1,7 @@
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Services.Persistence;
 using Aegis.Cafeteria.Services.Email;
+using Aegis.Cafeteria.Services.Reporting;
 using Common.Diagnostics;
 using Common.Secrets;
 using Microsoft.EntityFrameworkCore;
@@ -34,8 +35,7 @@ internal static class CafeteriaDiagnosticIds
     internal const string HolidaySource = "CAFETERIA.SERVICES.HOLIDAY-SOURCE";
     internal const string SecretsCredential = "CAFETERIA.SERVICES.SECRETS.CREDENTIAL";
     internal const string PublicationQueue = "CAFETERIA.SERVICES.PUBLICATION-QUEUE";
-    internal const string AccountingGateway = "CAFETERIA.SERVICES.ACCOUNTING-GATEWAY";
-    internal const string ProductReferenceSource = "CAFETERIA.SERVICES.PRODUCT-REFERENCE-SOURCE";
+    internal const string CafeteriaLedger = "CAFETERIA.SERVICES.CAFETERIA-LEDGER";
     internal const string Messaging = "CAFETERIA.SERVICES.MESSAGING";
     internal const string FundingPolicy = "CAFETERIA.SERVICES.FUNDING-POLICY";
     internal const string CustomerLookup = "CAFETERIA.SERVICES.CUSTOMER-LOOKUP";
@@ -281,8 +281,8 @@ public sealed class CafeteriaPublicationQueueDiagnosticLevelTest(
         try
         {
             await using ServiceDbContext database = await databaseFactory.CreateDbContextAsync(cancellationToken);
-            int pending = await database.Events.AsNoTracking().CountAsync(x => x.FfpPublishedAt == null, cancellationToken);
-            int failed = await database.Events.AsNoTracking().CountAsync(x => x.FfpLastError != null, cancellationToken);
+            int pending = await database.Events.AsNoTracking().CountAsync(x => x.ExternalPublishedAt == null, cancellationToken);
+            int failed = await database.Events.AsNoTracking().CountAsync(x => x.PublicationLastError != null, cancellationToken);
 
             if (failed > 0)
                 return EngineeringDiagnosticPolicy.Warning(TestId, Name, "External publication queue contains failed items.", $"Pending={pending}; Failed={failed}");
@@ -296,56 +296,38 @@ public sealed class CafeteriaPublicationQueueDiagnosticLevelTest(
     }
 }
 
-public sealed class CafeteriaAccountingGatewayDiagnosticLevelTest(
-    IExternalAccountingGateway accounting) : IDiagnosticLevelLocalTest
+public sealed class CafeteriaLedgerDiagnosticLevelTest(
+    CafeteriaLedgerQuery ledger) : IDiagnosticLevelLocalTest
 {
-    public string TestId => CafeteriaDiagnosticIds.AccountingGateway;
-    public string Name => "External accounting gateway";
+    public string TestId => CafeteriaDiagnosticIds.CafeteriaLedger;
+    public string Name => "Cafeteria financial ledger";
     public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
     public bool IsDestructive => false;
 
-    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(
+        CancellationToken cancellationToken)
     {
         try
         {
-            IReadOnlyList<ExternalAccountSummary> summaries =
-                await accounting.GetAccountSummariesAsync(cancellationToken);
+            DateTime today = DateTime.Today;
+            IReadOnlyList<CafeteriaLedgerLine> lines = await ledger.GetMonthAsync(
+                today.Year,
+                today.Month,
+                cancellationToken);
+
             return EngineeringDiagnosticPolicy.Passed(
                 TestId,
                 Name,
-                "External accounting gateway read path is reachable.",
-                $"AccountSummaries={summaries.Count}");
+                "Cafeteria-owned financial ledger is readable.",
+                $"Month={today:yyyy-MM}; Entries={lines.Count}");
         }
         catch (Exception exception)
         {
-            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
-        }
-    }
-}
-
-public sealed class CafeteriaProductReferenceSourceDiagnosticLevelTest(
-    ILunchItemBootstrapSource products) : IDiagnosticLevelLocalTest
-{
-    public string TestId => CafeteriaDiagnosticIds.ProductReferenceSource;
-    public string Name => "Product reference source";
-    public string Owner => CafeteriaDiagnosticModules.Pos;
-    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
-    public bool IsDestructive => false;
-
-    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            IReadOnlyList<ExternalProductSnapshot> items =
-                await products.GetLunchItemsAsync(cancellationToken);
-            return items.Count > 0
-                ? EngineeringDiagnosticPolicy.Passed(TestId, Name, "Product reference source is reachable.", $"Items={items.Count}")
-                : EngineeringDiagnosticPolicy.Warning(TestId, Name, "Product reference source is reachable but returned no items.");
-        }
-        catch (Exception exception)
-        {
-            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+            return EngineeringDiagnosticPolicy.Failed(
+                TestId,
+                Name,
+                exception.Message);
         }
     }
 }
@@ -375,7 +357,7 @@ public sealed class CafeteriaMessagingDiagnosticLevelTest(
 }
 
 public sealed class CafeteriaFundingPolicyDiagnosticLevelTest(
-    CafeteriaFundingPolicyStore fundingPolicy) : IDiagnosticLevelLocalTest
+    ICafeteriaPolicyProvider policyProvider) : IDiagnosticLevelLocalTest
 {
     public string TestId => CafeteriaDiagnosticIds.FundingPolicy;
     public string Name => "Funding policy";
@@ -387,18 +369,19 @@ public sealed class CafeteriaFundingPolicyDiagnosticLevelTest(
     {
         try
         {
-            CafeteriaFundingPolicySnapshot policy = await fundingPolicy.GetFundingPolicyAsync(cancellationToken);
-            if (policy.DailyCreditLimitRate <= 0 || policy.DailyCompanySubsidyRate <= 0)
-                return EngineeringDiagnosticPolicy.Warning(TestId, Name, "Funding policy contains non-positive rates.");
+            DateTime today = DateTime.Today;
+            CafeteriaPolicySnapshot policy = await policyProvider.GetPolicyAsync(
+                today.Year,
+                today.Month,
+                cancellationToken: cancellationToken);
 
-            if (policy.DailyCompanySubsidyRate > policy.DailyCreditLimitRate)
-                return EngineeringDiagnosticPolicy.Failed(TestId, Name, "Company subsidy rate exceeds the daily credit-limit rate.");
+            policy.Validate();
 
             return EngineeringDiagnosticPolicy.Passed(
                 TestId,
                 Name,
-                "Funding policy is internally consistent.",
-                $"CreditLimitRate={policy.DailyCreditLimitRate:0.00}; SubsidyRate={policy.DailyCompanySubsidyRate:0.00}");
+                "Authoritative Cafeteria policy is available and valid.",
+                $"Period={policy.Year:D4}-{policy.Month:D2}; Version={policy.Version}; WorkingDays={policy.WorkingDays.Count}");
         }
         catch (Exception exception)
         {
@@ -459,7 +442,7 @@ public sealed class CafeteriaRecoveryReadinessDiagnosticLevelTest(
 public sealed class CafeteriaExhaustiveConsistencyDiagnosticLevelTest(
     IDbContextFactory<ServiceDbContext> databaseFactory,
     IWorkforceReferenceSource workforce,
-    CafeteriaFundingPolicyStore fundingPolicy) : IDiagnosticLevelLocalTest
+    ICafeteriaPolicyProvider policyProvider) : IDiagnosticLevelLocalTest
 {
     public string TestId => CafeteriaDiagnosticIds.ExhaustiveConsistency;
     public string Name => "Cafeteria service consistency certification";
@@ -475,15 +458,19 @@ public sealed class CafeteriaExhaustiveConsistencyDiagnosticLevelTest(
             if (!await database.Database.CanConnectAsync(cancellationToken))
                 return EngineeringDiagnosticPolicy.Failed(TestId, Name, "Services database is unavailable.");
 
-            CafeteriaFundingPolicySnapshot policy = await fundingPolicy.GetFundingPolicyAsync(cancellationToken);
+            DateTime today = DateTime.Today;
+            CafeteriaPolicySnapshot policy = await policyProvider.GetPolicyAsync(
+                today.Year,
+                today.Month,
+                cancellationToken: cancellationToken);
             IReadOnlyList<ExternalCustomerSnapshot> customers = await workforce.GetCustomersAsync(cancellationToken);
             int eventCount = await database.Events.AsNoTracking().CountAsync(cancellationToken);
 
             return EngineeringDiagnosticPolicy.Passed(
                 TestId,
                 Name,
-                "Core service state, funding policy and workforce reference data can be read together without mutation.",
-                $"Customers={customers.Count}; Events={eventCount}; PolicyUpdated={policy.UpdatedAt:O}");
+                "Core service state, authoritative policy and workforce reference data can be read together without mutation.",
+                $"Customers={customers.Count}; Events={eventCount}; PolicyVersion={policy.Version}");
         }
         catch (Exception exception)
         {

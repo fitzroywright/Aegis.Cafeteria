@@ -11,8 +11,9 @@ public sealed class ServiceDbContext(DbContextOptions<ServiceDbContext> options)
     public DbSet<CustomerNotificationPreferenceRow> CustomerNotificationPreferences => Set<CustomerNotificationPreferenceRow>();
     public DbSet<ManagerReportSettingsRow> ManagerReportSettings => Set<ManagerReportSettingsRow>();
     public DbSet<OutboundEmailRow> OutboundEmails => Set<OutboundEmailRow>();
-    public DbSet<CafeteriaFundingPolicyRow> FundingPolicies => Set<CafeteriaFundingPolicyRow>();
-    public DbSet<CafeteriaFundingPolicyHistoryRow> FundingPolicyHistory => Set<CafeteriaFundingPolicyHistoryRow>();
+    public DbSet<IntegrationEmployeeCacheRow> IntegrationEmployees => Set<IntegrationEmployeeCacheRow>();
+    public DbSet<IntegrationStateRow> IntegrationState => Set<IntegrationStateRow>();
+    public DbSet<ValidatedPolicyCacheRow> ValidatedPolicies => Set<ValidatedPolicyCacheRow>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -21,9 +22,12 @@ public sealed class ServiceDbContext(DbContextOptions<ServiceDbContext> options)
         b.Entity<ServiceEventRow>().Property(x => x.Sequence).ValueGeneratedOnAdd();
         b.Entity<ServiceEventRow>().HasIndex(x => x.OperationId).IsUnique();
         b.Entity<ServiceEventRow>().HasIndex(x => new { x.CustomerId, x.Kind, x.OccurredAt });
-        b.Entity<ServiceEventRow>().HasIndex(x => x.FfpPublishedAt);
+        b.Entity<ServiceEventRow>().HasIndex(x => x.ExternalPublishedAt);
         b.Entity<ServiceEventRow>().Property(x => x.PayloadJson).HasMaxLength(8000);
-        b.Entity<ServiceEventRow>().Property(x => x.FfpLastError).HasMaxLength(2000);
+        b.Entity<ServiceEventRow>().Property(x => x.ExternalPublishedAt).HasColumnName("FfpPublishedAt");
+        b.Entity<ServiceEventRow>().Property(x => x.PublicationAttemptCount).HasColumnName("FfpAttemptCount");
+        b.Entity<ServiceEventRow>().Property(x => x.PublicationLastAttemptAt).HasColumnName("FfpLastAttemptAt");
+        b.Entity<ServiceEventRow>().Property(x => x.PublicationLastError).HasColumnName("FfpLastError").HasMaxLength(2000);
 
         b.Entity<AuditTrailRow>().ToTable("AuditTrail");
         b.Entity<AuditTrailRow>().HasKey(x => x.Id);
@@ -66,18 +70,21 @@ public sealed class ServiceDbContext(DbContextOptions<ServiceDbContext> options)
         b.Entity<OutboundEmailRow>().Property(x => x.Subject).HasMaxLength(500);
         b.Entity<OutboundEmailRow>().Property(x => x.LastError).HasMaxLength(2000);
 
-        b.Entity<CafeteriaFundingPolicyRow>().ToTable("CafeteriaFundingPolicy");
-        b.Entity<CafeteriaFundingPolicyRow>().HasKey(x => x.Id);
-        b.Entity<CafeteriaFundingPolicyRow>().Property(x => x.DailyCreditLimitRate).HasPrecision(18, 2);
-        b.Entity<CafeteriaFundingPolicyRow>().Property(x => x.DailyCompanySubsidyRate).HasPrecision(18, 2);
-        b.Entity<CafeteriaFundingPolicyRow>().Property(x => x.UpdatedBy).HasMaxLength(256);
 
-        b.Entity<CafeteriaFundingPolicyHistoryRow>().ToTable("CafeteriaFundingPolicyHistory");
-        b.Entity<CafeteriaFundingPolicyHistoryRow>().HasKey(x => x.Id);
-        b.Entity<CafeteriaFundingPolicyHistoryRow>().Property(x => x.Id).ValueGeneratedOnAdd();
-        b.Entity<CafeteriaFundingPolicyHistoryRow>().Property(x => x.DailyCreditLimitRate).HasPrecision(18, 2);
-        b.Entity<CafeteriaFundingPolicyHistoryRow>().Property(x => x.DailyCompanySubsidyRate).HasPrecision(18, 2);
-        b.Entity<CafeteriaFundingPolicyHistoryRow>().Property(x => x.UpdatedBy).HasMaxLength(256);
+        b.Entity<IntegrationEmployeeCacheRow>().ToTable("IntegrationEmployeeCache");
+        b.Entity<IntegrationEmployeeCacheRow>().HasKey(x => x.EmployeeId);
+        b.Entity<IntegrationEmployeeCacheRow>().Property(x => x.Name).HasMaxLength(200);
+        b.Entity<IntegrationEmployeeCacheRow>().Property(x => x.CardIdentifier).HasMaxLength(256);
+        b.Entity<IntegrationEmployeeCacheRow>().Property(x => x.Version).HasMaxLength(256);
+
+        b.Entity<IntegrationStateRow>().ToTable("IntegrationState");
+        b.Entity<IntegrationStateRow>().HasKey(x => x.Key);
+        b.Entity<IntegrationStateRow>().Property(x => x.Key).HasMaxLength(128);
+        b.Entity<IntegrationStateRow>().Property(x => x.Value).HasMaxLength(2000);
+
+        b.Entity<ValidatedPolicyCacheRow>().ToTable("ValidatedPolicyCache");
+        b.Entity<ValidatedPolicyCacheRow>().HasKey(x => new { x.Year, x.Month });
+        b.Entity<ValidatedPolicyCacheRow>().Property(x => x.PayloadJson).HasMaxLength(12000);
 
         b.Entity<ScheduledDispatchRow>().HasKey(x => x.DispatchKey);
         b.Entity<ScheduledDispatchRow>().Property(x => x.DispatchKey).HasMaxLength(256);

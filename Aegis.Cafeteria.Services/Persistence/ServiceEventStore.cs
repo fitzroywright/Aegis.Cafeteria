@@ -134,20 +134,6 @@ public sealed class ServiceEventStore
         }
     }
 
-    public async Task<DateTimeOffset?> GetLatestDevelopmentResetAtAsync
-    (
-        CancellationToken cancellationToken = default
-    )
-    {
-        await using ServiceDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
-
-        return await database.Events
-            .AsNoTracking()
-            .Where(serviceEvent => serviceEvent.Kind == (int)CafeteriaServiceEventKind.DevelopmentReset)
-            .OrderByDescending(serviceEvent => serviceEvent.Sequence)
-            .Select(serviceEvent => (DateTimeOffset?)serviceEvent.OccurredAt)
-            .FirstOrDefaultAsync(cancellationToken);
-    }
 
     public async Task<IReadOnlyList<AdditionalCreditApproval>> GetAdditionalCreditApprovalsAsync
     (
@@ -303,7 +289,7 @@ public sealed class ServiceEventStore
         return allocations;
     }
 
-    public async Task<IReadOnlyList<CafeteriaServiceEventEnvelope>> GetPendingFfpPublicationAsync
+    public async Task<IReadOnlyList<CafeteriaServiceEventEnvelope>> GetPendingExternalPublicationAsync
     (
           int take
         , int poisonMessageAttemptLimit
@@ -314,8 +300,8 @@ public sealed class ServiceEventStore
 
         List<ServiceEventRow> rows = await database.Events
             .AsNoTracking()
-            .Where(serviceEvent => serviceEvent.FfpPublishedAt == null
-                && serviceEvent.FfpAttemptCount < poisonMessageAttemptLimit)
+            .Where(serviceEvent => serviceEvent.ExternalPublishedAt == null
+                && serviceEvent.PublicationAttemptCount < poisonMessageAttemptLimit)
             .OrderBy(serviceEvent => serviceEvent.Sequence)
             .Take(Math.Clamp(take, 1, 200))
             .ToListAsync(cancellationToken);
@@ -352,12 +338,12 @@ public sealed class ServiceEventStore
                        serviceEvent.OccurredAt >= start
                     && serviceEvent.OccurredAt < end
                     && financialKinds.Contains(serviceEvent.Kind)
-                    && serviceEvent.FfpPublishedAt == null
+                    && serviceEvent.ExternalPublishedAt == null
                 , cancellationToken
             );
     }
 
-    public async Task RecordFfpAttemptAsync
+    public async Task RecordPublicationAttemptAsync
     (
           Guid operationId
         , string? error
@@ -373,15 +359,15 @@ public sealed class ServiceEventStore
             , cancellationToken
         );
 
-        row.FfpAttemptCount++;
-        row.FfpLastAttemptAt = DateTimeOffset.UtcNow;
-        row.FfpLastError = succeeded
+        row.PublicationAttemptCount++;
+        row.PublicationLastAttemptAt = DateTimeOffset.UtcNow;
+        row.PublicationLastError = succeeded
             ? null
             : error;
 
         if (succeeded)
         {
-            row.FfpPublishedAt = DateTimeOffset.UtcNow;
+            row.ExternalPublishedAt = DateTimeOffset.UtcNow;
         }
 
         await database.SaveChangesAsync(cancellationToken);

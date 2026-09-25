@@ -8,10 +8,11 @@ public enum CafeteriaServiceEventKind
     Stipend = 2,
     MonthlyAllocation = 3,
     MonthlyAllocationRecalculation = 4,
-    DevelopmentReset = 5,
     AccountPeriodClose = 6,
     ProductCatalogImport = 7,
-    LegacyTransactionImport = 8
+    LegacyTransactionImport = 8,
+    ExternalLedgerEntry = 9,
+    PosTransaction = 10
 }
 
 public sealed record CafeteriaServiceEventEnvelope(
@@ -63,15 +64,6 @@ public sealed record MonthlyAllocationRecalculationServiceEvent
     , MonthlyAllocationServiceEvent ReplacementAllocation
     , string RecalculatedBy
     , DateTimeOffset RecalculatedAt
-);
-
-public sealed record DevelopmentResetServiceEvent
-(
-      Guid OperationId
-    , string ResetBy
-    , DateTimeOffset ResetAt
-    , bool PreserveProducts
-    , bool PreserveFundingPolicy
 );
 
 public sealed record AccountPeriodCloseServiceEvent

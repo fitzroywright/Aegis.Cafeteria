@@ -24,6 +24,6 @@ CustomerManagementEndpoints.Map(app);
 FinancialManagementEndpoints.Map(app);
 MigrationEndpoints.Map(app);
 MonthOpeningEndpoints.Map(app);
-FfpEndpoints.Map(app);
+IntegrationEndpoints.Map(app);
 
 await app.RunAsync();

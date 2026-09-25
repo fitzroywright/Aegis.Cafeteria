@@ -7,7 +7,6 @@ namespace Aegis.Cafeteria.Application.Integration;
 public interface IExternalAccountingGateway
 {
     Task PublishLedgerEntryAsync(ExternalLedgerEntry entry, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<ExternalAccountSummary>> GetAccountSummariesAsync(CancellationToken cancellationToken = default);
 }
 
 public enum ExternalLedgerEntryKind
@@ -42,5 +41,3 @@ public sealed record ExternalLedgerEntry(
     string? IdName = null,
     string? Code = null,
     string CreatedBy = "SYSTEM");
-
-public sealed record ExternalAccountSummary(int CustomerId, decimal CreditLimit, decimal AvailableBalance);

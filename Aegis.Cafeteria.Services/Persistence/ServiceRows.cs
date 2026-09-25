@@ -10,12 +10,12 @@ public sealed class ServiceEventRow
     public string PayloadJson { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
 
-    // Service-originated financial events are published directly to FFP by the service. These
-    // fields make publication durable and retryable independently of whether any POS is online.
-    public DateTimeOffset? FfpPublishedAt { get; set; }
-    public int FfpAttemptCount { get; set; }
-    public DateTimeOffset? FfpLastAttemptAt { get; set; }
-    public string? FfpLastError { get; set; }
+    // Service-originated financial events are published through the configured integration path.
+    // These fields make publication durable and retryable independently of whether any POS is online.
+    public DateTimeOffset? ExternalPublishedAt { get; set; }
+    public int PublicationAttemptCount { get; set; }
+    public DateTimeOffset? PublicationLastAttemptAt { get; set; }
+    public string? PublicationLastError { get; set; }
 }
 
 public sealed class AuditTrailRow
@@ -95,20 +95,29 @@ public sealed class OutboundEmailRow
     public string? LastError { get; set; }
 }
 
-public sealed class CafeteriaFundingPolicyRow
+
+public sealed class IntegrationEmployeeCacheRow
 {
-    public int Id { get; set; }
-    public decimal DailyCreditLimitRate { get; set; }
-    public decimal DailyCompanySubsidyRate { get; set; }
-    public string UpdatedBy { get; set; } = string.Empty;
+    public int EmployeeId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? CardIdentifier { get; set; }
+    public bool IsActive { get; set; }
+    public bool IsEligible { get; set; }
+    public DateOnly? EligibleFrom { get; set; }
+    public string Version { get; set; } = string.Empty;
+}
+
+public sealed class IntegrationStateRow
+{
+    public string Key { get; set; } = string.Empty;
+    public string? Value { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }
 
-public sealed class CafeteriaFundingPolicyHistoryRow
+public sealed class ValidatedPolicyCacheRow
 {
-    public long Id { get; set; }
-    public decimal DailyCreditLimitRate { get; set; }
-    public decimal DailyCompanySubsidyRate { get; set; }
-    public string UpdatedBy { get; set; } = string.Empty;
-    public DateTimeOffset UpdatedAt { get; set; }
+    public int Year { get; set; }
+    public int Month { get; set; }
+    public string PayloadJson { get; set; } = string.Empty;
+    public DateTimeOffset ValidatedAt { get; set; }
 }

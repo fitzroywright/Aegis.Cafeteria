@@ -25,6 +25,26 @@
       "example": "Configured through deployment configuration or the application secret provider."
     },
     {
+      "id": "integration-plugin-assembly",
+      "displayName": "Integration Plugin Assembly",
+      "kind": "Configuration",
+      "required": true,
+      "purpose": "Selects the dynamically loaded Cafeteria integration plugin assembly.",
+      "configurationKey": "IntegrationPlugin:AssemblyPath",
+      "isConfigured": false,
+      "example": "plugins/Aegis.Cafeteria.Plugin.Integration.dll"
+    },
+    {
+      "id": "integration-plugin-url",
+      "displayName": "Integration Plugin URL",
+      "kind": "ExternalService",
+      "required": true,
+      "purpose": "Base URL used by the selected Cafeteria integration plugin.",
+      "configurationKey": "IntegrationPlugin:BaseUrl",
+      "isConfigured": false,
+      "example": "https://integration.example.internal"
+    },
+    {
       "id": "openbao-url",
       "displayName": "OpenBao URL",
       "kind": "ExternalService",
