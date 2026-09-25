@@ -8,7 +8,6 @@ public sealed class ServicesIntegrationGateway(HttpClient http) :
       IExternalAccountingGateway
     , IWorkforceReferenceSource
     , ILunchItemBootstrapSource
-    , IMonthImportSource
 {
     public async Task<IReadOnlyList<ExternalCustomerSnapshot>> GetCustomersAsync(CancellationToken cancellationToken = default)
     {
@@ -40,10 +39,6 @@ public sealed class ServicesIntegrationGateway(HttpClient http) :
 
     public async Task<IReadOnlyList<ExternalProductSnapshot>> GetLunchItemsAsync(CancellationToken cancellationToken = default)
         => await http.GetFromJsonAsync<ExternalProductSnapshot[]>("api/reference/products", cancellationToken) ?? [];
-
-    public async Task<MonthImportSnapshot> GetMonthAsync(int year, int month, CancellationToken cancellationToken = default)
-        => await http.GetFromJsonAsync<MonthImportSnapshot>($"api/integration/month-import?year={year}&month={month}", cancellationToken)
-            ?? throw new InvalidOperationException("Cafeteria Services returned no current-month import payload.");
 
     public async Task<IReadOnlyList<ExternalAccountSummary>> GetAccountSummariesAsync(CancellationToken cancellationToken = default)
         => await http.GetFromJsonAsync<ExternalAccountSummary[]>("api/integration/accounts", cancellationToken) ?? [];
