@@ -1,5 +1,6 @@
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Services.Persistence;
+using Aegis.Cafeteria.Services.Email;
 using Common.Diagnostics;
 using Common.Secrets;
 using Microsoft.EntityFrameworkCore;
@@ -42,6 +43,9 @@ internal static class CafeteriaDiagnosticIds
     internal const string CustomerLookup = "CAFETERIA.SERVICES.CUSTOMER-LOOKUP";
     internal const string RecoveryReadiness = "CAFETERIA.SERVICES.RECOVERY-READINESS";
     internal const string ExhaustiveConsistency = "CAFETERIA.SERVICES.EXHAUSTIVE-CONSISTENCY";
+    internal const string OutboundEmailQueue = "CAFETERIA.SERVICES.OUTBOUND-EMAIL-QUEUE";
+    internal const string ReportDeliveryConfiguration = "CAFETERIA.SERVICES.REPORT-DELIVERY-CONFIGURATION";
+    internal const string AuditTrailIntegrity = "CAFETERIA.SERVICES.AUDIT-TRAIL-INTEGRITY";
 }
 
 public sealed class CafeteriaDatabaseConnectivityDiagnosticLevelTest(
@@ -482,6 +486,127 @@ public sealed class CafeteriaExhaustiveConsistencyDiagnosticLevelTest(
                 Name,
                 "Core service state, funding policy and workforce reference data can be read together without mutation.",
                 $"Customers={customers.Count}; Events={eventCount}; PolicyUpdated={policy.UpdatedAt:O}");
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+
+public sealed class CafeteriaOutboundEmailQueueDiagnosticLevelTest(
+    IDbContextFactory<ServiceDbContext> databaseFactory) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.OutboundEmailQueue;
+    public string Name => "Outbound email queue";
+    public string Owner => CafeteriaDiagnosticModules.Services;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level5Scan;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using ServiceDbContext database = await databaseFactory.CreateDbContextAsync(cancellationToken);
+            OutboundEmailRow[] pending = await database.OutboundEmails
+                .AsNoTracking()
+                .Where(row => row.SentAt == null)
+                .ToArrayAsync(cancellationToken);
+
+            int failed = pending.Count(row => !string.IsNullOrWhiteSpace(row.LastError));
+            int retrying = pending.Count(row => row.AttemptCount > 0);
+
+            return failed > 0
+                ? EngineeringDiagnosticPolicy.Warning(
+                    TestId,
+                    Name,
+                    "Outbound email queue contains messages with recorded delivery errors.",
+                    $"Pending={pending.Length}; Retrying={retrying}; WithErrors={failed}")
+                : EngineeringDiagnosticPolicy.Passed(
+                    TestId,
+                    Name,
+                    "Outbound email queue has no recorded delivery errors.",
+                    $"Pending={pending.Length}; Retrying={retrying}");
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+public sealed class CafeteriaReportDeliveryConfigurationDiagnosticLevelTest(
+    Aegis.Cafeteria.Services.ScheduledEmailOptions options,
+    IDbContextFactory<ServiceDbContext> databaseFactory) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.ReportDeliveryConfiguration;
+    public string Name => "Report delivery configuration";
+    public string Owner => CafeteriaDiagnosticModules.Management;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            NotificationPreferenceStore preferences = new(databaseFactory);
+            ManagerReportSettings manager = await preferences.GetManagerAsync(cancellationToken);
+
+            List<string> issues = [];
+            if (options.DailySalesReportEnabled && string.IsNullOrWhiteSpace(manager.EmailAddress))
+                issues.Add("Daily Sales is enabled but no manager email is configured.");
+            if (manager.WeeklySummaryEnabled && string.IsNullOrWhiteSpace(manager.EmailAddress))
+                issues.Add("Weekly manager summary is enabled but no manager email is configured.");
+            if (options.PayrollNotificationEnabled && options.PayrollRecipients.Length == 0)
+                issues.Add("Employee Amount Due notification is enabled but no payroll recipients are configured.");
+
+            return issues.Count == 0
+                ? EngineeringDiagnosticPolicy.Passed(
+                    TestId,
+                    Name,
+                    "Scheduled cafeteria report delivery has the required recipient configuration.",
+                    $"DailySales={options.DailySalesReportEnabled}; WeeklyManager={manager.WeeklySummaryEnabled}; Payroll={options.PayrollNotificationEnabled}; PayrollRecipients={options.PayrollRecipients.Length}")
+                : EngineeringDiagnosticPolicy.Warning(
+                    TestId,
+                    Name,
+                    "One or more scheduled report delivery paths require configuration.",
+                    string.Join(" ", issues));
+        }
+        catch (Exception exception)
+        {
+            return EngineeringDiagnosticPolicy.Failed(TestId, Name, exception.Message);
+        }
+    }
+}
+
+public sealed class CafeteriaAuditTrailIntegrityDiagnosticLevelTest(
+    IDbContextFactory<ServiceDbContext> databaseFactory) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.AuditTrailIntegrity;
+    public string Name => "Audit trail integrity";
+    public string Owner => CafeteriaDiagnosticModules.Management;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            AuditIntegrityResult result = await new AuditTrailService(databaseFactory)
+                .VerifyIntegrityAsync(cancellationToken);
+
+            return result.IsValid
+                ? EngineeringDiagnosticPolicy.Passed(
+                    TestId,
+                    Name,
+                    "Cafeteria audit hash chain is valid.",
+                    $"VerifiedRows={result.VerifiedRows}; LegacyRows={result.LegacyRows}")
+                : EngineeringDiagnosticPolicy.Failed(
+                    TestId,
+                    Name,
+                    result.Error ?? "Audit trail integrity verification failed.",
+                    $"FirstInvalidAuditId={result.FirstInvalidAuditId}; VerifiedRows={result.VerifiedRows}; LegacyRows={result.LegacyRows}");
         }
         catch (Exception exception)
         {
