@@ -11,6 +11,9 @@ public sealed class ServiceDbContext(DbContextOptions<ServiceDbContext> options)
     public DbSet<CustomerNotificationPreferenceRow> CustomerNotificationPreferences => Set<CustomerNotificationPreferenceRow>();
     public DbSet<ManagerReportSettingsRow> ManagerReportSettings => Set<ManagerReportSettingsRow>();
     public DbSet<OutboundEmailRow> OutboundEmails => Set<OutboundEmailRow>();
+    public DbSet<IntegrationEmployeeCacheRow> IntegrationEmployees => Set<IntegrationEmployeeCacheRow>();
+    public DbSet<IntegrationStateRow> IntegrationState => Set<IntegrationStateRow>();
+    public DbSet<ValidatedPolicyCacheRow> ValidatedPolicies => Set<ValidatedPolicyCacheRow>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -66,6 +69,22 @@ public sealed class ServiceDbContext(DbContextOptions<ServiceDbContext> options)
         b.Entity<OutboundEmailRow>().Property(x => x.Recipient).HasMaxLength(320);
         b.Entity<OutboundEmailRow>().Property(x => x.Subject).HasMaxLength(500);
         b.Entity<OutboundEmailRow>().Property(x => x.LastError).HasMaxLength(2000);
+
+
+        b.Entity<IntegrationEmployeeCacheRow>().ToTable("IntegrationEmployeeCache");
+        b.Entity<IntegrationEmployeeCacheRow>().HasKey(x => x.EmployeeId);
+        b.Entity<IntegrationEmployeeCacheRow>().Property(x => x.Name).HasMaxLength(200);
+        b.Entity<IntegrationEmployeeCacheRow>().Property(x => x.CardIdentifier).HasMaxLength(256);
+        b.Entity<IntegrationEmployeeCacheRow>().Property(x => x.Version).HasMaxLength(256);
+
+        b.Entity<IntegrationStateRow>().ToTable("IntegrationState");
+        b.Entity<IntegrationStateRow>().HasKey(x => x.Key);
+        b.Entity<IntegrationStateRow>().Property(x => x.Key).HasMaxLength(128);
+        b.Entity<IntegrationStateRow>().Property(x => x.Value).HasMaxLength(2000);
+
+        b.Entity<ValidatedPolicyCacheRow>().ToTable("ValidatedPolicyCache");
+        b.Entity<ValidatedPolicyCacheRow>().HasKey(x => new { x.Year, x.Month });
+        b.Entity<ValidatedPolicyCacheRow>().Property(x => x.PayloadJson).HasMaxLength(12000);
 
         b.Entity<ScheduledDispatchRow>().HasKey(x => x.DispatchKey);
         b.Entity<ScheduledDispatchRow>().Property(x => x.DispatchKey).HasMaxLength(256);
