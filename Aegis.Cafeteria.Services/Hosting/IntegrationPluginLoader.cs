@@ -8,6 +8,8 @@ internal static class IntegrationPluginLoader
 {
     private static readonly Type[] RequiredContracts =
     [
+          typeof(ICafeteriaIntegrationPlugin)
+        ,
           typeof(ICafeteriaPolicyProvider)
         , typeof(IEmployeeFactSource)
         , typeof(IEmployeeIdScanPublisher)
