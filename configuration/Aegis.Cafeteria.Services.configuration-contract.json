@@ -25,6 +25,16 @@
       "example": "Configured through deployment configuration or the application secret provider."
     },
     {
+      "id": "integration-plugin-assembly",
+      "displayName": "Integration Plugin Assembly",
+      "kind": "Configuration",
+      "required": true,
+      "purpose": "Selects the dynamically loaded Cafeteria integration plugin assembly.",
+      "configurationKey": "IntegrationPlugin:AssemblyPath",
+      "isConfigured": false,
+      "example": "plugins/Aegis.Cafeteria.Plugin.Integration.dll"
+    },
+    {
       "id": "ffp-integration-plane-url",
       "displayName": "Integration Plugin URL",
       "kind": "ExternalService",
