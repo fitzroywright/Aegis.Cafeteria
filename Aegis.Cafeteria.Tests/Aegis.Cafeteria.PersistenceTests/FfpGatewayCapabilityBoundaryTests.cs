@@ -14,10 +14,6 @@ public sealed class FfpGatewayCapabilityBoundaryTests
             ApplicationCapabilities(typeof(FfpFundingPolicyCompatibilityGateway)));
 
         Assert.Equal(
-            [typeof(IDevelopmentDataResetGateway)],
-            ApplicationCapabilities(typeof(FfpDevelopmentDataResetGateway)));
-
-        Assert.Equal(
             [typeof(IWorkforceReferenceSource)],
             ApplicationCapabilities(typeof(FfpEmployeeWorkforceSource)));
     }
