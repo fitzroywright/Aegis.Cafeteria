@@ -9,6 +9,8 @@
     <ProjectReference Include="..\Aegis.Cafeteria.Domain\Aegis.Cafeteria.Domain.csproj" />
     <ProjectReference Include="..\Aegis.Cafeteria.Application\Aegis.Cafeteria.Application.csproj" />
     <ProjectReference Include="..\Aegis.Cafeteria.Infrastructure\Aegis.Cafeteria.Infrastructure.csproj" />
+    <ProjectReference Include="..\Aegis.Cafeteria.Plugin.Integration\Aegis.Cafeteria.Plugin.Integration.csproj"
+                      ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(CommonRoot)\Common.Diagnostics\Common.Diagnostics.csproj" AdditionalProperties="Configuration=$(Configuration)" />
     <ProjectReference Include="$(CommonRoot)\Common.Secrets\Common.Secrets.csproj" AdditionalProperties="Configuration=$(Configuration)" />
     <ProjectReference Include="$(CommonRoot)\Common.Registration\Common.Registration.csproj" AdditionalProperties="Configuration=$(Configuration)" />
@@ -24,4 +26,39 @@
     <None Update="appsettings.Development.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
     <Content Include="../configuration/Aegis.Cafeteria.Services.configuration-contract.json" Link="configuration/Aegis.Cafeteria.Services.configuration-contract.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <Target Name="StageIntegrationPluginAfterBuild" AfterTargets="Build">
+    <PropertyGroup>
+      <IntegrationPluginSource>$(MSBuildThisFileDirectory)..\Aegis.Cafeteria.Plugin.Integration\bin\$(Configuration)\net10.0\Aegis.Cafeteria.Plugin.Integration.dll</IntegrationPluginSource>
+      <IntegrationPluginPdbSource>$(MSBuildThisFileDirectory)..\Aegis.Cafeteria.Plugin.Integration\bin\$(Configuration)\net10.0\Aegis.Cafeteria.Plugin.Integration.pdb</IntegrationPluginPdbSource>
+    </PropertyGroup>
+    <MakeDir Directories="$(OutDir)plugins" />
+    <Copy SourceFiles="$(IntegrationPluginSource)"
+          DestinationFolder="$(OutDir)plugins"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(IntegrationPluginSource)')" />
+    <Copy SourceFiles="$(IntegrationPluginPdbSource)"
+          DestinationFolder="$(OutDir)plugins"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(IntegrationPluginPdbSource)')" />
+    <Error Condition="!Exists('$(OutDir)plugins\Aegis.Cafeteria.Plugin.Integration.dll')"
+           Text="Cafeteria integration plugin was not staged to $(OutDir)plugins." />
+  </Target>
+
+  <Target Name="StageIntegrationPluginForPublish" AfterTargets="Publish">
+    <PropertyGroup>
+      <IntegrationPluginSource>$(MSBuildThisFileDirectory)..\Aegis.Cafeteria.Plugin.Integration\bin\$(Configuration)\net10.0\Aegis.Cafeteria.Plugin.Integration.dll</IntegrationPluginSource>
+      <IntegrationPluginPdbSource>$(MSBuildThisFileDirectory)..\Aegis.Cafeteria.Plugin.Integration\bin\$(Configuration)\net10.0\Aegis.Cafeteria.Plugin.Integration.pdb</IntegrationPluginPdbSource>
+    </PropertyGroup>
+    <MakeDir Directories="$(PublishDir)plugins" />
+    <Copy SourceFiles="$(IntegrationPluginSource)"
+          DestinationFolder="$(PublishDir)plugins"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(IntegrationPluginPdbSource)"
+          DestinationFolder="$(PublishDir)plugins"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(IntegrationPluginPdbSource)')" />
+    <Error Condition="!Exists('$(PublishDir)plugins\Aegis.Cafeteria.Plugin.Integration.dll')"
+           Text="Cafeteria integration plugin was not staged to $(PublishDir)plugins." />
+  </Target>
 </Project>
