@@ -8,6 +8,7 @@ using Aegis.Cafeteria.Plugin.Integration;
 using Aegis.Cafeteria.Services.Development;
 using Aegis.Cafeteria.Services.Email;
 using Aegis.Cafeteria.Services.Persistence;
+using Aegis.Cafeteria.Services.Reporting;
 using Aegis.Cafeteria.Services.Realtime;
 using Aegis.Cafeteria.Services.Workers;
 using Aegis.Cafeteria.Services.Engineering.Diagnostics;
@@ -106,7 +107,7 @@ internal static class CafeteriaServicesHost
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaHolidaySourceDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaSecretsCredentialDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaPublicationQueueDiagnosticLevelTest>();
-        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaAccountingGatewayDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaLedgerDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaProductReferenceSourceDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaMessagingDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaFundingPolicyDiagnosticLevelTest>();
@@ -207,18 +208,17 @@ internal static class CafeteriaServicesHost
         services.AddSingleton<FfpSqlConnectionFactory>();
         services.AddSingleton<FfpEmployeeWorkforceSource>();
         services.AddSingleton<FfpLunchItemBootstrapSource>();
-        services.AddSingleton<FfpAccountingGateway>();
         services.AddSingleton<FfpFundingPolicyCompatibilityGateway>();
-        services.AddSingleton<FfpMonthRecalculationGuard>();
         services.AddSingleton<FfpDevelopmentDataResetGateway>();
-        services.AddSingleton<IExternalAccountingGateway>(sp => sp.GetRequiredService<FfpAccountingGateway>());
         services.AddSingleton<IWorkforceReferenceSource>(sp => sp.GetRequiredService<IntegrationWorkforceReferenceSource>());
         services.AddSingleton<ILunchItemBootstrapSource>(sp => sp.GetRequiredService<FfpLunchItemBootstrapSource>());
         services.AddSingleton<IFundingPolicyCompatibilityGateway>(sp => sp.GetRequiredService<FfpFundingPolicyCompatibilityGateway>());
-        services.AddSingleton<IMonthRecalculationGuard>(sp => sp.GetRequiredService<FfpMonthRecalculationGuard>());
+        services.AddSingleton<CafeteriaLedgerQuery>();
+        services.AddSingleton<CafeteriaMonthRecalculationGuard>();
+        services.AddSingleton<IMonthRecalculationGuard>(sp => sp.GetRequiredService<CafeteriaMonthRecalculationGuard>());
         services.AddSingleton<IDevelopmentDataResetGateway>(sp => sp.GetRequiredService<FfpDevelopmentDataResetGateway>());
-        services.AddSingleton<FfpPayrollLedgerSource>();
-        services.AddSingleton<IPayrollLedgerSource>(sp => sp.GetRequiredService<FfpPayrollLedgerSource>());
+        services.AddSingleton<CafeteriaPayrollLedgerSource>();
+        services.AddSingleton<IPayrollLedgerSource>(sp => sp.GetRequiredService<CafeteriaPayrollLedgerSource>());
     }
 
     private static void RegisterApplicationServices(IServiceCollection services, string serviceDb)
@@ -293,7 +293,7 @@ internal static class CafeteriaServicesHost
         services.AddHostedService(sp => sp.GetRequiredService<MonthClosingWorker>());
         services.AddSingleton<ExternalPublicationWorker>();
         services.AddHostedService(sp => sp.GetRequiredService<ExternalPublicationWorker>());
-        services.AddSingleton<FfpEmailReportSource>();
+        services.AddSingleton<CafeteriaEmailReportSource>();
         services.AddSingleton<PayrollDeductionReportSource>();
         services.AddSingleton<SmtpEmailSender>();
         services.AddSingleton<ScheduledEmailWorker>();
