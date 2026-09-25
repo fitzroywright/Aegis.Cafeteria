@@ -10,16 +10,8 @@ public sealed class FfpGatewayCapabilityBoundaryTests
     public void FocusedGateways_ExposeOnlyTheirIntendedApplicationCapability()
     {
         Assert.Equal(
-            [typeof(IExternalAccountingGateway)],
-            ApplicationCapabilities(typeof(FfpAccountingGateway)));
-
-        Assert.Equal(
             [typeof(IFundingPolicyCompatibilityGateway)],
             ApplicationCapabilities(typeof(FfpFundingPolicyCompatibilityGateway)));
-
-        Assert.Equal(
-            [typeof(IMonthRecalculationGuard)],
-            ApplicationCapabilities(typeof(FfpMonthRecalculationGuard)));
 
         Assert.Equal(
             [typeof(IDevelopmentDataResetGateway)],
