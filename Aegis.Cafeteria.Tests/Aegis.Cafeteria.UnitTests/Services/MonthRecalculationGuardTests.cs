@@ -1,7 +1,6 @@
 namespace Aegis.Cafeteria.UnitTests.Services;
 
-using Aegis.Cafeteria.Infrastructure.Configuration;
-using Aegis.Cafeteria.Infrastructure.Ffp;
+using Aegis.Cafeteria.Services.Reporting;
 
 public sealed class MonthRecalculationGuardTests
 {
@@ -10,7 +9,7 @@ public sealed class MonthRecalculationGuardTests
     [InlineData(10000)]
     public async Task CheckAsync_RejectsInvalidYear(int year)
     {
-        FfpMonthRecalculationGuard guard = CreateGuard();
+        CafeteriaMonthRecalculationGuard guard = CreateGuard();
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>
         (
@@ -23,7 +22,7 @@ public sealed class MonthRecalculationGuardTests
     [InlineData(13)]
     public async Task CheckAsync_RejectsInvalidMonth(int month)
     {
-        FfpMonthRecalculationGuard guard = CreateGuard();
+        CafeteriaMonthRecalculationGuard guard = CreateGuard();
 
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>
         (
@@ -31,15 +30,5 @@ public sealed class MonthRecalculationGuardTests
         );
     }
 
-    private static FfpMonthRecalculationGuard CreateGuard()
-    {
-        FfpIntegrationOptions options = new()
-        {
-              Enabled = true
-            , ConnectionString = "Server=unused;Database=unused;Integrated Security=true;TrustServerCertificate=true"
-        };
-
-        FfpSqlConnectionFactory connections = new(options);
-        return new FfpMonthRecalculationGuard(connections);
-    }
+    private static CafeteriaMonthRecalculationGuard CreateGuard() => new(null!);
 }
