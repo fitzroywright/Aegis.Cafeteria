@@ -147,6 +147,9 @@ internal static class CafeteriaServicesHost
         services.AddSingleton<CafeteriaOperationsFlowPublisher>();
         services.AddHostedService(sp => sp.GetRequiredService<CafeteriaOperationsFlowPublisher>());
         services.AddSingleton<ServiceEventStore>();
+        services.AddSingleton<ServiceIntegrationStateStore>();
+        services.AddSingleton<IEmployeeFactCache>(sp => sp.GetRequiredService<ServiceIntegrationStateStore>());
+        services.AddSingleton<ICafeteriaPolicyCache>(sp => sp.GetRequiredService<ServiceIntegrationStateStore>());
         services.AddSingleton<CustomerCreditPolicyStore>();
         services.AddHttpContextAccessor();
         services.AddScoped<IAdditionalCreditAuthorizer, AuthenticatedAdditionalCreditAuthorizer>();
