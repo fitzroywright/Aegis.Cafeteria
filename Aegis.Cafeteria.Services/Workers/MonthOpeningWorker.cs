@@ -17,7 +17,7 @@ using System.Text;
 public sealed class MonthOpeningWorker : BackgroundService
 {
     private readonly IWorkforceReferenceSource workforce;
-    private readonly ICafeteriaFundingPolicySource fundingPolicy;
+    private readonly ICafeteriaPolicyProvider policyProvider;
     private readonly MonthlyAllocationCalculator calculator;
     private readonly ServiceEventStore events;
     private readonly IExternalAccountingGateway accounting;
@@ -28,7 +28,7 @@ public sealed class MonthOpeningWorker : BackgroundService
 
     public MonthOpeningWorker(
         IWorkforceReferenceSource workforce,
-        ICafeteriaFundingPolicySource fundingPolicy,
+        ICafeteriaPolicyProvider policyProvider,
         MonthlyAllocationCalculator calculator,
         ServiceEventStore events,
         IExternalAccountingGateway accounting,
@@ -38,7 +38,7 @@ public sealed class MonthOpeningWorker : BackgroundService
         ILogger<MonthOpeningWorker> logger)
     {
         this.workforce = workforce;
-        this.fundingPolicy = fundingPolicy;
+        this.policyProvider = policyProvider;
         this.calculator = calculator;
         this.events = events;
         this.accounting = accounting;
@@ -77,8 +77,7 @@ public sealed class MonthOpeningWorker : BackgroundService
     internal async Task<int> EnsureMonthAsync(int year, int month, CancellationToken cancellationToken)
     {
         IReadOnlyList<ExternalCustomerSnapshot> employees = await this.workforce.GetCustomersAsync(cancellationToken);
-        IReadOnlyCollection<DateOnly> holidays = await this.workforce.GetHolidaysAsync(year, month, cancellationToken);
-        CafeteriaFundingPolicySnapshot policy = await this.fundingPolicy.GetFundingPolicyAsync(cancellationToken);
+        CafeteriaPolicySnapshot policy = await this.policyProvider.GetPolicyAsync(year, month, cancellationToken: cancellationToken);
         int created = 0;
 
         foreach (ExternalCustomerSnapshot employee in employees.Where(employee => employee.IsActive && employee.IsEligibleForCafeteriaCredit))
@@ -87,7 +86,7 @@ public sealed class MonthOpeningWorker : BackgroundService
             if (await this.events.HasOperationAsync(operationId, cancellationToken))
                 continue;
 
-            int employeeWorkingDays = this.calculator.CountWorkingDays(year, month, holidays, employee.EmploymentStartDate);
+            int employeeWorkingDays = this.calculator.CountEligibleWorkingDays(policy.WorkingDays, employee.EmploymentStartDate);
             if (employeeWorkingDays <= 0)
                 continue;
 
@@ -191,9 +190,8 @@ public sealed class MonthOpeningWorker : BackgroundService
             }
         }
 
-        IReadOnlyCollection<DateOnly> holidays = await this.workforce.GetHolidaysAsync(year, month, cancellationToken);
-        CafeteriaFundingPolicySnapshot policy = await this.fundingPolicy.GetFundingPolicyAsync(cancellationToken);
-        int fullMonthWorkingDays = this.calculator.CountWorkingDays(year, month, holidays);
+        CafeteriaPolicySnapshot policy = await this.policyProvider.GetPolicyAsync(year, month, cancellationToken: cancellationToken);
+        int fullMonthWorkingDays = policy.WorkingDays.Count;
         int updated = 0;
         int unchanged = 0;
 
@@ -201,7 +199,7 @@ public sealed class MonthOpeningWorker : BackgroundService
         {
             MonthlyAllocationServiceEvent previous = existingAllocations[employee.CustomerId];
             DateTimeOffset calculatedAt = DateTimeOffset.UtcNow;
-            int employeeWorkingDays = this.calculator.CountWorkingDays(year, month, holidays, employee.EmploymentStartDate);
+            int employeeWorkingDays = this.calculator.CountEligibleWorkingDays(policy.WorkingDays, employee.EmploymentStartDate);
 
             MonthlyCreditAllocation replacementAllocation = this.calculator.Calculate(
                 employee.CustomerId,
