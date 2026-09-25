@@ -98,7 +98,7 @@ public sealed class FfpManagerDatabaseContractTests
             return;
         }
 
-        await using SqlConnection connection = new(ConnectionString);
+        await using SqlConnection connection = new(BuildTestConnectionString());
         await connection.OpenAsync();
 
         await using SqlCommand command = new(
@@ -130,7 +130,7 @@ public sealed class FfpManagerDatabaseContractTests
             return;
         }
 
-        await using SqlConnection connection = new(ConnectionString);
+        await using SqlConnection connection = new(BuildTestConnectionString());
         await connection.OpenAsync();
 
         await using SqlCommand command = new(
