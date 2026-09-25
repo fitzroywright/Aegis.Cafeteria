@@ -82,7 +82,7 @@ public sealed class IDMethodV73UpgradeTests
                         }
                     ]
                 });
-                db.FfpLedgerOutbox.Add(new FfpLedgerOutboxRow
+                db.ExternalLedgerOutbox.Add(new ExternalLedgerOutboxRow
                 {
                     OperationId = operationId,
                     EmployeeId = 42,
@@ -95,7 +95,7 @@ public sealed class IDMethodV73UpgradeTests
                     ScanCode = "PURCHASE",
                     UserName = "legacy.cashier",
                     IdName = "Cafeteria Purchase",
-                    State = FfpOutboxState.Pending,
+                    State = ExternalOutboxState.Pending,
                     CreatedAt = at
                 });
                 await db.SaveChangesAsync();
@@ -104,8 +104,8 @@ public sealed class IDMethodV73UpgradeTests
                 await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Orders\" DROP COLUMN \"IDMethod\";");
                 await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Orders\" DROP COLUMN \"IdentificationCode\";");
                 await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"Orders\" DROP COLUMN \"CashierName\";");
-                await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FfpLedgerOutbox\" DROP COLUMN \"Code\";");
-                await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"FfpLedgerOutbox\" DROP COLUMN \"CreatedBy\";");
+                await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"ExternalLedgerOutbox\" DROP COLUMN \"Code\";");
+                await db.Database.ExecuteSqlRawAsync("ALTER TABLE \"ExternalLedgerOutbox\" DROP COLUMN \"CreatedBy\";");
             }
 
             PersistenceInitializer initializer = new(factory, NullLogger<PersistenceInitializer>.Instance);
@@ -121,7 +121,7 @@ public sealed class IDMethodV73UpgradeTests
             Assert.Null(order.IdentificationCode);
             Assert.Null(order.CashierName);
 
-            FfpLedgerOutboxRow outbox = await verify.FfpLedgerOutbox.AsNoTracking().SingleAsync(x => x.OperationId == operationId);
+            ExternalLedgerOutboxRow outbox = await verify.ExternalLedgerOutbox.AsNoTracking().SingleAsync(x => x.OperationId == operationId);
             Assert.Equal(500m, outbox.ScanValue);
             Assert.Equal(4500m, outbox.AvailableBalance);
             Assert.Equal("PURCHASE", outbox.ScanCode);
