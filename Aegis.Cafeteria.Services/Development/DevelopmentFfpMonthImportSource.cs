@@ -2,9 +2,9 @@ namespace Aegis.Cafeteria.Services.Development;
 
 using Aegis.Cafeteria.Application.Integration;
 
-public sealed class DevelopmentFfpMonthImportSource : IFfpMonthImportSource
+public sealed class DevelopmentFfpMonthImportSource : IMonthImportSource
 {
-    public Task<FfpMonthImportSnapshot> GetMonthAsync
+    public Task<MonthImportSnapshot> GetMonthAsync
     (
           int year
         , int month
@@ -12,7 +12,7 @@ public sealed class DevelopmentFfpMonthImportSource : IFfpMonthImportSource
     )
     {
         DateTimeOffset throughAt = DateTimeOffset.Now;
-        FfpMonthImportSnapshot result = new
+        MonthImportSnapshot result = new
         (
               year
             , month
