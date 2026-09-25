@@ -73,13 +73,13 @@ public sealed class CafeteriaManagementClient
         this.http = http;
     }
 
-    public async Task<CafeteriaFundingPolicySnapshot> GetFundingPolicyAsync(CancellationToken cancellationToken = default)
+    public async Task<CafeteriaPolicySnapshot> GetFundingPolicyAsync(CancellationToken cancellationToken = default)
     {
-        return await this.http.GetFromJsonAsync<CafeteriaFundingPolicySnapshot>("api/management/funding-policy", cancellationToken)
+        return await this.http.GetFromJsonAsync<CafeteriaPolicySnapshot>("api/management/funding-policy", cancellationToken)
             ?? throw new InvalidOperationException("Cafeteria Services returned no funding policy.");
     }
 
-    public async Task<CafeteriaFundingPolicySnapshot> SetFundingPolicyAsync(decimal dailyCreditLimitRate, decimal dailyCompanySubsidyRate, CancellationToken cancellationToken = default)
+    public async Task<CafeteriaPolicySnapshot> SetFundingPolicyAsync(decimal dailyCreditLimitRate, decimal dailyCompanySubsidyRate, CancellationToken cancellationToken = default)
     {
         using HttpResponseMessage response = await this.http.PutAsJsonAsync
         (
@@ -88,7 +88,7 @@ public sealed class CafeteriaManagementClient
             , cancellationToken
         );
         response.EnsureSuccessStatusCode();
-        return await response.Content.ReadFromJsonAsync<CafeteriaFundingPolicySnapshot>(cancellationToken: cancellationToken)
+        return await response.Content.ReadFromJsonAsync<CafeteriaPolicySnapshot>(cancellationToken: cancellationToken)
             ?? throw new InvalidOperationException("Cafeteria Services returned no funding policy.");
     }
 
