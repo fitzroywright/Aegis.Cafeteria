@@ -16,8 +16,8 @@ internal static class FinancialManagementEndpoints
     {
         app.MapPost("/api/management/additional-credit", ApproveAdditionalCreditAsync).RequireAuthorization("CafeteriaManagement");
         app.MapPost("/api/management/stipends", ProcessStipendAsync).RequireAuthorization("CafeteriaManagement");
-        app.MapGet("/api/management/funding-policy", async (CafeteriaFundingPolicyStore fundingPolicy, CancellationToken ct) => Results.Ok(await fundingPolicy.GetFundingPolicyAsync(ct))).RequireAuthorization("CafeteriaManagement");
-        app.MapPut("/api/management/funding-policy", UpdateFundingPolicyAsync).RequireAuthorization("CafeteriaManagement");
+        app.MapGet("/api/management/funding-policy", GetFundingPolicyAsync).RequireAuthorization("CafeteriaManagement");
+        app.MapPost("/api/management/funding-policy/reload", ReloadFundingPolicyAsync).RequireAuthorization("CafeteriaManagement");
         app.MapGet("/api/management/payroll-report", async (int year, int month, PayrollDeductionReportSource payroll, CancellationToken ct) => Results.Ok(await payroll.BuildAsync(year, month, ct))).RequireAuthorization("CafeteriaManagement");
         app.MapPost("/api/management/payroll-report/send", SendPayrollReportAsync).RequireAuthorization("CafeteriaManagement");
     }
@@ -99,11 +99,39 @@ internal static class FinancialManagementEndpoints
         catch (ArgumentException exception) { return Results.BadRequest(exception.Message); }
     }
 
-    private static async Task<IResult> UpdateFundingPolicyAsync(FundingPolicyRequest request, HttpContext http, FundingPolicyManagementService fundingPolicy, CancellationToken ct)
+    private static async Task<IResult> GetFundingPolicyAsync(
+        ICafeteriaPolicyProvider policyProvider,
+        CancellationToken cancellationToken)
     {
-        if (request.DailyCreditLimitRate <= 0m || request.DailyCompanySubsidyRate <= 0m || request.DailyCompanySubsidyRate > request.DailyCreditLimitRate)
-            return Results.BadRequest("Funding rates must be positive and the company subsidy rate cannot exceed the credit-limit rate.");
-        return Results.Ok(await fundingPolicy.SetFundingPolicyAsync(request.DailyCreditLimitRate, request.DailyCompanySubsidyRate, CafeteriaActor.Require(http), ct));
+        DateTime now = DateTime.Now;
+        CafeteriaPolicySnapshot policy = await policyProvider.GetPolicyAsync(
+            now.Year,
+            now.Month,
+            cancellationToken: cancellationToken);
+
+        return Results.Ok(policy);
+    }
+
+    private static async Task<IResult> ReloadFundingPolicyAsync(
+        int? year,
+        int? month,
+        ICafeteriaPolicyProvider policyProvider,
+        CancellationToken cancellationToken)
+    {
+        DateTime now = DateTime.Now;
+        int selectedYear = year ?? now.Year;
+        int selectedMonth = month ?? now.Month;
+
+        if (selectedYear < 2000 || selectedYear > 9999 || selectedMonth is < 1 or > 12)
+            return Results.BadRequest("A valid policy year and month are required.");
+
+        CafeteriaPolicySnapshot policy = await policyProvider.GetPolicyAsync(
+            selectedYear,
+            selectedMonth,
+            forceReload: true,
+            cancellationToken);
+
+        return Results.Ok(policy);
     }
 
     private static async Task<IResult> SendPayrollReportAsync(int year, int month, bool? force, ScheduledEmailWorker worker, CancellationToken ct)
