@@ -23,7 +23,10 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
         new CafeteriaFundingPolicyDiagnosticLevelTest(null!),
         new CafeteriaCustomerLookupDiagnosticLevelTest(null!),
         new CafeteriaRecoveryReadinessDiagnosticLevelTest(null!),
-        new CafeteriaExhaustiveConsistencyDiagnosticLevelTest(null!, null!, null!)
+        new CafeteriaExhaustiveConsistencyDiagnosticLevelTest(null!, null!, null!),
+        new CafeteriaOutboundEmailQueueDiagnosticLevelTest(null!),
+        new CafeteriaReportDeliveryConfigurationDiagnosticLevelTest(null!, null!),
+        new CafeteriaAuditTrailIntegrityDiagnosticLevelTest(null!)
     ];
 
     [Fact]
@@ -66,11 +69,11 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
     }
 
     [Theory]
-    [InlineData(EngineeringDiagnosticLevel.Level5Scan, 5)]
-    [InlineData(EngineeringDiagnosticLevel.Level4Analysis, 13)]
-    [InlineData(EngineeringDiagnosticLevel.Level3Verification, 14)]
-    [InlineData(EngineeringDiagnosticLevel.Level2Repair, 15)]
-    [InlineData(EngineeringDiagnosticLevel.Level1CriticalIntervention, 16)]
+    [InlineData(EngineeringDiagnosticLevel.Level5Scan, 6)]
+    [InlineData(EngineeringDiagnosticLevel.Level4Analysis, 16)]
+    [InlineData(EngineeringDiagnosticLevel.Level3Verification, 17)]
+    [InlineData(EngineeringDiagnosticLevel.Level2Repair, 18)]
+    [InlineData(EngineeringDiagnosticLevel.Level1CriticalIntervention, 19)]
     public void Starfleet_levels_are_cumulative(EngineeringDiagnosticLevel requested, int expectedCafeteriaTests)
     {
         IDiagnosticLevelLocalTest[] selected = Catalogue()
