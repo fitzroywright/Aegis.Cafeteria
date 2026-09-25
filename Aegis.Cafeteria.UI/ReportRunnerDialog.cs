@@ -72,6 +72,10 @@ internal sealed class ReportRunnerDialog : Form
         var today = DateTime.Today;
         this.from.Value = new DateTime(today.Year, today.Month, 1);
         this.to.Value = today;
+        if (initialKind == CafeteriaReportKind.DailySales)
+        {
+            this.from.Value = today;
+        }
 
         foreach (var item in this.reports.Catalog)
             this.report.Items.Add(new ReportChoice(item));
