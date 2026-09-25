@@ -388,6 +388,10 @@ public sealed class MainForm : Form
         emailPreferences.Click += (_, _) => OpenEmployeeEmailPreferences();
         administration.DropDownItems.Add(emailPreferences);
 
+        ToolStripMenuItem automaticOperations = new("Automatic Operations...");
+        automaticOperations.Click += async (_, _) => await OpenAutomaticOperationsAsync();
+        administration.DropDownItems.Add(automaticOperations);
+
         administration.DropDownItems.Add(new ToolStripSeparator());
         ToolStripMenuItem diagnostics = new("Diagnostics");
         diagnostics.Click += (_, _) => OpenEngineeringDiagnostics();
@@ -400,6 +404,20 @@ public sealed class MainForm : Form
     {
         CafeteriaServicesClient servicesClient = this.services.GetRequiredService<CafeteriaServicesClient>();
         using EmployeeEmailPreferencesDialog dialog = new(this.identification, servicesClient);
+        dialog.ShowDialog(this);
+        RegisterActivity();
+    }
+
+    private async Task OpenAutomaticOperationsAsync()
+    {
+        OperatorIdentity? manager = await AuthorizeManagerAsync("Automatic Cafeteria operation override");
+        if (manager is null)
+        {
+            return;
+        }
+
+        CafeteriaServicesClient servicesClient = this.services.GetRequiredService<CafeteriaServicesClient>();
+        using AutomaticOperationsDialog dialog = new(servicesClient);
         dialog.ShowDialog(this);
         RegisterActivity();
     }
