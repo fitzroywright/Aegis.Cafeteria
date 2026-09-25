@@ -50,3 +50,31 @@ dotnet run --project Aegis.Cafeteria.Migration -- \
 ```
 
 The source SQL connection uses Windows Integrated Security.
+
+
+## Product catalog migration
+
+Product bootstrap is a standalone migration concern. The normal Cafeteria runtime does not query the legacy LunchItems table.
+
+Dry run:
+
+```powershell
+dotnet run --project Aegis.Cafeteria.Migration -- \
+  --product-bootstrap \
+  --server JM-SQL01 \
+  --database FFPManager \
+  --services-url https://cafeteria-services.ffpja.org
+```
+
+Execute:
+
+```powershell
+dotnet run --project Aegis.Cafeteria.Migration -- \
+  --product-bootstrap \
+  --server JM-SQL01 \
+  --database FFPManager \
+  --services-url https://cafeteria-services.ffpja.org \
+  --execute
+```
+
+The migration utility reads `dbo.LunchItems` directly, excludes the reserved policy code (default `FFP00`, override with `--reserved-policy-code`), and submits only generic product records to Cafeteria Services.
