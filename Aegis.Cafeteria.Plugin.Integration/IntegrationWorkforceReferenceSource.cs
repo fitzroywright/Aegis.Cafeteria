@@ -1,23 +1,27 @@
 namespace Aegis.Cafeteria.Plugin.Integration;
 
 using Aegis.Cafeteria.Application.Integration;
+using Microsoft.Extensions.Configuration;
 using System.Text.Json;
 
 public sealed class IntegrationWorkforceReferenceSource : IWorkforceReferenceSource
 {
     private readonly IEmployeeFactSource employeeFacts;
     private readonly ICafeteriaPolicyProvider policyProvider;
-    private readonly IntegrationPluginOptions options;
+    private readonly string employeeCachePath;
     private readonly SemaphoreSlim gate = new(1, 1);
 
     public IntegrationWorkforceReferenceSource(
         IEmployeeFactSource employeeFacts,
         ICafeteriaPolicyProvider policyProvider,
-        IntegrationPluginOptions options)
+        IConfiguration configuration)
     {
         this.employeeFacts = employeeFacts;
         this.policyProvider = policyProvider;
-        this.options = options;
+
+        IConfigurationSection section = configuration.GetSection("IntegrationPlugin");
+        this.employeeCachePath = section["EmployeeCachePath"]?.Trim()
+            ?? "data/integration-employees.json";
     }
 
     public async Task<IReadOnlyList<ExternalCustomerSnapshot>> GetCustomersAsync(
@@ -132,9 +136,9 @@ public sealed class IntegrationWorkforceReferenceSource : IWorkforceReferenceSou
     }
 
     private string ResolveCachePath()
-        => Path.IsPathRooted(this.options.EmployeeCachePath)
-            ? this.options.EmployeeCachePath
-            : Path.Combine(AppContext.BaseDirectory, this.options.EmployeeCachePath);
+        => Path.IsPathRooted(this.employeeCachePath)
+            ? this.employeeCachePath
+            : Path.Combine(AppContext.BaseDirectory, this.employeeCachePath);
 
     private sealed record EmployeeCacheDocument(
         string? Version,
