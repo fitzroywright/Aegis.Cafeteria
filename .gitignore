@@ -394,3 +394,8 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Local SQLite databases
+*.db
+*.sqlite
+*.sqlite3
