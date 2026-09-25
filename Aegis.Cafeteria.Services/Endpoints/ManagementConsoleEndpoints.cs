@@ -26,8 +26,6 @@ internal static class ManagementConsoleEndpoints
                 : Results.Redirect("/management/login"));
         app.MapGet("/management/app.js", () => ManagementFile(app, "app.js", "text/javascript"))
             .RequireAuthorization("CafeteriaManagement");
-        app.MapGet("/management/daily-sales.js", () => ManagementFile(app, "daily-sales.js", "text/javascript"))
-            .RequireAuthorization("CafeteriaManagement");
         app.MapGet("/management/styles.css", () => ManagementFile(app, "styles.css", "text/css"))
             .RequireAuthorization("CafeteriaManagement");
     }
