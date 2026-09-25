@@ -138,7 +138,7 @@ internal static class ManagementConsoleEndpoints
     private static string NormalizeUserName(string loginName)
     {
         string value = loginName.Trim();
-        int slash = value.LastIndexOf('\');
+        int slash = value.LastIndexOf('\\');
         if (slash >= 0 && slash < value.Length - 1)
         {
             value = value[(slash + 1)..];
