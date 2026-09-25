@@ -20,7 +20,6 @@ public sealed class MonthOpeningWorker : BackgroundService
     private readonly ICafeteriaPolicyProvider policyProvider;
     private readonly MonthlyAllocationCalculator calculator;
     private readonly ServiceEventStore events;
-    private readonly IExternalAccountingGateway accounting;
     private readonly IMonthRecalculationGuard recalculationGuard;
     private readonly MonthOpeningOptions options;
     private readonly IDbContextFactory<ServiceDbContext> factory;
@@ -31,7 +30,6 @@ public sealed class MonthOpeningWorker : BackgroundService
         ICafeteriaPolicyProvider policyProvider,
         MonthlyAllocationCalculator calculator,
         ServiceEventStore events,
-        IExternalAccountingGateway accounting,
         IMonthRecalculationGuard recalculationGuard,
         MonthOpeningOptions options,
         IDbContextFactory<ServiceDbContext> factory,
@@ -41,7 +39,6 @@ public sealed class MonthOpeningWorker : BackgroundService
         this.policyProvider = policyProvider;
         this.calculator = calculator;
         this.events = events;
-        this.accounting = accounting;
         this.recalculationGuard = recalculationGuard;
         this.options = options;
         this.factory = factory;
@@ -172,24 +169,6 @@ public sealed class MonthOpeningWorker : BackgroundService
                 "The eligible employee set has changed since Month Opening. Recalculation is blocked because it would add or remove employee entitlements.");
         }
 
-        IReadOnlyDictionary<int, ExternalAccountSummary> accounts = (await this.accounting.GetAccountSummariesAsync(cancellationToken))
-            .ToDictionary(account => account.CustomerId);
-
-        foreach (KeyValuePair<int, MonthlyAllocationServiceEvent> entry in existingAllocations)
-        {
-            MonthlyCreditAllocation currentAllocation = ToAllocation(entry.Value);
-            if (!accounts.TryGetValue(entry.Key, out ExternalAccountSummary? account) || account is null)
-                throw new InvalidOperationException($"FFP account summary was not found for employee {entry.Key}. Recalculation was not performed.");
-
-            if (account.CreditLimit != currentAllocation.TotalCreditLimit || account.AvailableBalance != currentAllocation.TotalCreditLimit)
-            {
-                throw new InvalidOperationException(
-                    $"Employee {entry.Key} no longer has the untouched Month Opening balance. " +
-                    $"Expected CreditLimit/AvailableBalance {currentAllocation.TotalCreditLimit:N2}/{currentAllocation.TotalCreditLimit:N2}, " +
-                    $"but FFP contains {account.CreditLimit:N2}/{account.AvailableBalance:N2}. Recalculation is blocked.");
-            }
-        }
-
         CafeteriaPolicySnapshot policy = await this.policyProvider.GetPolicyAsync(year, month, cancellationToken: cancellationToken);
         int fullMonthWorkingDays = policy.WorkingDays.Count;
         int updated = 0;
@@ -284,17 +263,6 @@ public sealed class MonthOpeningWorker : BackgroundService
             allocation.SubsidyCost,
             allocation.CalculatedAt,
             employeeName);
-
-    private static MonthlyCreditAllocation ToAllocation(MonthlyAllocationServiceEvent allocation)
-        => new(
-            allocation.CustomerId,
-            allocation.Year,
-            allocation.Month,
-            allocation.EligibleWorkingDays,
-            allocation.IsEligibleForCredit,
-            allocation.CreditLimitPrice,
-            allocation.SubsidyCost,
-            allocation.CalculatedAt);
 
     private static bool Equivalent(MonthlyAllocationServiceEvent left, MonthlyAllocationServiceEvent right)
         => left.CustomerId == right.CustomerId
