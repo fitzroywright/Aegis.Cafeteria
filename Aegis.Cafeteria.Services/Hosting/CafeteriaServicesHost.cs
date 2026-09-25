@@ -172,14 +172,19 @@ internal static class CafeteriaServicesHost
     private static void RegisterIntegrationGateways(IServiceCollection services)
     {
         services.AddSingleton<MonthlyAllocationCalculator>();
-        services.AddSingleton<FfpSqlApplicationGateway>();
+        services.AddSingleton<FfpSqlConnectionFactory>();
+        services.AddSingleton<FfpEmployeeWorkforceSource>();
         services.AddSingleton<FfpLunchItemBootstrapSource>();
-        services.AddSingleton<IExternalAccountingGateway>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
-        services.AddSingleton<IWorkforceReferenceSource>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
+        services.AddSingleton<FfpAccountingGateway>();
+        services.AddSingleton<FfpFundingPolicyCompatibilityGateway>();
+        services.AddSingleton<FfpMonthRecalculationGuard>();
+        services.AddSingleton<FfpDevelopmentDataResetGateway>();
+        services.AddSingleton<IExternalAccountingGateway>(sp => sp.GetRequiredService<FfpAccountingGateway>());
+        services.AddSingleton<IWorkforceReferenceSource>(sp => sp.GetRequiredService<FfpEmployeeWorkforceSource>());
         services.AddSingleton<ILunchItemBootstrapSource>(sp => sp.GetRequiredService<FfpLunchItemBootstrapSource>());
-        services.AddSingleton<IFundingPolicyCompatibilityGateway>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
-        services.AddSingleton<IMonthRecalculationGuard>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
-        services.AddSingleton<IDevelopmentDataResetGateway>(sp => sp.GetRequiredService<FfpSqlApplicationGateway>());
+        services.AddSingleton<IFundingPolicyCompatibilityGateway>(sp => sp.GetRequiredService<FfpFundingPolicyCompatibilityGateway>());
+        services.AddSingleton<IMonthRecalculationGuard>(sp => sp.GetRequiredService<FfpMonthRecalculationGuard>());
+        services.AddSingleton<IDevelopmentDataResetGateway>(sp => sp.GetRequiredService<FfpDevelopmentDataResetGateway>());
         services.AddSingleton<FfpPayrollLedgerSource>();
         services.AddSingleton<IPayrollLedgerSource>(sp => sp.GetRequiredService<FfpPayrollLedgerSource>());
     }
