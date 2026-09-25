@@ -131,9 +131,10 @@ public sealed class AutomaticOperationsWindow : Window
 
     private async Task RetryOpenAsync()
     {
-        (int selectedYear, int selectedMonth) = SelectedPeriod();
+        int selectedYear = DateTime.Today.Year;
+        int selectedMonth = DateTime.Today.Month;
         MonthOperationResult result = await this.services.RetryMonthOpeningAsync(selectedYear, selectedMonth);
-        Success($"Month {selectedYear:D4}-{selectedMonth:D2} opening checked. New allocations created: {result.Created.GetValueOrDefault()}.");
+        Success($"Current month {selectedYear:D4}-{selectedMonth:D2} opening checked. New allocations created: {result.Created.GetValueOrDefault()}.");
     }
 
     private async Task RecalculateAsync()
