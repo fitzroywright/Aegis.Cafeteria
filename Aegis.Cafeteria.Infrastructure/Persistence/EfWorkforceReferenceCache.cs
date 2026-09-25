@@ -136,7 +136,10 @@ public sealed class EfWorkforceReferenceCache(IDbContextFactory<LocalCafeteriaDb
         }
 
         string claim = BuildIdentifierClaim(type, normalized);
-        desired.TryAdd(claim, new DesiredIdentifier(customerId, type, value.Trim(), normalized));
+        if (!desired.ContainsKey(claim))
+        {
+            desired[claim] = new DesiredIdentifier(customerId, type, value.Trim(), normalized);
+        }
     }
 
     private static string BuildIdentifierClaim(CustomerIdentifierType type, string normalized)
