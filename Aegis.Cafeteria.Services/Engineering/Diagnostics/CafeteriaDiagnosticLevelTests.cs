@@ -13,15 +13,13 @@ public static class CafeteriaDiagnosticModules
     public const string Services = "Aegis.Cafeteria.Services";
     public const string Pos = "Aegis.Cafeteria.POS";
     public const string PosUi = "Aegis.Cafeteria.POS.UI";
-    public const string Management = "Aegis.Cafeteria.Management";
 
     public static IReadOnlySet<string> All { get; } =
         new HashSet<string>(StringComparer.Ordinal)
         {
             Services,
             Pos,
-            PosUi,
-            Management
+            PosUi
         };
 }
 
@@ -357,7 +355,7 @@ public sealed class CafeteriaMessagingDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.Messaging;
     public string Name => "Messaging configuration";
-    public string Owner => CafeteriaDiagnosticModules.Management;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
     public bool IsDestructive => false;
 
@@ -381,7 +379,7 @@ public sealed class CafeteriaFundingPolicyDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.FundingPolicy;
     public string Name => "Funding policy";
-    public string Owner => CafeteriaDiagnosticModules.Management;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
     public bool IsDestructive => false;
 
@@ -542,7 +540,7 @@ public sealed class CafeteriaReportDeliveryConfigurationDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.ReportDeliveryConfiguration;
     public string Name => "Report delivery configuration";
-    public string Owner => CafeteriaDiagnosticModules.Management;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
     public bool IsDestructive => false;
 
@@ -585,7 +583,7 @@ public sealed class CafeteriaAuditTrailIntegrityDiagnosticLevelTest(
 {
     public string TestId => CafeteriaDiagnosticIds.AuditTrailIntegrity;
     public string Name => "Audit trail integrity";
-    public string Owner => CafeteriaDiagnosticModules.Management;
+    public string Owner => CafeteriaDiagnosticModules.Services;
     public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
     public bool IsDestructive => false;
 
