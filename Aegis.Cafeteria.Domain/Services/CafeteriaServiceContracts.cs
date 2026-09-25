@@ -11,7 +11,9 @@ public enum CafeteriaServiceEventKind
     DevelopmentReset = 5,
     AccountPeriodClose = 6,
     ProductCatalogImport = 7,
-    LegacyTransactionImport = 8
+    LegacyTransactionImport = 8,
+    ExternalLedgerEntry = 9,
+    PosTransaction = 10
 }
 
 public sealed record CafeteriaServiceEventEnvelope(
