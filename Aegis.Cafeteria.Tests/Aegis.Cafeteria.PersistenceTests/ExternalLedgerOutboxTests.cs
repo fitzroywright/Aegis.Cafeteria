@@ -2,6 +2,7 @@ namespace Aegis.Cafeteria.PersistenceTests;
 
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Infrastructure.Persistence;
+using Aegis.Cafeteria.Infrastructure.Configuration;
 using Microsoft.EntityFrameworkCore;
 
 public sealed class ExternalLedgerOutboxTests
