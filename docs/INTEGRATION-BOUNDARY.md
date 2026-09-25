@@ -137,6 +137,40 @@ Do not add the following to FFP Manager:
 > FFP Manager supplies organizational facts. Cafeteria owns Cafeteria business logic. The Integration Plane translates between them.
 
 
+## Runtime plugin loading
+
+Cafeteria Services does not reference a concrete integration plugin at compile time.
+
+At startup it reads:
+
+```text
+IntegrationPlugin:AssemblyPath
+```
+
+and loads that assembly dynamically. The assembly must provide exactly one implementation of each required contract:
+
+- `ICafeteriaIntegrationPlugin`
+- `ICafeteriaPolicyProvider`
+- `IEmployeeFactSource`
+- `IEmployeeIdScanPublisher`
+- `IWorkforceReferenceSource`
+
+Services registers those implementations as singletons through the shared Cafeteria application contracts. If the configured assembly is missing, incomplete or ambiguous, startup fails rather than silently selecting another implementation.
+
+The current generic plugin is built separately as:
+
+```text
+Aegis.Cafeteria.Plugin.Integration.dll
+```
+
+and may be deployed under the configured plugin path, for example:
+
+```text
+plugins/Aegis.Cafeteria.Plugin.Integration.dll
+```
+
+A different deployment can replace that DLL and configuration without recompiling Cafeteria Services, provided the replacement plugin implements the same shared contracts.
+
 ## Naming boundary
 
 Cafeteria core and the generic integration plugin must not contain organization-specific names.
@@ -145,7 +179,7 @@ The generic Cafeteria side is:
 
 ```text
 Cafeteria.Services
-    -> Aegis.Cafeteria.Plugin.Integration
+    -> dynamically loaded ICafeteriaIntegrationPlugin
     -> Integration Plane
 ```
 
