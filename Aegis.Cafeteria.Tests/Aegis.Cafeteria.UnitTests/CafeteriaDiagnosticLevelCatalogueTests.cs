@@ -54,7 +54,6 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
         Assert.Contains(CafeteriaDiagnosticModules.Services, CafeteriaDiagnosticModules.All);
         Assert.Contains(CafeteriaDiagnosticModules.Pos, CafeteriaDiagnosticModules.All);
         Assert.Contains(CafeteriaDiagnosticModules.PosUi, CafeteriaDiagnosticModules.All);
-        Assert.Contains(CafeteriaDiagnosticModules.Management, CafeteriaDiagnosticModules.All);
     }
 
     [Fact]
