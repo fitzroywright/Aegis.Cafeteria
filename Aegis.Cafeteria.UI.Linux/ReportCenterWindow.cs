@@ -4,6 +4,7 @@ using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Reporting;
 using Aegis.Cafeteria.Reporting.Export;
 using Aegis.Cafeteria.Reporting.Models;
+using Aegis.Cafeteria.Infrastructure.Services;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -18,6 +19,8 @@ public sealed class ReportCenterWindow : Window
     private readonly ICustomerIdentificationService identification;
     private readonly IProductCatalogQuery products;
     private readonly IReadOnlyDictionary<string, IReportExporter> exporters;
+    private readonly CafeteriaServicesClient servicesClient;
+    private readonly Func<Task<bool>> authorizeEmail;
 
     private readonly ComboBox report = new();
     private readonly DatePicker from = new();
@@ -68,6 +71,7 @@ public sealed class ReportCenterWindow : Window
     private readonly Button saveCsv = ActionButton("CSV");
     private readonly Button saveExcel = ActionButton("Excel");
     private readonly Button savePdf = ActionButton("PDF");
+    private readonly Button emailReport = ActionButton("Email Report");
 
     private int? employeeId;
 
@@ -84,6 +88,9 @@ public sealed class ReportCenterWindow : Window
         this.identification = identification;
         this.products = products;
         this.exporters = exporters.ToDictionary(exporter => exporter.Format, StringComparer.OrdinalIgnoreCase);
+        this.servicesClient = servicesClient;
+        this.authorizeEmail = authorizeEmail;
+        this.emailReport.IsVisible = false;
 
         Title = "Reports - Cafeteria";
         Width = 920;
@@ -271,6 +278,7 @@ public sealed class ReportCenterWindow : Window
         close.Click += (_, _) => Close();
 
         buttons.Children.Add(this.preview);
+        buttons.Children.Add(this.emailReport);
         buttons.Children.Add(this.saveExcel);
         buttons.Children.Add(this.savePdf);
         buttons.Children.Add(this.saveCsv);
@@ -310,6 +318,7 @@ public sealed class ReportCenterWindow : Window
         this.saveCsv.Click += async (_, _) => await SaveAsync("CSV");
         this.saveExcel.Click += async (_, _) => await SaveAsync("XLSX");
         this.savePdf.Click += async (_, _) => await SaveAsync("PDF");
+        this.emailReport.Click += async (_, _) => await EmailDailySalesAsync();
     }
 
     private ReportCatalogItem SelectedCatalogItem
@@ -335,6 +344,7 @@ public sealed class ReportCenterWindow : Window
         this.groupingPanel.IsVisible = item.Kind is
             CafeteriaReportKind.PurchaseItemDetail
             or CafeteriaReportKind.PurchaseByPerson;
+        this.emailReport.IsVisible = item.Kind == CafeteriaReportKind.DailySales;
 
         if (item.Kind == CafeteriaReportKind.EmployeeStatement && this.to.SelectedDate is DateTimeOffset selected)
         {
@@ -560,6 +570,66 @@ public sealed class ReportCenterWindow : Window
         }
     }
 
+    private async Task EmailDailySalesAsync()
+    {
+        ReportFilter filter = BuildFilter();
+        if (SelectedCatalogItem.Kind != CafeteriaReportKind.DailySales)
+        {
+            return;
+        }
+
+        if (filter.From != filter.To)
+        {
+            this.status.Text = "Email Report requires a single Daily Sales report date. Set From and To to the same day.";
+            return;
+        }
+
+        if (!await this.authorizeEmail())
+        {
+            return;
+        }
+
+        ManagerReportSettingsSnapshot settings = await this.servicesClient.GetManagerReportSettingsAsync();
+        DailySalesEmailWindow recipientsWindow = new(settings.EmailAddress);
+        string[] recipients = await recipientsWindow.ShowDialog<string[]>(this) ?? [];
+        if (recipients.Length == 0)
+        {
+            return;
+        }
+
+        ReportDocument? document = await GenerateAsync();
+        if (document is null)
+        {
+            return;
+        }
+
+        if (!this.exporters.TryGetValue("PDF", out IReportExporter? exporter))
+        {
+            this.status.Text = "PDF report exporter is unavailable.";
+            return;
+        }
+
+        ToggleBusy(true);
+        try
+        {
+            this.status.Text = "Rendering and queueing Daily Sales email...";
+            byte[] bytes = await RenderExporterAsync(exporter, document);
+            string fileName = $"Cafeteria-Daily-Sales-{filter.From:yyyy-MM-dd}.pdf";
+
+            await this.servicesClient.EmailDailySalesReportAsync(
+                  filter.From
+                , recipients
+                , fileName
+                , bytes);
+
+            this.status.Text = $"Daily Sales Report queued for {recipients.Length} recipient(s).";
+        }
+        finally
+        {
+            ToggleBusy(false);
+        }
+    }
+
     private static Task<byte[]> RenderExporterAsync(IReportExporter exporter, ReportDocument report)
     {
         return Task.Run
@@ -580,6 +650,7 @@ public sealed class ReportCenterWindow : Window
         this.saveCsv.IsEnabled = !busy;
         this.saveExcel.IsEnabled = !busy;
         this.savePdf.IsEnabled = !busy;
+        this.emailReport.IsEnabled = !busy;
     }
 
     private static string SafeFileName(string value)
