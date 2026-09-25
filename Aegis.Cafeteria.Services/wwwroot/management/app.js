@@ -238,17 +238,14 @@ function renderAudit(rows) {
 }
 
 async function initialize() {
-    const sessionResponse = await fetch('/api/session', { credentials: 'include' });
+    const sessionResponse = await fetch('/management/api/session', { credentials: 'include' });
     if (!sessionResponse.ok) {
-        window.location.assign('/login');
+        window.location.assign('/management/login');
         return;
     }
 
-    const configResponse = await fetch('/api/config', { credentials: 'include' });
-    if (configResponse.ok) {
-        const config = await configResponse.json();
-        servicesBaseUrl = config.servicesBaseUrl || servicesBaseUrl;
-    }
+    const session = await sessionResponse.json();
+    document.getElementById('signedInUser').textContent = session.displayName || session.userName || 'Manager';
 
     const now = new Date();
     document.getElementById('monthYear').value = now.getFullYear();
