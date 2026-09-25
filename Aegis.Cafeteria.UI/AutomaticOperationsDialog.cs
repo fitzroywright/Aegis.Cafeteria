@@ -169,10 +169,10 @@ public sealed class AutomaticOperationsDialog : Form
 
     private async Task RetryOpenAsync()
     {
-        int year = this.month.Value.Year;
-        int selectedMonth = this.month.Value.Month;
+        int year = DateTime.Today.Year;
+        int selectedMonth = DateTime.Today.Month;
         MonthOperationResult result = await this.services.RetryMonthOpeningAsync(year, selectedMonth);
-        Success($"Month {year:D4}-{selectedMonth:D2} opening checked. New allocations created: {result.Created.GetValueOrDefault()}.");
+        Success($"Current month {year:D4}-{selectedMonth:D2} opening checked. New allocations created: {result.Created.GetValueOrDefault()}.");
     }
 
     private async Task RecalculateAsync()
