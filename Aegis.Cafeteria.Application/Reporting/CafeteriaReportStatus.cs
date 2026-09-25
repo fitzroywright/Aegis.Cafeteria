@@ -19,7 +19,7 @@ public sealed record CafeteriaReportStatus(
         ? "Complete"
         : "Data Incomplete";
 
-    public static CafeteriaReportStatus FromPublicationStatus(FfpPublicationStatus publication)
+    public static CafeteriaReportStatus FromPublicationStatus(ExternalPublicationStatus publication)
     {
         ArgumentNullException.ThrowIfNull(publication);
 
