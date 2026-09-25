@@ -19,7 +19,8 @@ internal static class PosEndpoints
             .RequireAuthorization("CafeteriaPos");
 
         EmailEndpoints.Map(app);
-    
+    }
+
     private static async Task<IResult> PublishTransactionAsync(
         PosTransactionEvent transaction,
         ServiceEventStore store,
@@ -35,5 +36,4 @@ internal static class PosEndpoints
 
         return Results.Ok(saved);
     }
-}
 }
