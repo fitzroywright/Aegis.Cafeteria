@@ -422,7 +422,7 @@ public sealed class MainWindow : Window
             , exporters
             , kind
             , servicesClient
-            , async () => await AuthorizeManagerAsync("Email Daily Sales Report") is not null);
+            , async () => (await AuthorizeManagerAsync("Email Daily Sales Report")) is not null);
         await window.ShowDialog(this);
         RegisterActivity();
     }
