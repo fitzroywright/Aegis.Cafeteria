@@ -80,6 +80,7 @@ public sealed class ManagementCommonSecurityAuthenticationRuntime
 
 public static class ManagementCommonSecurityAuthenticationExtensions
 {
+    public const string ManagementConsoleCookieName = "Aegis.Cafeteria.Management.Token";
     public static IServiceCollection AddManagementCommonSecurityAuthentication(this IServiceCollection services)
     {
         services.AddSingleton<ManagementCommonSecurityAuthenticator>();
@@ -109,6 +110,7 @@ public static class ManagementCommonSecurityAuthenticationExtensions
             }
 
             if (TryApplySession(context, runtime, "X-Aegis-Management-Token", requireManager: true)
+                || TryApplyManagementCookie(context, runtime)
                 || TryApplySession(context, runtime, "X-Aegis-POS-Token", requireManager: false))
             {
                 await next();
@@ -117,6 +119,31 @@ public static class ManagementCommonSecurityAuthenticationExtensions
 
             await next();
         });
+    }
+
+    private static bool TryApplyManagementCookie(
+        HttpContext context,
+        ManagementCommonSecurityAuthenticationRuntime runtime)
+    {
+        if (!context.Request.Cookies.TryGetValue(ManagementConsoleCookieName, out string? token)
+            || string.IsNullOrWhiteSpace(token)
+            || !runtime.TryGetSession(token, out ManagementServiceTokenSession? session)
+            || session is null
+            || !session.IsManager)
+        {
+            return false;
+        }
+
+        List<Claim> claims =
+        [
+              new Claim(ClaimTypes.Name, session.UserName)
+            , new Claim("aegis_display_name", session.DisplayName)
+            , new Claim("aegis_authentication_source", "Common.Security")
+            , new Claim(ClaimTypes.Role, "CafeteriaManager")
+        ];
+
+        context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Common.Security"));
+        return true;
     }
 
     private static bool TryApplySession(
