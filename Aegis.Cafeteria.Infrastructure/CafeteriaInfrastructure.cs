@@ -6,6 +6,7 @@ using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Application.Messaging;
 using Aegis.Cafeteria.Application.Orders;
 using Aegis.Cafeteria.Application.Reporting;
+using Aegis.Cafeteria.Application.Security;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Infrastructure.Health;
 using Aegis.Cafeteria.Infrastructure.Messaging;
@@ -16,6 +17,9 @@ using Aegis.Cafeteria.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Common.Security.Abstractions;
+using Common.Security.Authenticators;
+using Common.Security.Options;
 
 public static class CafeteriaInfrastructure
 {
@@ -67,6 +71,32 @@ public static class CafeteriaInfrastructure
         services.AddSingleton<PersistenceInitializer>();
         services.AddHostedService<CafeteriaHeartbeatWorker>();
         services.AddHostedService<CafeteriaPosOperationsPublisher>();
+        return services;
+    }
+
+    public static IServiceCollection AddCafeteriaOperatorAuthentication(
+        this IServiceCollection services,
+        OperatorSecurityOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(options);
+
+        ActiveDirectoryAuthenticationOptions activeDirectoryOptions = new()
+        {
+            Domain = options.Domain,
+            SearchBase = options.SearchBase,
+            Port = options.Port,
+            TimeoutSeconds = options.TimeoutSeconds,
+            Servers = options.Servers,
+            AdministrativeGroups = options.AdministrativeGroups
+        };
+
+        services.AddSingleton(options);
+        services.AddSingleton<IAuthenticator>(_ => new ActiveDirectory(activeDirectoryOptions));
+        services.AddSingleton<CommonSecurityOperatorAuthenticator>();
+        services.AddSingleton<IOperatorAuthenticator>(
+            serviceProvider => serviceProvider.GetRequiredService<CommonSecurityOperatorAuthenticator>());
+
         return services;
     }
 
