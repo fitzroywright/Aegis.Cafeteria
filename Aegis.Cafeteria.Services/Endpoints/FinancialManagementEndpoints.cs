@@ -129,7 +129,7 @@ internal static class FinancialManagementEndpoints
             selectedYear,
             selectedMonth,
             forceReload: true,
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         return Results.Ok(policy);
     }
