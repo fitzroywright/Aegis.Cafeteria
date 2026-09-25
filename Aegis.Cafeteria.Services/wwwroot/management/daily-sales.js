@@ -28,7 +28,7 @@
           <label>Report date<input id="dailySalesReportDate" type="date" /></label>
           <label>Configured recipient<input id="dailySalesRecipient" type="email" readonly /></label>
         </div>
-        <div class="actions"><button id="sendDailySalesReport">Send Daily Sales Report</button></div>
+        <div class="actions"><button id="sendDailySalesReport">Resend Daily Sales Report</button></div>
         <p class="hint">The report always includes Report Status: Complete or Report Status: Data Incomplete, plus Last Successful Sync. Data Incomplete does not prevent the report from being sent.</p>
       </div>`;
     auditPanel.insertAdjacentElement('beforebegin', panel);
