@@ -255,6 +255,8 @@ internal static class CafeteriaServicesHost
     {
         services.AddSingleton<MonthOpeningWorker>();
         services.AddHostedService(sp => sp.GetRequiredService<MonthOpeningWorker>());
+        services.AddSingleton<MonthClosingWorker>();
+        services.AddHostedService(sp => sp.GetRequiredService<MonthClosingWorker>());
         services.AddSingleton<ServiceFfpPublisherWorker>();
         services.AddHostedService(sp => sp.GetRequiredService<ServiceFfpPublisherWorker>());
         services.AddSingleton<FfpEmailReportSource>();
