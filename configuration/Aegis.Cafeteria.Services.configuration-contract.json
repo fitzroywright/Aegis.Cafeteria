@@ -35,14 +35,14 @@
       "example": "plugins/Aegis.Cafeteria.Plugin.Integration.dll"
     },
     {
-      "id": "ffp-integration-plane-url",
+      "id": "integration-plugin-url",
       "displayName": "Integration Plugin URL",
       "kind": "ExternalService",
       "required": true,
-      "purpose": "Authoritative boundary for Cafeteria policy, employee facts and outbound employee ID scan publication.",
+      "purpose": "Base URL used by the selected Cafeteria integration plugin.",
       "configurationKey": "IntegrationPlugin:BaseUrl",
       "isConfigured": false,
-      "example": "https://ffp-integration.internal"
+      "example": "https://integration.example.internal"
     },
     {
       "id": "openbao-url",
