@@ -128,7 +128,7 @@ public sealed class IDMethodIdentificationTests
                 new AccountPeriodView(year, month, 0, 0m, 0m, false),
                 new CustomerFinancialStatusView(0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m),
                 [],
-                new FfpPublicationStatus(false, 0, 0, null, null)));
+                new ExternalPublicationStatus(false, 0, 0, null, null)));
 
         public Task<IReadOnlyList<CustomerMonthlyTransactionView>> GetTransactionsAsync(
             int customerId,
