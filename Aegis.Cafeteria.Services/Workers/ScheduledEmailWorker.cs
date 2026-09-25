@@ -281,23 +281,45 @@ public sealed class ScheduledEmailWorker : BackgroundService
         }
     }
 
+    public async Task ResendManagerWeeklySummaryAsync(
+        DateOnly weekStart,
+        CancellationToken cancellationToken = default)
+    {
+        ManagerReportSettings manager = await this.preferences.GetManagerAsync(cancellationToken);
+        await QueueManagerWeekAsync(weekStart, manager, force: true, cancellationToken);
+    }
+
     private async Task QueueManagerPreviousWeekAsync(
         DateOnly today,
         ManagerReportSettings manager,
         CancellationToken cancellationToken)
     {
+        (DateOnly start, _) = PreviousWeek(today);
+        await QueueManagerWeekAsync(start, manager, force: false, cancellationToken);
+    }
+
+    private async Task QueueManagerWeekAsync(
+        DateOnly start,
+        ManagerReportSettings manager,
+        bool force,
+        CancellationToken cancellationToken)
+    {
         if (string.IsNullOrWhiteSpace(manager.EmailAddress))
         {
-            return;
+            throw new InvalidOperationException("Configure the Manager email before sending the weekly summary.");
         }
 
-        (DateOnly start, DateOnly end) = PreviousWeek(today);
+        DateOnly end = start.AddDays(6);
         IReadOnlyList<EmployeeWeeklyLedger> ledgers = await this.source.GetWeeklyEmployeeLedgersAsync(start, end, cancellationToken);
         int transactionCount = ledgers.Sum(employee => employee.Lines.Count);
         decimal netValue = ledgers.Sum(employee => employee.Lines.Sum(line => line.ScanValue));
         string body = $"Cafeteria weekly management summary - {start:MMM d} - {end:MMM d, yyyy}\n\nEmployees with activity: {ledgers.Count:N0}\nLedger entries: {transactionCount:N0}\nNet ledger value: {netValue:N2}\n";
+        string key = force
+            ? $"manager-weekly:{start:yyyy-MM-dd}:manual:{Guid.NewGuid():N}"
+            : $"manager-weekly:{start:yyyy-MM-dd}";
+
         await this.queue.EnqueueAsync(
-            $"manager-weekly:{start:yyyy-MM-dd}",
+            key,
             manager.EmailAddress,
             $"Cafeteria Weekly Summary - Week ending {end:yyyy-MM-dd}",
             body,
