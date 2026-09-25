@@ -129,8 +129,8 @@ public sealed class IDMethodV73UpgradeTests
             Assert.Equal("SYSTEM", outbox.CreatedBy);
 
             LocalSchemaInfoRow schema = await verify.LocalSchemaInfo.AsNoTracking().SingleAsync(x => x.Id == 1);
-            Assert.Equal(73, schema.SchemaVersion);
-            Assert.Equal("v73", schema.ProductVersion);
+            Assert.Equal(PersistenceInitializer.CurrentLocalSchemaVersion, schema.SchemaVersion);
+            Assert.Equal(PersistenceInitializer.CurrentProductVersion, schema.ProductVersion);
         }
         finally
         {
