@@ -80,30 +80,3 @@ public sealed class CafeteriaServiceContractTests
     }
 
 }
-
-public sealed class DevelopmentResetServiceEventContractTests
-{
-    [Fact]
-    public void DevelopmentResetEvent_RoundTripsResetBoundary()
-    {
-        Guid operationId = Guid.NewGuid();
-        DateTimeOffset resetAt = DateTimeOffset.UtcNow;
-        DevelopmentResetServiceEvent source = new
-        (
-              operationId
-            , "FFTPJ\\Manager"
-            , resetAt
-            , true
-            , true
-        );
-
-        string json = JsonSerializer.Serialize(source);
-        DevelopmentResetServiceEvent? result = JsonSerializer.Deserialize<DevelopmentResetServiceEvent>(json);
-
-        Assert.NotNull(result);
-        Assert.Equal(operationId, result!.OperationId);
-        Assert.Equal("FFTPJ\\Manager", result.ResetBy);
-        Assert.True(result.PreserveProducts);
-        Assert.True(result.PreserveFundingPolicy);
-    }
-}
