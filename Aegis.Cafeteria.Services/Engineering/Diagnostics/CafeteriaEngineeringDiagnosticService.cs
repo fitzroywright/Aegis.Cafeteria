@@ -11,7 +11,6 @@ public sealed class CafeteriaEngineeringDiagnosticService
 {
     private readonly IDbContextFactory<ServiceDbContext> databaseFactory;
     private readonly IWorkforceReferenceSource workforce;
-    private readonly CafeteriaFundingPolicyStore fundingPolicy;
     private readonly EngineeringDiagnosticRunStore runStore;
     private readonly IHostEnvironment environment;
 
@@ -19,14 +18,12 @@ public sealed class CafeteriaEngineeringDiagnosticService
     (
           IDbContextFactory<ServiceDbContext> databaseFactory
         , IWorkforceReferenceSource workforce
-        , CafeteriaFundingPolicyStore fundingPolicy
         , EngineeringDiagnosticRunStore runStore
         , IHostEnvironment environment
     )
     {
         this.databaseFactory = databaseFactory;
         this.workforce = workforce;
-        this.fundingPolicy = fundingPolicy;
         this.runStore = runStore;
         this.environment = environment;
     }
@@ -50,7 +47,6 @@ public sealed class CafeteriaEngineeringDiagnosticService
         DateTimeOffset startedAt = DateTimeOffset.UtcNow;
         List<EngineeringDiagnosticCheckResult> checks = [];
         checks.Add(await CheckServiceDatabaseAsync(cancellationToken));
-        checks.Add(await CheckFundingPolicyAsync(cancellationToken));
         checks.Add(await CheckEligibleEmployeesAsync(cancellationToken));
         checks.Add(await CheckReportStatusAsync(cancellationToken));
 
@@ -129,19 +125,6 @@ public sealed class CafeteriaEngineeringDiagnosticService
         }
     }
 
-    private async Task<EngineeringDiagnosticCheckResult> CheckFundingPolicyAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            CafeteriaFundingPolicySnapshot policy = await this.fundingPolicy.GetFundingPolicyAsync(cancellationToken);
-            string evidence = $"Daily credit={policy.DailyCreditLimitRate:0.00}; Daily subsidy={policy.DailyCompanySubsidyRate:0.00}; Updated={policy.UpdatedAt:O}";
-            return Passed("funding-policy", "Funding policy", "Funding policy is configured.", evidence);
-        }
-        catch (Exception exception)
-        {
-            return Failed("funding-policy", "Funding policy", exception.Message);
-        }
-    }
 
     private async Task<EngineeringDiagnosticCheckResult> CheckEligibleEmployeesAsync(CancellationToken cancellationToken)
     {
@@ -178,7 +161,7 @@ public sealed class CafeteriaEngineeringDiagnosticService
                 .FirstOrDefaultAsync(cancellationToken);
 
             CafeteriaReportStatus status = CafeteriaReportStatus.FromPublicationStatus(
-                new FfpPublicationStatus(true, pending, failed, lastSuccessfulSync, lastError));
+                new ExternalPublicationStatus(true, pending, failed, lastSuccessfulSync, lastError));
 
             string lastSync = status.LastSuccessfulSync.HasValue
                 ? status.LastSuccessfulSync.Value.ToLocalTime().ToString("yyyy-MM-dd h:mm tt")
