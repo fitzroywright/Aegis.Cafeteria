@@ -281,8 +281,8 @@ public sealed class CafeteriaPublicationQueueDiagnosticLevelTest(
         try
         {
             await using ServiceDbContext database = await databaseFactory.CreateDbContextAsync(cancellationToken);
-            int pending = await database.Events.AsNoTracking().CountAsync(x => x.FfpPublishedAt == null, cancellationToken);
-            int failed = await database.Events.AsNoTracking().CountAsync(x => x.FfpLastError != null, cancellationToken);
+            int pending = await database.Events.AsNoTracking().CountAsync(x => x.ExternalPublishedAt == null, cancellationToken);
+            int failed = await database.Events.AsNoTracking().CountAsync(x => x.PublicationLastError != null, cancellationToken);
 
             if (failed > 0)
                 return EngineeringDiagnosticPolicy.Warning(TestId, Name, "External publication queue contains failed items.", $"Pending={pending}; Failed={failed}");
