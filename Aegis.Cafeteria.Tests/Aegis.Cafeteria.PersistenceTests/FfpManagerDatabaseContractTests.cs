@@ -4,6 +4,13 @@ using Microsoft.Data.SqlClient;
 
 public sealed class FfpManagerDatabaseContractTests
 {
+    private static string BuildTestConnectionString()
+    {
+        SqlConnectionStringBuilder builder = new(ConnectionString!);
+        builder.TrustServerCertificate = true;
+        return builder.ConnectionString;
+    }
+
     private static string? ConnectionString =>
         Environment.GetEnvironmentVariable("FFPMANAGER_TEST");
 
@@ -15,7 +22,7 @@ public sealed class FfpManagerDatabaseContractTests
             return;
         }
 
-        await using SqlConnection connection = new(ConnectionString);
+        await using SqlConnection connection = new(BuildTestConnectionString());
         await connection.OpenAsync();
 
         Dictionary<string, string[]> required = new(StringComparer.OrdinalIgnoreCase)
