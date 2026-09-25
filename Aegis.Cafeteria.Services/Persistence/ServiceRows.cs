@@ -94,3 +94,30 @@ public sealed class OutboundEmailRow
     public string? MessageId { get; set; }
     public string? LastError { get; set; }
 }
+
+
+public sealed class IntegrationEmployeeCacheRow
+{
+    public int EmployeeId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? CardIdentifier { get; set; }
+    public bool IsActive { get; set; }
+    public bool IsEligible { get; set; }
+    public DateOnly? EligibleFrom { get; set; }
+    public string Version { get; set; } = string.Empty;
+}
+
+public sealed class IntegrationStateRow
+{
+    public string Key { get; set; } = string.Empty;
+    public string? Value { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class ValidatedPolicyCacheRow
+{
+    public int Year { get; set; }
+    public int Month { get; set; }
+    public string PayloadJson { get; set; } = string.Empty;
+    public DateTimeOffset ValidatedAt { get; set; }
+}
