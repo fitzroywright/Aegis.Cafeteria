@@ -14,27 +14,27 @@ public sealed class EfWorkforceReferenceCache(IDbContextFactory<LocalCafeteriaDb
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction tx = await db.Database.BeginTransactionAsync(cancellationToken);
         DateTimeOffset now = DateTimeOffset.UtcNow;
         List<CustomerRow> allCustomers = await db.Customers.ToListAsync(cancellationToken);
-
-        // Identifiers are a source-owned snapshot. Delete the old snapshot in the database first
-        // so EF never tracks a Deleted and Added entity with the same deterministic key.
-        await db.CustomerIdentifiers.ExecuteDeleteAsync(cancellationToken);
+        List<CustomerIdentifierRow> existingIdentifiers = await db.CustomerIdentifiers.ToListAsync(cancellationToken);
 
         HashSet<int> sourceIds = employees.Select(employee => employee.CustomerId).ToHashSet();
         foreach (CustomerRow stale in allCustomers.Where(customer => !sourceIds.Contains(customer.Id)))
         {
             stale.IsActive = false;
             stale.IsEligibleForCredit = false;
-            stale.Revision = now.UtcDateTime.Ticks;
-            stale.UpdatedAt = now;
         }
 
-        HashSet<string> claimedIdentifiers = new(StringComparer.OrdinalIgnoreCase);
+        Dictionary<string, DesiredIdentifier> desiredIdentifiers = new(StringComparer.OrdinalIgnoreCase);
         foreach (ExternalCustomerSnapshot employee in employees)
         {
             CustomerRow? row = allCustomers.SingleOrDefault(customer => customer.Id == employee.CustomerId);
             if (row is null)
             {
-                row = new CustomerRow { Id = employee.CustomerId };
+                row = new CustomerRow
+                {
+                    Id = employee.CustomerId,
+                    Revision = now.UtcDateTime.Ticks,
+                    UpdatedAt = now
+                };
                 db.Customers.Add(row);
                 allCustomers.Add(row);
             }
@@ -46,17 +46,60 @@ public sealed class EfWorkforceReferenceCache(IDbContextFactory<LocalCafeteriaDb
             row.Manager = employee.Manager?.Trim() ?? string.Empty;
             row.EmailAddress = employee.EmailAddress?.Trim() ?? string.Empty;
             row.Extension = employee.Extension?.Trim() ?? string.Empty;
-            if (employee.Photo is not null) row.Photo = employee.Photo;
+            if (employee.Photo is not null)
+            {
+                row.Photo = employee.Photo;
+            }
             row.IsActive = employee.IsActive;
             row.EmploymentStartDate = employee.EmploymentStartDate;
             row.IsEligibleForCredit = employee.IsActive && employee.IsEligibleForCafeteriaCredit;
             row.AdditionalCreditLimit = employee.AdditionalCreditLimit;
-            row.Revision = now.UtcDateTime.Ticks;
-            row.UpdatedAt = now;
 
-            AddIdentifier(db, claimedIdentifiers, employee.CustomerId, CustomerIdentifierType.NfcTag, employee.Nfc, now);
-            AddIdentifier(db, claimedIdentifiers, employee.CustomerId, CustomerIdentifierType.Code, employee.Code, now);
-            AddIdentifier(db, claimedIdentifiers, employee.CustomerId, CustomerIdentifierType.Trn, employee.Trn, now);
+            AddDesiredIdentifier(desiredIdentifiers, employee.CustomerId, CustomerIdentifierType.NfcTag, employee.Nfc);
+            AddDesiredIdentifier(desiredIdentifiers, employee.CustomerId, CustomerIdentifierType.Code, employee.Code);
+            AddDesiredIdentifier(desiredIdentifiers, employee.CustomerId, CustomerIdentifierType.Trn, employee.Trn);
+        }
+
+        db.ChangeTracker.DetectChanges();
+        foreach (Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<CustomerRow> entry in
+                 db.ChangeTracker.Entries<CustomerRow>().Where(entry => entry.State == EntityState.Modified))
+        {
+            entry.Entity.Revision = now.UtcDateTime.Ticks;
+            entry.Entity.UpdatedAt = now;
+        }
+
+        Dictionary<string, CustomerIdentifierRow> existingByClaim = existingIdentifiers
+            .GroupBy(identifier => BuildIdentifierClaim((CustomerIdentifierType)identifier.Type, identifier.NormalizedValue), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (CustomerIdentifierRow existing in existingIdentifiers)
+        {
+            string claim = BuildIdentifierClaim((CustomerIdentifierType)existing.Type, existing.NormalizedValue);
+            if (!desiredIdentifiers.TryGetValue(claim, out DesiredIdentifier? desired)
+                || desired.CustomerId != existing.CustomerId)
+            {
+                db.CustomerIdentifiers.Remove(existing);
+                existingByClaim.Remove(claim);
+                continue;
+            }
+
+            if (!string.Equals(existing.Value, desired.Value, StringComparison.Ordinal))
+            {
+                existing.Value = desired.Value;
+                existing.Revision = now.UtcDateTime.Ticks;
+                existing.UpdatedAt = now;
+            }
+        }
+
+        foreach ((string claim, DesiredIdentifier desired) in desiredIdentifiers)
+        {
+            if (existingByClaim.TryGetValue(claim, out CustomerIdentifierRow? existing)
+                && existing.CustomerId == desired.CustomerId)
+            {
+                continue;
+            }
+
+            db.CustomerIdentifiers.Add(CreateIdentifierRow(desired, now));
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -75,15 +118,52 @@ public sealed class EfWorkforceReferenceCache(IDbContextFactory<LocalCafeteriaDb
         await db.SaveChangesAsync(cancellationToken);
     }
 
-    private static void AddIdentifier(LocalCafeteriaDbContext db, HashSet<string> claimed, int customerId, CustomerIdentifierType type, string? value, DateTimeOffset now)
+    private static void AddDesiredIdentifier(
+        IDictionary<string, DesiredIdentifier> desired,
+        int customerId,
+        CustomerIdentifierType type,
+        string? value)
     {
-        if (string.IsNullOrWhiteSpace(value)) return;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
         string normalized = DomainPersistenceMapper.NormalizeIdentifier(type, value);
-        if (string.IsNullOrWhiteSpace(normalized)) return;
-        string claim = $"{(int)type}:{normalized}";
-        if (!claimed.Add(claim)) return;
-        string legacyStablePrefix = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String("RkZQ"));
-        byte[] bytes = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"{legacyStablePrefix}:{customerId}:{type}:{normalized}"));
-        db.CustomerIdentifiers.Add(new CustomerIdentifierRow { Id = new Guid(bytes.AsSpan(0, 16)), CustomerId = customerId, Type = (int)type, Value = value.Trim(), NormalizedValue = normalized, Revision = now.UtcDateTime.Ticks, UpdatedAt = now });
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return;
+        }
+
+        string claim = BuildIdentifierClaim(type, normalized);
+        desired.TryAdd(claim, new DesiredIdentifier(customerId, type, value.Trim(), normalized));
     }
+
+    private static string BuildIdentifierClaim(CustomerIdentifierType type, string normalized)
+        => $"{(int)type}:{normalized}";
+
+    private static CustomerIdentifierRow CreateIdentifierRow(DesiredIdentifier desired, DateTimeOffset now)
+    {
+        string legacyStablePrefix = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String("RkZQ"));
+        byte[] bytes = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(
+                $"{legacyStablePrefix}:{desired.CustomerId}:{desired.Type}:{desired.NormalizedValue}"));
+
+        return new CustomerIdentifierRow
+        {
+            Id = new Guid(bytes.AsSpan(0, 16)),
+            CustomerId = desired.CustomerId,
+            Type = (int)desired.Type,
+            Value = desired.Value,
+            NormalizedValue = desired.NormalizedValue,
+            Revision = now.UtcDateTime.Ticks,
+            UpdatedAt = now
+        };
+    }
+
+    private sealed record DesiredIdentifier(
+        int CustomerId,
+        CustomerIdentifierType Type,
+        string Value,
+        string NormalizedValue);
 }
