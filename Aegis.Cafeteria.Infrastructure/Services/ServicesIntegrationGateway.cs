@@ -7,7 +7,6 @@ using System.Net.Http.Json;
 public sealed class ServicesIntegrationGateway(HttpClient http) :
       IExternalAccountingGateway
     , IWorkforceReferenceSource
-    , ILunchItemBootstrapSource
 {
     public async Task<IReadOnlyList<ExternalCustomerSnapshot>> GetCustomersAsync(CancellationToken cancellationToken = default)
     {
@@ -37,8 +36,6 @@ public sealed class ServicesIntegrationGateway(HttpClient http) :
     public async Task<IReadOnlyCollection<DateOnly>> GetHolidaysAsync(int year, int month, CancellationToken cancellationToken = default)
         => await http.GetFromJsonAsync<DateOnly[]>($"api/reference/holidays?year={year}&month={month}", cancellationToken) ?? [];
 
-    public async Task<IReadOnlyList<ExternalProductSnapshot>> GetLunchItemsAsync(CancellationToken cancellationToken = default)
-        => await http.GetFromJsonAsync<ExternalProductSnapshot[]>("api/reference/products", cancellationToken) ?? [];
 
     public async Task PublishLedgerEntryAsync(ExternalLedgerEntry entry, CancellationToken cancellationToken = default)
     {
