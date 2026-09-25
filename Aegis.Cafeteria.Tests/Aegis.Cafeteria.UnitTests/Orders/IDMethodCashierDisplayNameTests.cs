@@ -29,7 +29,7 @@ public sealed class IDMethodCashierDisplayNameTests
                 5000m, 0m, 0m, 0m, 5000m, 5000m, 0m, 0m, 0m, 0m, 0m,
                 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m, 0m),
             [],
-            new FfpPublicationStatus(true, 0, 0, null, null),
+            new ExternalPublicationStatus(true, 0, 0, null, null),
             Identification: new CustomerIdentificationContext(IDMethod.Name, "NAME SEARCH"));
 
         Order order = await service.CompleteAsync(new PosCheckoutRequest(
