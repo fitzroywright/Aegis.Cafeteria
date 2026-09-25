@@ -3,7 +3,6 @@ using Aegis.Cafeteria.Application.Accounts;
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Infrastructure.Configuration;
-using Aegis.Cafeteria.Infrastructure.Ffp;
 using Aegis.Cafeteria.Plugin.Integration;
 using Aegis.Cafeteria.Services.Development;
 using Aegis.Cafeteria.Services.Email;
@@ -17,7 +16,6 @@ using Common.Diagnostics;
 using Common.Registration;
 using Common.Secrets;
 using Microsoft.AspNetCore.Authentication.Negotiate;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace Aegis.Cafeteria.Services;
@@ -29,7 +27,6 @@ internal static class CafeteriaServicesHost
         builder.Host.UseWindowsService(options => options.ServiceName = "Aegis.Cafeteria.Services");
         builder.Configuration.AddEnvironmentVariables();
 
-        FfpIntegrationOptions ffp = BuildFfpIntegration(builder);
         IntegrationPluginOptions integrationPlugin = BuildIntegrationPlugin(builder);
         ManagementApiOptions management = builder.Configuration.GetSection("ManagementApi").Get<ManagementApiOptions>() ?? new();
         MonthOpeningOptions monthOpening = builder.Configuration.GetSection("MonthOpening").Get<MonthOpeningOptions>() ?? new();
@@ -37,7 +34,7 @@ internal static class CafeteriaServicesHost
         ExternalPublicationOptions externalPublication = builder.Configuration.GetSection("ExternalPublication").Get<ExternalPublicationOptions>() ?? new();
         string serviceDb = CafeteriaServiceDatabase.ResolveConnectionString(builder.Configuration);
 
-        RegisterOptions(builder.Services, ffp, integrationPlugin, management, monthOpening, scheduledEmail, externalPublication);
+        RegisterOptions(builder.Services, integrationPlugin, management, monthOpening, scheduledEmail, externalPublication);
         RegisterDiagnosticLevel(builder);
         RegisterIntegrationGateways(builder.Services);
         RegisterApplicationServices(builder.Services, serviceDb);
@@ -135,49 +132,9 @@ internal static class CafeteriaServicesHost
         return options;
     }
 
-    private static FfpIntegrationOptions BuildFfpIntegration(WebApplicationBuilder builder)
-    {
-        IConfigurationSection section = builder.Configuration.GetSection("FfpIntegration");
-        FfpIntegrationOptions configured = section.Get<FfpIntegrationOptions>() ?? new FfpIntegrationOptions();
-
-        if (!configured.Enabled)
-            throw new InvalidOperationException("Aegis.Cafeteria.Services requires FFP integration in every runtime environment.");
-
-        string server = section["Server"]?.Trim() ?? string.Empty;
-        string database = section["Database"]?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(server) || string.IsNullOrWhiteSpace(database))
-            throw new InvalidOperationException("FfpIntegration:Server and FfpIntegration:Database are required. Cafeteria Services uses Windows Integrated Security and does not accept stored SQL credentials.");
-
-        SqlConnectionStringBuilder connection = new()
-        {
-            DataSource = server,
-            InitialCatalog = database,
-            IntegratedSecurity = true,
-            Encrypt = section.GetValue("Encrypt", true),
-            TrustServerCertificate = section.GetValue("TrustServerCertificate", false),
-            ApplicationName = "Aegis.Cafeteria.Services"
-        };
-
-        return new FfpIntegrationOptions
-        {
-            Enabled = configured.Enabled,
-            ConnectionString = connection.ConnectionString,
-            AllowWrites = configured.AllowWrites,
-            RefreshIntervalMinutes = configured.RefreshIntervalMinutes,
-            CreditLimitLunchItemCode = configured.CreditLimitLunchItemCode,
-            SubsidyLunchItemCode = configured.SubsidyLunchItemCode,
-            MonthlyAllocationScanType = configured.MonthlyAllocationScanType,
-            PurchaseScanType = configured.PurchaseScanType,
-            StipendScanType = configured.StipendScanType,
-            RefundScanType = configured.RefundScanType,
-            AdjustmentScanType = configured.AdjustmentScanType
-        };
-    }
-
     private static void RegisterOptions
     (
           IServiceCollection services
-        , FfpIntegrationOptions ffp
         , IntegrationPluginOptions integrationPlugin
         , ManagementApiOptions management
         , MonthOpeningOptions monthOpening
@@ -185,7 +142,6 @@ internal static class CafeteriaServicesHost
         , ExternalPublicationOptions externalPublication
     )
     {
-        services.AddSingleton(ffp);
         services.AddSingleton(integrationPlugin);
         services.AddSingleton(management);
         services.AddSingleton(monthOpening);
@@ -205,18 +161,10 @@ internal static class CafeteriaServicesHost
         services.AddSingleton<IEmployeeFactSource>(sp => sp.GetRequiredService<IntegrationPlaneClient>());
         services.AddSingleton<IEmployeeIdScanPublisher>(sp => sp.GetRequiredService<IntegrationPlaneClient>());
         services.AddSingleton<IntegrationWorkforceReferenceSource>();
-        services.AddSingleton<FfpSqlConnectionFactory>();
-        services.AddSingleton<FfpEmployeeWorkforceSource>();
-        services.AddSingleton<FfpLunchItemBootstrapSource>();
-        services.AddSingleton<FfpFundingPolicyCompatibilityGateway>();
-        services.AddSingleton<FfpDevelopmentDataResetGateway>();
         services.AddSingleton<IWorkforceReferenceSource>(sp => sp.GetRequiredService<IntegrationWorkforceReferenceSource>());
-        services.AddSingleton<ILunchItemBootstrapSource>(sp => sp.GetRequiredService<FfpLunchItemBootstrapSource>());
-        services.AddSingleton<IFundingPolicyCompatibilityGateway>(sp => sp.GetRequiredService<FfpFundingPolicyCompatibilityGateway>());
         services.AddSingleton<CafeteriaLedgerQuery>();
         services.AddSingleton<CafeteriaMonthRecalculationGuard>();
         services.AddSingleton<IMonthRecalculationGuard>(sp => sp.GetRequiredService<CafeteriaMonthRecalculationGuard>());
-        services.AddSingleton<IDevelopmentDataResetGateway>(sp => sp.GetRequiredService<FfpDevelopmentDataResetGateway>());
         services.AddSingleton<CafeteriaPayrollLedgerSource>();
         services.AddSingleton<IPayrollLedgerSource>(sp => sp.GetRequiredService<CafeteriaPayrollLedgerSource>());
     }
