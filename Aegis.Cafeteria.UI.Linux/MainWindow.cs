@@ -349,6 +349,10 @@ public sealed class MainWindow : Window
         emailPreferences.Click += async (_, _) => await OpenEmployeeEmailPreferencesAsync();
         administration.Items.Add(emailPreferences);
 
+        MenuItem automaticOperations = new() { Header = "Automatic Operations..." };
+        automaticOperations.Click += async (_, _) => await OpenAutomaticOperationsAsync();
+        administration.Items.Add(automaticOperations);
+
         administration.Items.Add(new Separator());
         MenuItem diagnostics = new() { Header = "Diagnostics" };
         diagnostics.Click += (_, _) => OpenEngineeringDiagnostics();
@@ -362,6 +366,20 @@ public sealed class MainWindow : Window
     {
         CafeteriaServicesClient servicesClient = this.services.GetRequiredService<CafeteriaServicesClient>();
         EmployeeEmailPreferencesWindow window = new(this.identification, servicesClient);
+        await window.ShowDialog(this);
+        RegisterActivity();
+    }
+
+    private async Task OpenAutomaticOperationsAsync()
+    {
+        OperatorIdentity? manager = await AuthorizeManagerAsync("Automatic Cafeteria operation override");
+        if (manager is null)
+        {
+            return;
+        }
+
+        CafeteriaServicesClient servicesClient = this.services.GetRequiredService<CafeteriaServicesClient>();
+        AutomaticOperationsWindow window = new(servicesClient);
         await window.ShowDialog(this);
         RegisterActivity();
     }
