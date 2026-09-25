@@ -478,7 +478,15 @@ public sealed class MainForm : Form
     {
         var reportService = this.services.GetRequiredService<ICafeteriaReportService>();
         var exporters = this.services.GetServices<IReportExporter>();
-        using var dialog = new ReportRunnerDialog(reportService, this.identification, this.products, exporters, kind);
+        CafeteriaServicesClient servicesClient = this.services.GetRequiredService<CafeteriaServicesClient>();
+        using var dialog = new ReportRunnerDialog(
+              reportService
+            , this.identification
+            , this.products
+            , exporters
+            , kind
+            , servicesClient
+            , async () => await AuthorizeManagerAsync("Email Daily Sales Report") is not null);
         dialog.ShowDialog(this);
         RegisterActivity();
     }
