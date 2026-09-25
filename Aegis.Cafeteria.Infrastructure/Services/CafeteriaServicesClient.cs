@@ -12,14 +12,6 @@ public sealed record CustomerNotificationPreferenceSnapshot
     , string? EmailAddress
 );
 
-public sealed record ManagerReportSettingsSnapshot
-(
-      bool WeeklySummaryEnabled
-    , string? EmailAddress
-    , DayOfWeek WeeklySummaryDay
-    , int WeeklySummaryHourLocal
-);
-
 public sealed record MonthOperationResult
 (
       int Year
