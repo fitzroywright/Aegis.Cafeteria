@@ -372,8 +372,8 @@ public sealed class FfpManagerIntegrationProvider :
                 employeeId.ToString(CultureInfo.InvariantCulture),
                 name,
                 cardIdentifier ?? string.Empty,
-                isActive.ToString(CultureInfo.InvariantCulture),
-                isEligible.ToString(CultureInfo.InvariantCulture),
+                isActive ? "1" : "0",
+                isEligible ? "1" : "0",
                 eligibleFrom?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty
             ]);
 
@@ -439,12 +439,11 @@ public sealed class FfpManagerIntegrationProvider :
 
     private string ResolveConnectionString()
     {
-        string? value =
-            configuration["IntegrationPlugin:ConnectionString"]?.Trim();
-
-        value ??= configuration.GetConnectionString("FfpManager")?.Trim();
-        value ??= Environment.GetEnvironmentVariable("FFPMANAGER_CONNECTION_STRING")?.Trim();
-        value ??= Environment.GetEnvironmentVariable("FFPMANAGER_TEST")?.Trim();
+        string? value = FirstNonBlank(
+            configuration["IntegrationPlugin:ConnectionString"],
+            configuration.GetConnectionString("FfpManager"),
+            Environment.GetEnvironmentVariable("FFPMANAGER_CONNECTION_STRING"),
+            Environment.GetEnvironmentVariable("FFPMANAGER_TEST"));
 
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -513,6 +512,11 @@ public sealed class FfpManagerIntegrationProvider :
             throw new ArgumentOutOfRangeException(nameof(month));
         }
     }
+
+    private static string? FirstNonBlank(params string?[] values)
+        => values
+            .Select(value => value?.Trim())
+            .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 
     private static string BuildVersion(IEnumerable<string> values)
     {
