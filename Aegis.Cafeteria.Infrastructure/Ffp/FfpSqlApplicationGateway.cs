@@ -38,18 +38,26 @@ public sealed class FfpSqlApplicationGateway(FfpIntegrationOptions options, ILog
 
         const string sql = @"
 UPDATE dbo.LunchItems
-   SET Price = @Price,
-       Cost = @Cost
- WHERE Code = 'FFP00';
+   SET Price = @Price
+ WHERE Code = @CreditLimitCode;
 
 IF @@ROWCOUNT <> 1
-    THROW 51000, 'FFP00 compatibility policy row was not found or was not unique.', 1;";
+    THROW 51000, 'Configured credit-limit compatibility policy row was not found or was not unique.', 1;
+
+UPDATE dbo.LunchItems
+   SET Cost = @Cost
+ WHERE Code = @SubsidyCode;
+
+IF @@ROWCOUNT <> 1
+    THROW 51000, 'Configured subsidy compatibility policy row was not found or was not unique.', 1;";
 
         await using SqlConnection connection = new(options.ConnectionString);
         await connection.OpenAsync(cancellationToken);
         await using SqlCommand command = new(sql, connection);
         command.Parameters.AddWithValue("@Price", dailyCreditLimitRate);
         command.Parameters.AddWithValue("@Cost", dailyCompanySubsidyRate);
+        command.Parameters.AddWithValue("@CreditLimitCode", options.CreditLimitLunchItemCode);
+        command.Parameters.AddWithValue("@SubsidyCode", options.SubsidyLunchItemCode);
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
