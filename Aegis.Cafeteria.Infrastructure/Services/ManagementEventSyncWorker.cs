@@ -314,57 +314,11 @@ public sealed class ManagementEventSyncWorker : BackgroundService
                 break;
             }
 
-            case CafeteriaServiceEventKind.DevelopmentReset:
-            {
-                DevelopmentResetServiceEvent developmentReset = JsonSerializer.Deserialize<DevelopmentResetServiceEvent>(envelope.PayloadJson)
-                    ?? throw new InvalidOperationException("Invalid Development Reset event payload.");
-
-                await ResetLocalDevelopmentDataAsync(developmentReset.PreserveProducts, cancellationToken);
-
-                this.logger.LogWarning
-                (
-                      "Applied Development Cafeteria reset from {Actor} at {ResetAt}; products preserved: {PreserveProducts}"
-                    , developmentReset.ResetBy
-                    , developmentReset.ResetAt
-                    , developmentReset.PreserveProducts
-                );
-                break;
-            }
 
             default:
             {
                 throw new InvalidOperationException($"Unsupported Cafeteria Services event kind {envelope.Kind}.");
             }
-        }
-    }
-
-    private async Task ResetLocalDevelopmentDataAsync
-    (
-          bool preserveProducts
-        , CancellationToken cancellationToken
-    )
-    {
-        await using LocalCafeteriaDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
-
-        await database.OrderRefundItems.ExecuteDeleteAsync(cancellationToken);
-        await database.RefundAllocations.ExecuteDeleteAsync(cancellationToken);
-        await database.OrderRefunds.ExecuteDeleteAsync(cancellationToken);
-        await database.OrderItems.ExecuteDeleteAsync(cancellationToken);
-        await database.OrderPayments.ExecuteDeleteAsync(cancellationToken);
-        await database.Orders.ExecuteDeleteAsync(cancellationToken);
-        await database.AccountEvents.ExecuteDeleteAsync(cancellationToken);
-        await database.AccountPeriods.ExecuteDeleteAsync(cancellationToken);
-        await database.MonthlyCreditAllocations.ExecuteDeleteAsync(cancellationToken);
-        await database.WeeklySummaryDispatches.ExecuteDeleteAsync(cancellationToken);
-        await database.CustomerIdentifiers.ExecuteDeleteAsync(cancellationToken);
-        await database.Customers.ExecuteDeleteAsync(cancellationToken);
-        await database.Holidays.ExecuteDeleteAsync(cancellationToken);
-        await database.CafeteriaRatePolicies.ExecuteDeleteAsync(cancellationToken);
-        await database.FfpLedgerOutbox.ExecuteDeleteAsync(cancellationToken);
-
-        if (!preserveProducts)
-        {
-            await database.Products.ExecuteDeleteAsync(cancellationToken);
         }
     }
 
@@ -404,86 +358,6 @@ public sealed class ManagementEventSyncWorker : BackgroundService
         await database.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task ApplyLegacyTransactionImportAsync
-    (
-          LegacyTransactionImportServiceEvent import
-        , CancellationToken cancellationToken
-    )
-    {
-        await using LocalCafeteriaDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
-
-        bool exists = await database.FfpImportedTransactions.AnyAsync
-        (
-              row => row.SourceId == import.SourceId
-            , cancellationToken
-        );
-
-        if (exists)
-        {
-            return;
-        }
-
-        database.FfpImportedTransactions.Add
-        (
-            new FfpImportedTransactionRow
-            {
-                  SourceId = import.SourceId
-                , CustomerId = import.CustomerId
-                , Year = import.Year
-                , Month = import.Month
-                , OccurredAt = import.OccurredAt
-                , IdName = import.IdName
-                , Description = import.Description
-                , ScanValue = import.ScanValue
-                , UserName = import.UserName
-                , ScanCode = import.ScanCode
-                , ScanType = import.ScanType
-                , ImportedAt = import.ImportedAt
-            }
-        );
-
-        AccountEventRow? accountEvent = await database.AccountEvents.SingleOrDefaultAsync
-        (
-              row => row.Id == import.OperationId
-            , cancellationToken
-        );
-
-        if (accountEvent is null)
-        {
-            database.AccountEvents.Add
-            (
-                new AccountEventRow
-                {
-                      Id = import.OperationId
-                    , EventType = "ImportedFfpTransaction"
-                    , CustomerId = import.CustomerId
-                    , AccountYear = import.Year
-                    , AccountMonth = import.Month
-                    , Amount = import.ScanValue
-                    , PayloadJson = JsonSerializer.Serialize
-                    (
-                        new LegacyTransactionLedgerSnapshot
-                        (
-                              import.SourceId
-                            , import.CustomerId
-                            , import.OccurredAt
-                            , import.IdName
-                            , import.Description
-                            , import.ScanValue
-                            , import.UserName
-                            , import.ScanCode
-                            , import.ScanType
-                        )
-                    )
-                    , OccurredAt = import.OccurredAt
-                    , Revision = DateTimeOffset.UtcNow.UtcDateTime.Ticks
-                    , UpdatedAt = DateTimeOffset.UtcNow
-                }
-            );
-        }
-
-        await database.SaveChangesAsync(cancellationToken);
-    }
 
     private async Task ReplaceMonthlyCreditAllocationAsync
     (
