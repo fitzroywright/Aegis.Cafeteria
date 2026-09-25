@@ -119,6 +119,27 @@ public sealed class CafeteriaServicesClient(HttpClient http)
             cancellationToken);
     }
 
+    public async Task EmailDailySalesReportAsync(
+        DateOnly date,
+        IReadOnlyCollection<string> recipients,
+        string attachmentFileName,
+        byte[] attachmentContent,
+        CancellationToken cancellationToken = default)
+    {
+        await SendAsync(
+            HttpMethod.Post,
+            "api/management/reports/daily-sales/send",
+            new
+            {
+                  Date = date
+                , Recipients = recipients
+                , AttachmentFileName = attachmentFileName
+                , AttachmentContentType = "application/pdf"
+                , AttachmentContent = attachmentContent
+            },
+            cancellationToken);
+    }
+
     public async Task ResendDailySalesReportAsync(
         DateOnly date,
         CancellationToken cancellationToken = default)
