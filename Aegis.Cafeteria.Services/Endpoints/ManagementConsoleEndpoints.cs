@@ -10,7 +10,7 @@ internal static class ManagementConsoleEndpoints
         app.MapGet("/management", () => Results.Redirect("/management/"));
 
         app.MapGet("/management/login", (HttpContext http) =>
-            http.User.Identity?.IsAuthenticated == true
+            http.User.IsInRole("CafeteriaManager")
                 ? Results.Redirect("/management/")
                 : Results.Content(BuildLoginPage(), "text/html"));
 
@@ -20,8 +20,10 @@ internal static class ManagementConsoleEndpoints
         app.MapGet("/management/api/session", GetSession)
             .RequireAuthorization("CafeteriaManagement");
 
-        app.MapGet("/management/", () => ManagementFile(app, "index.html", "text/html"))
-            .RequireAuthorization("CafeteriaManagement");
+        app.MapGet("/management/", (HttpContext http) =>
+            http.User.IsInRole("CafeteriaManager")
+                ? ManagementFile(app, "index.html", "text/html")
+                : Results.Redirect("/management/login"));
         app.MapGet("/management/app.js", () => ManagementFile(app, "app.js", "text/javascript"))
             .RequireAuthorization("CafeteriaManagement");
         app.MapGet("/management/daily-sales.js", () => ManagementFile(app, "daily-sales.js", "text/javascript"))
@@ -91,8 +93,18 @@ internal static class ManagementConsoleEndpoints
         return Results.Redirect("/management/");
     }
 
-    private static IResult SignOutAsync(HttpContext http)
+    private static IResult SignOutAsync(
+        HttpContext http,
+        ManagementCommonSecurityAuthenticationRuntime runtime)
     {
+        if (http.Request.Cookies.TryGetValue(
+            ManagementCommonSecurityAuthenticationExtensions.ManagementConsoleCookieName,
+            out string? token)
+            && !string.IsNullOrWhiteSpace(token))
+        {
+            runtime.RemoveSession(token);
+        }
+
         http.Response.Cookies.Delete(
             ManagementCommonSecurityAuthenticationExtensions.ManagementConsoleCookieName,
             new CookieOptions
