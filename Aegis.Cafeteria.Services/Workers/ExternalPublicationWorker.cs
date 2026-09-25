@@ -122,9 +122,31 @@ public sealed class ExternalPublicationWorker(
             CafeteriaServiceEventKind.DevelopmentReset => null,
             CafeteriaServiceEventKind.ProductCatalogImport => null,
             CafeteriaServiceEventKind.LegacyTransactionImport => null,
+            CafeteriaServiceEventKind.PosTransaction => null,
+            CafeteriaServiceEventKind.ExternalLedgerEntry => BuildExternalLedgerEntry(envelope),
             _ => throw new InvalidOperationException(
                 $"Unsupported outbound Cafeteria event kind {envelope.Kind}.")
         };
+    }
+
+    private static CafeteriaOutboundTransaction BuildExternalLedgerEntry(
+        CafeteriaServiceEventEnvelope envelope)
+    {
+        ExternalLedgerEntry value = JsonSerializer.Deserialize<ExternalLedgerEntry>(
+            envelope.PayloadJson)
+            ?? throw new InvalidOperationException(
+                "Invalid Cafeteria ledger event payload.");
+
+        return new CafeteriaOutboundTransaction(
+            value.OperationId,
+            value.CustomerId,
+            value.Kind.ToString(),
+            value.OccurredAt,
+            value.ScanValue,
+            value.Description,
+            value.ScanCode,
+            value.UserName,
+            value.Code);
     }
 
     private static CafeteriaOutboundTransaction BuildAdditionalCredit(
