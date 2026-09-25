@@ -305,14 +305,6 @@ public sealed class ManagementEventSyncWorker : BackgroundService
                 break;
             }
 
-            case CafeteriaServiceEventKind.LegacyTransactionImport:
-            {
-                LegacyTransactionImportServiceEvent legacyImport = JsonSerializer.Deserialize<LegacyTransactionImportServiceEvent>(envelope.PayloadJson)
-                    ?? throw new InvalidOperationException("Invalid Legacy Transaction Import event payload.");
-
-                await ApplyLegacyTransactionImportAsync(legacyImport, cancellationToken);
-                break;
-            }
 
 
             default:
