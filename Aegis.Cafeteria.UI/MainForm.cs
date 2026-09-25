@@ -486,7 +486,7 @@ public sealed class MainForm : Form
             , exporters
             , kind
             , servicesClient
-            , async () => await AuthorizeManagerAsync("Email Daily Sales Report") is not null);
+            , async () => (await AuthorizeManagerAsync("Email Daily Sales Report")) is not null);
         dialog.ShowDialog(this);
         RegisterActivity();
     }
