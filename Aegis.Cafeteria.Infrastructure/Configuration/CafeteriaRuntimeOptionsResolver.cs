@@ -68,7 +68,6 @@ public static class CafeteriaRuntimeOptionsResolver
     {
         IConfigurationSection p = configuration.GetSection("Persistence");
         IConfigurationSection log = configuration.GetSection("Logging");
-        IConfigurationSection ffp = configuration.GetSection("FfpIntegration");
         IConfigurationSection health = configuration.GetSection("Health");
         IConfigurationSection messaging = configuration.GetSection("Messaging");
         IConfigurationSection svc = configuration.GetSection("CafeteriaServices");
@@ -77,23 +76,6 @@ public static class CafeteriaRuntimeOptionsResolver
             : new BitwardenSecretsManagerOptions();
         bool servicesEnabled = svc.GetValue("Enabled", false);
         bool developmentDataEnabled = configuration.GetSection("DevelopmentData").GetValue("Enabled", false);
-        bool ffpEnabled = allowDirectFfpDatabase && ffp.GetValue("Enabled", true);
-        string? configuredFfpConnectionString = ffp["ConnectionString"];
-        string ffpConnectionString = string.Empty;
-
-        if (allowDirectFfpDatabase && ffpEnabled && !servicesEnabled)
-        {
-            if (secrets is null)
-                throw new InvalidOperationException("Direct FFP database access requires a service-side secret provider.");
-
-            ffpConnectionString = !string.IsNullOrWhiteSpace(configuredFfpConnectionString)
-                ? configuredFfpConnectionString.Trim()
-                : await secrets.GetSecretAsync(ApplicationSecretNames.FfpDatabaseConnectionString, cancellationToken) ?? string.Empty;
-
-            if (!developmentDataEnabled && string.IsNullOrWhiteSpace(ffpConnectionString))
-                throw new InvalidOperationException("FFP integration is enabled but no FfpIntegration:ConnectionString or FfpDatabaseConnectionString secret is configured.");
-        }
-
         string? messagingToken = allowRemoteSecrets && messaging.GetValue("Enabled", false) && secrets is not null
             ? await secrets.GetSecretAsync(ApplicationSecretNames.MessagingBearerToken, cancellationToken)
             : null;
@@ -111,21 +93,6 @@ public static class CafeteriaRuntimeOptionsResolver
             GraylogPort = log.GetValue("GraylogPort", 12201),
             LocalLogPath = log["LocalLogPath"] ?? "",
             RetainedFileCountLimit = log.GetValue("RetainedFileCountLimit", 31)
-        };
-        FfpIntegrationOptions ffpOptions = new()
-        {
-            Enabled = ffpEnabled,
-            ConnectionString = ffpConnectionString,
-            AllowWrites = ffp.GetValue("AllowWrites", true),
-            RefreshIntervalMinutes = Math.Max(1, ffp.GetValue("RefreshIntervalMinutes", 10)),
-            PublicationTimeoutSeconds = Math.Clamp(ffp.GetValue("PublicationTimeoutSeconds", 120), 15, 600),
-            CreditLimitLunchItemCode = ffp["CreditLimitLunchItemCode"]?.Trim() ?? "FFP00",
-            SubsidyLunchItemCode = ffp["SubsidyLunchItemCode"]?.Trim() ?? "FFP00",
-            MonthlyAllocationScanType = ffp.GetValue("MonthlyAllocationScanType", 3),
-            PurchaseScanType = ffp.GetValue("PurchaseScanType", 8),
-            StipendScanType = ffp.GetValue("StipendScanType", 4),
-            RefundScanType = ffp.GetValue("RefundScanType", 9),
-            AdjustmentScanType = ffp.GetValue("AdjustmentScanType", 9)
         };
         CafeteriaHealthOptions healthOptions = new()
         {
@@ -166,7 +133,7 @@ public static class CafeteriaRuntimeOptionsResolver
             HubPath = svc["HubPath"]?.Trim() ?? "/hubs/cafeteria",
             RealtimeReconnectSeconds = Math.Max(2, svc.GetValue("RealtimeReconnectSeconds", 5))
         };
-        return new CafeteriaRuntimeOptions(persistence, logging, sm, ffpOptions, healthOptions, messagingOptions, servicesOptions);
+        return new CafeteriaRuntimeOptions(persistence, logging, sm, healthOptions, messagingOptions, servicesOptions);
     }
 
     private static string? NullIfWhiteSpace(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
