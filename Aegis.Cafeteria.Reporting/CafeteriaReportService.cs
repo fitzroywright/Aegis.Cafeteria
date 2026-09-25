@@ -505,10 +505,7 @@ public sealed class CafeteriaReportService(
     {
         var gateway=services.GetService<IExternalAccountingGateway>();
         if(gateway is null)return Doc(CafeteriaReportKind.ExternalSystemReconciliation,"External system reconciliation",f,[],[],[],["External accounting integration is unavailable; live reconciliation cannot run."]);
-        var external=(await gateway.GetAccountSummariesAsync(ct)).ToDictionary(x=>x.CustomerId);var positions=await LoadAccountPositionsAsync(f,ct);var latest=positions.GroupBy(x=>x.View.Customer.Id).Select(g=>g.OrderByDescending(x=>x.Year).ThenByDescending(x=>x.Month).First()).ToArray();
-        var rows=latest.Select(x=>{external.TryGetValue(x.View.Customer.Id,out var e);var a=x.View.FinancialStatus;var externalLimit=e?.CreditLimit??0;var externalBalance=e?.AvailableBalance??0;return Row(("employee",x.View.Customer.Name),("cafeteriaLimit",a.CreditLimit),("externalLimit",externalLimit),("limitDiff",a.CreditLimit-externalLimit),("cafeteriaBalance",a.TotalAvailableToSpend),("externalBalance",externalBalance),("balanceDiff",a.TotalAvailableToSpend-externalBalance));}).ToArray();
-        var mismatches=rows.Count(x=>Math.Abs(Convert.ToDecimal(x["limitDiff"]))>0.01m||Math.Abs(Convert.ToDecimal(x["balanceDiff"]))>0.01m);
-        return Doc(CafeteriaReportKind.ExternalSystemReconciliation,"External system reconciliation",f,[new("Employees checked",rows.Length,"integer"),new("Mismatches",mismatches,"integer")],[],[new("Balance comparison",[new("employee","Employee"),new("cafeteriaLimit","Cafeteria credit limit","currency"),new("externalLimit","External credit limit","currency"),new("limitDiff","Limit difference","currency"),new("cafeteriaBalance","Cafeteria available","currency"),new("externalBalance","External available","currency"),new("balanceDiff","Balance difference","currency")],rows)]);
+        return Doc(CafeteriaReportKind.ExternalSystemReconciliation,"External system reconciliation",f,[],[],[],["External accounting integration is write-only; live balance reconciliation is not available through this boundary."]);
     }
 
     private async Task<SalesData> LoadSalesAsync(ReportFilter f,CancellationToken ct)
