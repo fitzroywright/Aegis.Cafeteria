@@ -136,6 +136,7 @@ internal sealed class EmployeeAmountDueDialog : Form
         finally
         {
             ToggleBusy(false);
+            this.send.Enabled = true;
         }
     }
 
