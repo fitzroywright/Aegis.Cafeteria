@@ -5,7 +5,6 @@ namespace Aegis.Cafeteria.Services;
 
 internal static class CafeteriaConfigurationCodeDefaults
 {
-    private static readonly FfpIntegrationOptions Ffp = new();
     private static readonly ManagementApiOptions Management = new();
     private static readonly MonthOpeningOptions MonthOpening = new();
     private static readonly ScheduledEmailOptions Email = new();
@@ -16,16 +15,6 @@ internal static class CafeteriaConfigurationCodeDefaults
     {
         "ServicePersistence:ConnectionString" => "Data Source=cafeteria.services.db",
 
-        "FfpIntegration:Enabled" => Bool(Ffp.Enabled),
-        "FfpIntegration:CreditLimitLunchItemCode" => Text(Ffp.CreditLimitLunchItemCode),
-        "FfpIntegration:SubsidyLunchItemCode" => Text(Ffp.SubsidyLunchItemCode),
-        "FfpIntegration:MonthlyAllocationScanType" => Number(Ffp.MonthlyAllocationScanType),
-        "FfpIntegration:PurchaseScanType" => Number(Ffp.PurchaseScanType),
-        "FfpIntegration:StipendScanType" => Number(Ffp.StipendScanType),
-        "FfpIntegration:RefundScanType" => Number(Ffp.RefundScanType),
-        "FfpIntegration:AdjustmentScanType" => Number(Ffp.AdjustmentScanType),
-        "FfpIntegration:Encrypt" => "true", // BuildTrustedFfpOptions uses GetValue("Encrypt", true).
-        "FfpIntegration:TrustServerCertificate" => "false", // BuildTrustedFfpOptions uses GetValue(..., false).
 
         "ManagementApi:AuthorizedGroups" => List(Management.AuthorizedGroups),
 
