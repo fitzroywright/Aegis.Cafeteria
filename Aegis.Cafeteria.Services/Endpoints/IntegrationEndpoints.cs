@@ -28,9 +28,8 @@ internal static class IntegrationEndpoints
     private static Task<IResult> PublishLedgerEndpointAsync(
         ExternalLedgerEntry entry,
         ServiceEventStore store,
-        HttpContext http,
         CancellationToken ct)
-        => PublishLedgerAsync(http.RequestServices.GetRequiredService<IWebHostEnvironment>(), entry, store, ct);
+        => PublishLedgerAsync(entry, store, ct);
 
     private static async Task<IResult> GetCustomersAsync(IWorkforceReferenceSource source, CustomerCreditPolicyStore policies, CancellationToken ct)
     {
@@ -40,15 +39,10 @@ internal static class IntegrationEndpoints
     }
 
     private static async Task<IResult> PublishLedgerAsync(
-        IWebHostEnvironment environment,
         ExternalLedgerEntry entry,
         ServiceEventStore store,
         CancellationToken ct)
     {
-        DateTimeOffset? latestResetAt = await store.GetLatestDevelopmentResetAtAsync(ct);
-        if (environment.IsDevelopment() && latestResetAt is DateTimeOffset resetAt && entry.OccurredAt <= resetAt)
-            return Results.Ok(new { ignored = true, reason = "Entry predates the latest Development reset." });
-
         await store.AppendAsync(
             entry.OperationId,
             Aegis.Cafeteria.Domain.Services.CafeteriaServiceEventKind.ExternalLedgerEntry,
