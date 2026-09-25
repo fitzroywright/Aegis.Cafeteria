@@ -235,12 +235,18 @@ internal static class CafeteriaServicesHost
             options.AddPolicy("CafeteriaManagement", policy =>
             {
                 policy.RequireAuthenticatedUser();
-                policy.RequireAssertion(context => management.AuthorizedGroups.Length == 0 || management.AuthorizedGroups.Any(context.User.IsInRole));
+                policy.RequireAssertion(context =>
+                    context.User.IsInRole("CafeteriaManager")
+                    || management.AuthorizedGroups.Length == 0
+                    || management.AuthorizedGroups.Any(context.User.IsInRole));
             });
             options.AddPolicy("EngineeringDiagnostics", policy =>
             {
                 policy.RequireAuthenticatedUser();
-                policy.RequireAssertion(context => management.AuthorizedGroups.Length == 0 || management.AuthorizedGroups.Any(context.User.IsInRole));
+                policy.RequireAssertion(context =>
+                    context.User.IsInRole("CafeteriaManager")
+                    || management.AuthorizedGroups.Length == 0
+                    || management.AuthorizedGroups.Any(context.User.IsInRole));
             });
         });
     }
