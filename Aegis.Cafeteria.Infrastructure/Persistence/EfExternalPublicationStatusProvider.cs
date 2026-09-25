@@ -18,21 +18,21 @@ public sealed class EfExternalPublicationStatusProvider(
         await using LocalCafeteriaDbContext database =
             await factory.CreateDbContextAsync(cancellationToken);
 
-        List<FfpLedgerOutboxRow> rows = await database.FfpLedgerOutbox
+        List<ExternalLedgerOutboxRow> rows = await database.ExternalLedgerOutbox
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
         int pending = rows.Count(row =>
-            row.State is FfpOutboxState.Pending
-                or FfpOutboxState.Failed
-                or FfpOutboxState.Processing);
+            row.State is ExternalOutboxState.Pending
+                or ExternalOutboxState.Failed
+                or ExternalOutboxState.Processing);
 
         int poisoned = rows.Count(row =>
-            row.State == FfpOutboxState.Poisoned);
+            row.State == ExternalOutboxState.Poisoned);
 
         DateTimeOffset? last = rows
             .Where(row =>
-                row.State == FfpOutboxState.Succeeded
+                row.State == ExternalOutboxState.Succeeded
                 && row.LastAttemptAt.HasValue)
             .Select(row => row.LastAttemptAt)
             .OrderByDescending(value => value)
@@ -40,8 +40,8 @@ public sealed class EfExternalPublicationStatusProvider(
 
         string? error = rows
             .Where(row =>
-                row.State is FfpOutboxState.Failed
-                    or FfpOutboxState.Poisoned)
+                row.State is ExternalOutboxState.Failed
+                    or ExternalOutboxState.Poisoned)
             .OrderByDescending(row => row.LastAttemptAt)
             .Select(row => row.LastError)
             .FirstOrDefault();
