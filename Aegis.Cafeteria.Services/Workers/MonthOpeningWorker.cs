@@ -6,6 +6,7 @@ using Aegis.Cafeteria.Domain.Accounts;
 using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Services.Persistence;
 
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
