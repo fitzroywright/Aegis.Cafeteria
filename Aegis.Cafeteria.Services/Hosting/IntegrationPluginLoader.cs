@@ -1,4 +1,4 @@
-namespace Aegis.Cafeteria.Services.Hosting;
+namespace Aegis.Cafeteria.Services;
 
 using Aegis.Cafeteria.Application.Integration;
 using System.Reflection;
