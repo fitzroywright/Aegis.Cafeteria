@@ -19,6 +19,8 @@ public sealed class MonthOpeningOptions
 {
     public bool Enabled { get; init; } = true;
     public int RunHourLocal { get; init; } = 1;
+    public bool AutomaticCloseEnabled { get; init; } = true;
+    public int CloseHourLocal { get; init; } = 1;
 }
 
 public sealed class ScheduledEmailOptions
@@ -30,6 +32,8 @@ public sealed class ScheduledEmailOptions
     public string FromAddress { get; init; } = string.Empty;
     public string[] DailySummaryRecipients { get; init; } = [];
     public int DailySummaryHourLocal { get; init; } = 17;
+    public bool DailySalesReportEnabled { get; init; } = true;
+    public int DailySalesReportHourLocal { get; init; } = 6;
     public DayOfWeek WeeklyEmployeeDay { get; init; } = DayOfWeek.Monday;
     public int WeeklyEmployeeHourLocal { get; init; } = 8;
     public string EmployeeEmailColumn { get; init; } = "Email";
