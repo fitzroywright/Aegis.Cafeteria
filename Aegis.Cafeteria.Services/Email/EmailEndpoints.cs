@@ -19,7 +19,15 @@ public sealed record ManagerReportSettingsRequest
 );
 
 public sealed record TestEmailRequest(string EmailAddress);
-public sealed record DailySalesReportRequest(DateOnly Date);
+public sealed record DailySalesReportRequest
+(
+      DateOnly Date
+    , string[]? Recipients = null
+    , string? AttachmentFileName = null
+    , string? AttachmentContentType = null
+    , byte[]? AttachmentContent = null
+);
+public sealed record ManagerWeeklySummaryRequest(DateOnly WeekStart);
 
 public static class EmailEndpoints
 {
@@ -129,9 +137,40 @@ public static class EmailEndpoints
 
         app.MapPost
         (
+              "/api/management/reports/weekly-manager/send"
+            , async (
+                  ManagerWeeklySummaryRequest request
+                , Aegis.Cafeteria.Services.Workers.ScheduledEmailWorker worker
+                , CancellationToken cancellationToken) =>
+            {
+                if (request.WeekStart.DayOfWeek != DayOfWeek.Monday)
+                {
+                    return Results.BadRequest(new { error = "Manager weekly summary start date must be a Monday." });
+                }
+
+                if (request.WeekStart >= DateOnly.FromDateTime(DateTime.Today))
+                {
+                    return Results.BadRequest(new { error = "Only a completed week can be resent." });
+                }
+
+                try
+                {
+                    await worker.ResendManagerWeeklySummaryAsync(request.WeekStart, cancellationToken);
+                    return Results.Accepted();
+                }
+                catch (InvalidOperationException exception)
+                {
+                    return Results.Conflict(new { error = exception.Message });
+                }
+            }
+        ).RequireAuthorization("CafeteriaManagement");
+
+        app.MapPost
+        (
               "/api/management/reports/daily-sales/send"
             , async (
                   DailySalesReportRequest request
+                , HttpContext http
                 , FfpEmailReportSource reports
                 , IDbContextFactory<ServiceDbContext> factory
                 , CancellationToken cancellationToken) =>
@@ -143,11 +182,53 @@ public static class EmailEndpoints
 
                 NotificationPreferenceStore settingsStore = new(factory);
                 ManagerReportSettings settings = await settingsStore.GetManagerAsync(cancellationToken);
-                string recipient = EmailAddressValidator.Normalize(settings.EmailAddress)
-                    ?? string.Empty;
-                if (recipient.Length == 0)
+
+                string[] recipients;
+                try
                 {
-                    return Results.BadRequest(new { error = "Configure the Manager email in Email & Reports before sending a Daily Sales Report." });
+                    recipients = (request.Recipients ?? [])
+                        .Where(value => !string.IsNullOrWhiteSpace(value))
+                        .Select(EmailAddressValidator.Normalize)
+                        .Where(value => value is not null)
+                        .Select(value => value!)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToArray();
+
+                    if (recipients.Length == 0)
+                    {
+                        string? defaultRecipient = EmailAddressValidator.Normalize(settings.EmailAddress);
+                        recipients = defaultRecipient is null ? [] : [defaultRecipient];
+                    }
+                }
+                catch (ArgumentException exception)
+                {
+                    return Results.BadRequest(new { error = exception.Message });
+                }
+
+                if (recipients.Length == 0)
+                {
+                    return Results.BadRequest(new { error = "Enter at least one recipient or configure the Manager email address." });
+                }
+
+                EmailAttachment[] attachments = [];
+                if (request.AttachmentContent is { Length: > 0 })
+                {
+                    if (request.AttachmentContent.Length > 10 * 1024 * 1024)
+                    {
+                        return Results.BadRequest(new { error = "The report attachment exceeds the 10 MB email limit." });
+                    }
+
+                    string fileName = string.IsNullOrWhiteSpace(request.AttachmentFileName)
+                        ? $"Cafeteria-Daily-Sales-{request.Date:yyyy-MM-dd}.pdf"
+                        : Path.GetFileName(request.AttachmentFileName.Trim());
+                    string contentType = string.IsNullOrWhiteSpace(request.AttachmentContentType)
+                        ? "application/pdf"
+                        : request.AttachmentContentType.Trim();
+
+                    attachments =
+                    [
+                        new EmailAttachment(fileName, contentType, request.AttachmentContent)
+                    ];
                 }
 
                 DailyLedgerSummary summary = await reports.GetDailySummaryAsync(request.Date, cancellationToken);
@@ -184,13 +265,41 @@ public static class EmailEndpoints
                     $"Stipend Card Reductions: {summary.StipendReductions:C}\n";
 
                 OutboundEmailQueue queue = new(factory);
-                await queue.EnqueueAsync
+                string requestId = Guid.NewGuid().ToString("N");
+
+                foreach (string recipient in recipients)
+                {
+                    await queue.EnqueueAsync
+                    (
+                          $"daily-sales-manual:{request.Date:yyyyMMdd}:{requestId}:{recipient.ToLowerInvariant()}"
+                        , recipient
+                        , $"Cafeteria Daily Sales Report - {request.Date:yyyy-MM-dd}"
+                        , body
+                        , attachments
+                        , cancellationToken
+                    );
+                }
+
+                string actor = http.User.Identity?.Name ?? "SYSTEM";
+                AuditTrailService audit = new(factory);
+                await audit.RecordAsync
                 (
-                      $"daily-sales-manual:{request.Date:yyyyMMdd}:{Guid.NewGuid():N}"
-                    , recipient
-                    , $"Cafeteria Daily Sales Report - {request.Date:yyyy-MM-dd}"
-                    , body
-                    , cancellationToken
+                      actor
+                    , "DailySalesReportEmailRequested"
+                    , "DailySalesReport"
+                    , request.Date.ToString("yyyy-MM-dd")
+                    , source: "Aegis.Cafeteria.Services"
+                    , succeeded: true
+                    , statusCode: StatusCodes.Status202Accepted
+                    , after: new
+                    {
+                          request.Date
+                        , Recipients = recipients
+                        , ReportStatus = reportStatus
+                        , HasAttachment = attachments.Length > 0
+                    }
+                    , detail: $"Daily Sales Report queued for {recipients.Length} recipient(s)."
+                    , cancellationToken: cancellationToken
                 );
 
                 return Results.Accepted
@@ -198,11 +307,12 @@ public static class EmailEndpoints
                     value: new
                     {
                           date = request.Date
-                        , recipient
+                        , recipients
                         , reportStatus
                         , lastSuccessfulSync
                         , pendingSyncOperations = pending
                         , failedSyncOperations = failed
+                        , attachmentIncluded = attachments.Length > 0
                     }
                 );
             }

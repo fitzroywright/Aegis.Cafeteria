@@ -19,7 +19,7 @@ public sealed class FfpSqlLiveIntegrationTests
         if (!LiveReadEnabled()) return;
 
         FfpIntegrationOptions options = Options(allowWrites: false);
-        FfpSqlApplicationGateway gateway = new(options, NullLogger<FfpSqlApplicationGateway>.Instance);
+        FfpEmployeeWorkforceSource gateway = new(options);
 
         IReadOnlyList<ExternalCustomerSnapshot> employees = await gateway.GetCustomersAsync();
         Assert.NotEmpty(employees);
@@ -99,7 +99,7 @@ WHERE TABLE_SCHEMA = 'dbo'
 
         FfpIntegrationOptions options = Options(allowWrites: true);
         Assert.Equal(8, options.PurchaseScanType);
-        FfpSqlApplicationGateway gateway = new(options, NullLogger<FfpSqlApplicationGateway>.Instance);
+        FfpAccountingGateway gateway = new(options, new FfpSqlConnectionFactory(options), NullLogger<FfpAccountingGateway>.Instance);
 
         try
         {

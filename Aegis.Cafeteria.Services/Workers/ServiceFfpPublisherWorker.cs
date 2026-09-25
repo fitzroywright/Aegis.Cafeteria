@@ -92,6 +92,7 @@ public sealed class ServiceFfpPublisherWorker(
             CafeteriaServiceEventKind.Stipend => await BuildStipendAsync(envelope, cancellationToken),
             CafeteriaServiceEventKind.MonthlyAllocation => await BuildMonthlyAllocationAsync(envelope, cancellationToken),
             CafeteriaServiceEventKind.MonthlyAllocationRecalculation => await BuildMonthlyAllocationRecalculationAsync(envelope, cancellationToken),
+            CafeteriaServiceEventKind.AccountPeriodClose => null,
             CafeteriaServiceEventKind.DevelopmentReset => null,
             CafeteriaServiceEventKind.ProductCatalogImport => null,
             CafeteriaServiceEventKind.LegacyTransactionImport => null,

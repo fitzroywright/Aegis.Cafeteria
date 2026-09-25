@@ -18,7 +18,7 @@ public sealed class ServicesIntegrationGatewayPhotoTests
             (
                 (request, cancellationToken) =>
                 {
-                    Assert.True(request.RequestUri?.AbsoluteUri.EndsWith("api/ffp/customers", StringComparison.OrdinalIgnoreCase) == true);
+                    Assert.True(request.RequestUri?.AbsoluteUri.EndsWith("api/reference/customers", StringComparison.OrdinalIgnoreCase) == true);
                     requests++;
                     ExternalCustomerSnapshot[] response =
                     [

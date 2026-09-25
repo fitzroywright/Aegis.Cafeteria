@@ -3,6 +3,7 @@ using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Reporting;
 using Aegis.Cafeteria.Reporting.Export;
 using Aegis.Cafeteria.Reporting.Models;
+using Aegis.Cafeteria.Infrastructure.Services;
 
 namespace Aegis.Cafeteria.UI;
 
@@ -18,6 +19,8 @@ internal sealed class ReportRunnerDialog : Form
     private readonly ICustomerIdentificationService identification;
     private readonly IProductCatalogQuery products;
     private readonly IReadOnlyDictionary<string, IReportExporter> exporters;
+    private readonly CafeteriaServicesClient servicesClient;
+    private readonly Func<Task<bool>> authorizeEmail;
 
     private readonly ComboBox report = new() { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
     private readonly DateTimePicker from = new() { Format = DateTimePickerFormat.Short, Width = 130 };
@@ -38,6 +41,7 @@ internal sealed class ReportRunnerDialog : Form
     private readonly Button saveCsv = new() { Text = "CSV", Width = 92, Height = 40 };
     private readonly Button saveExcel = new() { Text = "Excel", Width = 100, Height = 40 };
     private readonly Button savePdf = new() { Text = "PDF", Width = 92, Height = 40 };
+    private readonly Button emailReport = new() { Text = "Email Report", Width = 120, Height = 40, Visible = false };
 
     private int? employeeId;
     private IReadOnlyList<ProductCatalogItem> productItems = [];
@@ -47,12 +51,16 @@ internal sealed class ReportRunnerDialog : Form
         ICustomerIdentificationService identification,
         IProductCatalogQuery products,
         IEnumerable<IReportExporter> exporters,
-        CafeteriaReportKind initialKind)
+        CafeteriaReportKind initialKind,
+        CafeteriaServicesClient servicesClient,
+        Func<Task<bool>> authorizeEmail)
     {
         this.reports = reports;
         this.identification = identification;
         this.products = products;
         this.exporters = exporters.ToDictionary(x => x.Format, StringComparer.OrdinalIgnoreCase);
+        this.servicesClient = servicesClient;
+        this.authorizeEmail = authorizeEmail;
 
         Text = "Reports - Cafeteria";
         StartPosition = FormStartPosition.CenterParent;
@@ -64,6 +72,10 @@ internal sealed class ReportRunnerDialog : Form
         var today = DateTime.Today;
         this.from.Value = new DateTime(today.Year, today.Month, 1);
         this.to.Value = today;
+        if (initialKind == CafeteriaReportKind.DailySales)
+        {
+            this.from.Value = today;
+        }
 
         foreach (var item in this.reports.Catalog)
             this.report.Items.Add(new ReportChoice(item));
@@ -146,6 +158,7 @@ internal sealed class ReportRunnerDialog : Form
         buttons.Controls.Add(this.saveHtml);
         buttons.Controls.Add(this.saveCsv);
         buttons.Controls.Add(this.savePdf);
+        buttons.Controls.Add(this.emailReport);
         buttons.Controls.Add(this.saveExcel);
         buttons.Controls.Add(this.preview);
         root.Controls.Add(buttons, 0, 2);
@@ -183,6 +196,7 @@ internal sealed class ReportRunnerDialog : Form
         this.saveCsv.Click += async (_, _) => await SaveAsync("CSV");
         this.saveExcel.Click += async (_, _) => await SaveAsync("XLSX");
         this.savePdf.Click += async (_, _) => await SaveAsync("PDF");
+        this.emailReport.Click += async (_, _) => await EmailDailySalesAsync();
         Shown += async (_, _) => await LoadProductsAsync();
     }
 
@@ -197,6 +211,7 @@ internal sealed class ReportRunnerDialog : Form
         this.productPanel.Visible = item.SupportsProductFilter;
         this.includeVoided.Visible = item.Kind is CafeteriaReportKind.ExecutiveSummary or CafeteriaReportKind.DailySales or CafeteriaReportKind.SalesTrend or CafeteriaReportKind.TenderMix or CafeteriaReportKind.ProductSales;
         this.groupingPanel.Visible = item.Kind is CafeteriaReportKind.PurchaseItemDetail or CafeteriaReportKind.PurchaseByPerson;
+        this.emailReport.Visible = item.Kind == CafeteriaReportKind.DailySales;
 
         if (item.Kind == CafeteriaReportKind.EmployeeStatement)
         {
@@ -338,6 +353,70 @@ internal sealed class ReportRunnerDialog : Form
     }
 
 
+    private async Task EmailDailySalesAsync()
+    {
+        ReportFilter filter = BuildFilter();
+        if (SelectedCatalogItem.Kind != CafeteriaReportKind.DailySales)
+        {
+            return;
+        }
+
+        if (filter.From != filter.To)
+        {
+            MessageBox.Show(
+                this,
+                "Email Report requires a single Daily Sales report date. Set From and To to the same day.",
+                "Email Daily Sales Report",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        if (!await this.authorizeEmail())
+        {
+            return;
+        }
+
+        ManagerReportSettingsSnapshot settings = await this.servicesClient.GetManagerReportSettingsAsync();
+        using DailySalesEmailDialog recipientsDialog = new(settings.EmailAddress);
+        if (recipientsDialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+
+        ReportDocument? report = await GenerateAsync();
+        if (report is null)
+        {
+            return;
+        }
+
+        if (!this.exporters.TryGetValue("PDF", out IReportExporter? exporter))
+        {
+            MessageBox.Show(this, "PDF report exporter is unavailable.", "Email Daily Sales Report", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+
+        ToggleBusy(true);
+        try
+        {
+            this.status.Text = "Rendering and queueing Daily Sales email...";
+            byte[] bytes = await RenderExporterAsync(exporter, report);
+            string fileName = $"Cafeteria-Daily-Sales-{filter.From:yyyy-MM-dd}.pdf";
+
+            await this.servicesClient.EmailDailySalesReportAsync(
+                  filter.From
+                , recipientsDialog.Recipients
+                , fileName
+                , bytes);
+
+            this.status.Text = $"Daily Sales Report queued for {recipientsDialog.Recipients.Count} recipient(s).";
+        }
+        finally
+        {
+            ToggleBusy(false);
+        }
+    }
+
     private static Task<byte[]> RenderExporterAsync(IReportExporter exporter, ReportDocument report)
     {
         return Task.Run(async () =>
@@ -356,6 +435,7 @@ internal sealed class ReportRunnerDialog : Form
         this.saveCsv.Enabled = !busy;
         this.saveExcel.Enabled = !busy;
         this.savePdf.Enabled = !busy;
+        this.emailReport.Enabled = !busy;
     }
 
     private static string SafeFileName(string value)

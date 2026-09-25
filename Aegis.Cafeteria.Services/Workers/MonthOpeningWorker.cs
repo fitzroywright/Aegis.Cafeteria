@@ -6,6 +6,7 @@ using Aegis.Cafeteria.Domain.Accounts;
 using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Services.Persistence;
 
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -22,6 +23,7 @@ public sealed class MonthOpeningWorker : BackgroundService
     private readonly IExternalAccountingGateway accounting;
     private readonly IMonthRecalculationGuard recalculationGuard;
     private readonly MonthOpeningOptions options;
+    private readonly IDbContextFactory<ServiceDbContext> factory;
     private readonly ILogger<MonthOpeningWorker> logger;
 
     public MonthOpeningWorker(
@@ -32,6 +34,7 @@ public sealed class MonthOpeningWorker : BackgroundService
         IExternalAccountingGateway accounting,
         IMonthRecalculationGuard recalculationGuard,
         MonthOpeningOptions options,
+        IDbContextFactory<ServiceDbContext> factory,
         ILogger<MonthOpeningWorker> logger)
     {
         this.workforce = workforce;
@@ -41,6 +44,7 @@ public sealed class MonthOpeningWorker : BackgroundService
         this.accounting = accounting;
         this.recalculationGuard = recalculationGuard;
         this.options = options;
+        this.factory = factory;
         this.logger = logger;
     }
 
@@ -129,6 +133,16 @@ public sealed class MonthOpeningWorker : BackgroundService
     {
         if (string.IsNullOrWhiteSpace(recalculatedBy))
             throw new ArgumentException("A management identity is required.", nameof(recalculatedBy));
+
+        AccountPeriodCloseServiceEventQuery closeQuery = new(this.factory);
+        IReadOnlyDictionary<int, AccountPeriodCloseServiceEvent> closes =
+            await closeQuery.GetMonthAsync(year, month, cancellationToken);
+
+        if (closes.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"Month {year:D4}-{month:D2} has already started closing or is closed. Recalculation is not permitted.");
+        }
 
         MonthRecalculationGuardResult guard = await this.recalculationGuard.CheckAsync(year, month, cancellationToken);
         if (!guard.IsSafe)

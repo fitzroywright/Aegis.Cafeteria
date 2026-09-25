@@ -10,7 +10,8 @@ This repository contains the FFP cafeteria point-of-sale, management service and
 - Live payment balance, change calculation, Available to Spend and Employee Amount Due display.
 - Explicit void, full refund, partial refund, multiple partial refund and customer payment workflows.
 - Monthly funding policy based on eligible working days, daily credit-limit rate and daily company-subsidy rate.
-- Additional credit approval, stipend or card reduction and manual month opening through management operations.
+- Additional credit approval and stipend/card-reduction business operations remain service-owned; their temporary web UI is retained only until the FFP Manager client is implemented.
+- POS Administration owns price maintenance, employee email preferences, automatic-operation overrides, report/email settings, Employee Amount Due preview/resend, operational audit and diagnostics access.
 - Daily dashboard, close-out, itemized, employee, department and period reporting.
 - Preview, spreadsheet, PDF, CSV and HTML report exports.
 - Service-side integration with FFP employee, holiday, ledger and balance projection data.
@@ -53,3 +54,22 @@ python scripts\static-audit.py
 ```
 
 Run the build gate on the .NET build machine before production deployment.
+
+
+## One-time product bootstrap
+
+Product catalog bootstrap is a deployment/cutover operation, not a permanent management screen. It is available through the migration CLI only while `Migration:Enabled` is true on Cafeteria Services.
+
+Dry run:
+
+```powershell
+dotnet run --project Aegis.Cafeteria.Migration -- --product-bootstrap --services-url https://cafeteria-services
+```
+
+Execute after reviewing the dry-run counts:
+
+```powershell
+dotnet run --project Aegis.Cafeteria.Migration -- --product-bootstrap --services-url https://cafeteria-services --execute
+```
+
+The bootstrap is idempotent, ignores configured funding-policy product codes, and does not overwrite products that already have import events.
