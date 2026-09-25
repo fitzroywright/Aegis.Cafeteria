@@ -16,6 +16,7 @@ public sealed class ScheduledEmailWorker : BackgroundService
     private readonly NotificationPreferenceStore preferences;
     private readonly OutboundEmailQueue queue;
     private readonly IDbContextFactory<ServiceDbContext> factory;
+    private readonly ServiceEventStore events;
     private readonly ILogger<ScheduledEmailWorker> logger;
 
     public ScheduledEmailWorker(
@@ -24,12 +25,14 @@ public sealed class ScheduledEmailWorker : BackgroundService
         PayrollDeductionReportSource payrollSource,
         SmtpEmailSender sender,
         IDbContextFactory<ServiceDbContext> factory,
+        ServiceEventStore events,
         ILogger<ScheduledEmailWorker> logger)
     {
         this.options = options;
         this.source = source;
         this.payrollSource = payrollSource;
         this.factory = factory;
+        this.events = events;
         this.logger = logger;
         this.preferences = new NotificationPreferenceStore(factory);
         this.queue = new OutboundEmailQueue(factory);
@@ -61,6 +64,13 @@ public sealed class ScheduledEmailWorker : BackgroundService
                     }
 
                     ManagerReportSettings manager = await this.preferences.GetManagerAsync(stoppingToken);
+
+                    if (this.options.DailySalesReportEnabled
+                        && now.Hour >= this.options.DailySalesReportHourLocal)
+                    {
+                        await QueueManagerDailySalesAsync(today.AddDays(-1), manager, stoppingToken);
+                    }
+
                     int managerOffset = ((int)manager.WeeklySummaryDay - (int)DayOfWeek.Monday + 7) % 7;
                     if (manager.WeeklySummaryEnabled &&
                         (daysSinceMonday > managerOffset ||
@@ -72,7 +82,10 @@ public sealed class ScheduledEmailWorker : BackgroundService
                     if (this.options.PayrollNotificationEnabled && now.Hour >= this.options.PayrollReportHourLocal)
                     {
                         DateOnly previousMonth = today.AddDays(1 - today.Day).AddMonths(-1);
-                        await SendPayrollReportAsync(previousMonth.Year, previousMonth.Month, false, stoppingToken);
+                        if (await IsMonthClosedAsync(previousMonth.Year, previousMonth.Month, stoppingToken))
+                        {
+                            await SendPayrollReportAsync(previousMonth.Year, previousMonth.Month, false, stoppingToken);
+                        }
                     }
                 }
             }
@@ -173,6 +186,78 @@ public sealed class ScheduledEmailWorker : BackgroundService
                 body,
                 cancellationToken);
         }
+    }
+
+    private async Task QueueManagerDailySalesAsync(
+        DateOnly date,
+        ManagerReportSettings manager,
+        CancellationToken cancellationToken)
+    {
+        string? recipient = EmailAddressValidator.Normalize(manager.EmailAddress ?? string.Empty);
+        if (recipient is null)
+        {
+            return;
+        }
+
+        DailyLedgerSummary summary = await this.source.GetDailySummaryAsync(date, cancellationToken);
+
+        await using ServiceDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
+        int pending = await database.Events.CountAsync(row => row.FfpPublishedAt == null, cancellationToken);
+        int failed = await database.Events.CountAsync(row => row.FfpLastError != null, cancellationToken);
+        DateTimeOffset? lastSuccessfulSync = await database.Events
+            .Where(row => row.FfpPublishedAt != null)
+            .OrderByDescending(row => row.FfpPublishedAt)
+            .Select(row => row.FfpPublishedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        string? lastError = await database.Events
+            .Where(row => row.FfpLastError != null)
+            .OrderByDescending(row => row.FfpLastAttemptAt)
+            .Select(row => row.FfpLastError)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        bool complete = pending == 0 && failed == 0;
+        string reportStatus = complete ? "Complete" : "Data Incomplete";
+        string lastSyncText = lastSuccessfulSync?.ToLocalTime().ToString("yyyy-MM-dd h:mm tt") ?? "Not yet available";
+
+        string body =
+            $"Cafeteria Daily Sales Report\n" +
+            $"Date: {date:yyyy-MM-dd}\n\n" +
+            $"Report Status: {reportStatus}\n" +
+            $"Last Successful Sync: {lastSyncText}\n" +
+            (complete ? string.Empty : $"Pending Sync Operations: {pending}\nFailed Sync Operations: {failed}\n") +
+            (!complete && !string.IsNullOrWhiteSpace(lastError) ? $"Last Sync Error: {lastError}\n" : string.Empty) +
+            $"\nTransactions: {summary.Transactions}\n" +
+            $"Purchases: {summary.Purchases:C}\n" +
+            $"Refunds: {summary.Refunds:C}\n" +
+            $"Additional Credit: {summary.AdditionalCredit:C}\n" +
+            $"Stipend Card Reductions: {summary.StipendReductions:C}\n";
+
+        await this.queue.EnqueueAsync(
+            $"manager-daily-sales:{date:yyyy-MM-dd}:{recipient.ToLowerInvariant()}",
+            recipient,
+            $"Cafeteria Daily Sales Report - {date:yyyy-MM-dd}",
+            body,
+            cancellationToken);
+    }
+
+    private async Task<bool> IsMonthClosedAsync(
+        int year,
+        int month,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyDictionary<int, Aegis.Cafeteria.Domain.Services.MonthlyAllocationServiceEvent> allocations =
+            await this.events.GetCurrentMonthlyAllocationsAsync(year, month, cancellationToken);
+
+        if (allocations.Count == 0)
+        {
+            return false;
+        }
+
+        AccountPeriodCloseServiceEventQuery closeQuery = new(this.factory);
+        IReadOnlyDictionary<int, Aegis.Cafeteria.Domain.Services.AccountPeriodCloseServiceEvent> closes =
+            await closeQuery.GetMonthAsync(year, month, cancellationToken);
+
+        return allocations.Keys.All(closes.ContainsKey);
     }
 
     private async Task QueuePreviousWeekAsync(DateOnly today, CancellationToken cancellationToken)
