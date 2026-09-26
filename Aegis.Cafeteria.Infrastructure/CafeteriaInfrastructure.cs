@@ -94,8 +94,9 @@ public static class CafeteriaInfrastructure
         services.AddSingleton(options);
         services.AddSingleton<IAuthenticator>(_ => new CommonSecurityActiveDirectory(activeDirectoryOptions));
         services.AddSingleton<CommonSecurityOperatorAuthenticator>();
-        services.AddSingleton<IOperatorAuthenticator>(
-            serviceProvider => serviceProvider.GetRequiredService<CommonSecurityOperatorAuthenticator>());
+        services.AddSingleton<LocalFirstOperatorAuthenticator>();
+        services.AddSingleton<IOperatorAuthenticator>(serviceProvider =>
+            serviceProvider.GetRequiredService<LocalFirstOperatorAuthenticator>());
 
         return services;
     }
