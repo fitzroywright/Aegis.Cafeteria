@@ -2,6 +2,7 @@ using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Services.Persistence;
 using Aegis.Cafeteria.Infrastructure.ActiveDirectory;
+using Common.Security.Models;
 
 namespace Aegis.Cafeteria.Services;
 
@@ -40,7 +41,7 @@ internal static class IntegrationEndpoints
 
         ExternalCustomerSnapshot[] enriched = customers.Select(customer =>
         {
-            ActiveDirectoryEmployeeRecord? metadata = directoryCache.Get(customer.LoginName);
+            DirectoryUserProfile? metadata = directoryCache.Get(customer.LoginName);
             return customer with
             {
                 AdditionalCreditLimit = limits.GetValueOrDefault(customer.CustomerId, 0m),
