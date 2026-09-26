@@ -197,7 +197,9 @@ internal static class Program
     {
         try
         {
-            await host.StartAsync();
+            // Host startup can execute synchronous portions of hosted services before
+            // their first await. Keep all of that work off the WinForms UI thread.
+            await Task.Run(async () => await host.StartAsync());
         }
         catch (Exception exception)
         {
@@ -211,16 +213,6 @@ internal static class Program
             }
             catch
             {
-            }
-
-            if (!owner.IsDisposed)
-            {
-                owner.BeginInvoke(() =>
-                {
-                    // Do not block the cashier with a modal failure. Background
-                    // integration will remain degraded and diagnostics/logging
-                    // can surface the cause.
-                });
             }
         }
     }
@@ -264,16 +256,9 @@ internal static class Program
             );
         };
 
-        EventHandler applyFormatting = (_, _) => UiDisplayFormattingPolicy.ApplyToOpenForms();
-        System.Windows.Forms.Application.Idle += applyFormatting;
-        try
-        {
-            UiDisplayFormattingPolicy.ApplyToOpenForms();
-            System.Windows.Forms.Application.Run(mainForm);
-        }
-        finally
-        {
-            System.Windows.Forms.Application.Idle -= applyFormatting;
-        }
+        // Apply formatting once. Re-walking every control in every open form on
+        // each Application.Idle cycle made the message loop itself expensive.
+        UiDisplayFormattingPolicy.ApplyToOpenForms();
+        System.Windows.Forms.Application.Run(mainForm);
     }
 }
