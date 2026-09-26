@@ -1,7 +1,7 @@
 namespace Aegis.Cafeteria.Services.Workers;
 
 using Aegis.Cafeteria.Application.Integration;
-using Aegis.Cafeteria.Infrastructure.ActiveDirectory;
+using Aegis.Cafeteria.Infrastructure.Identity;
 using Common.Security.Abstractions;
 using Common.Security.Models;
 
@@ -10,7 +10,7 @@ using Microsoft.Extensions.Logging;
 
 public sealed class EmployeeDirectorySyncWorker(
     IWorkforceReferenceSource workforceSource,
-    EmployeeDirectoryMetadataCache directoryCache,
+    DirectoryProfileCache directoryCache,
     IDirectoryProfileProvider directory,
     ILogger<EmployeeDirectorySyncWorker> logger) : BackgroundService
 {
