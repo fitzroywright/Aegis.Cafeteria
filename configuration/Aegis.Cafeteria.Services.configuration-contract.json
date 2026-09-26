@@ -25,6 +25,26 @@
       "example": "Configured through deployment configuration or the application secret provider."
     },
     {
+      "id": "authentication-plugin-assembly",
+      "displayName": "Authentication Plugin Assembly",
+      "kind": "Configuration",
+      "required": true,
+      "purpose": "Selects the Common.Security authentication provider plugin used for operator and service authentication.",
+      "configurationKey": "AuthenticationPlugin:AssemblyPath",
+      "isConfigured": false,
+      "example": "plugins/Common.Security.Plugin.ActiveDirectory.dll"
+    },
+    {
+      "id": "authentication-plugin-settings",
+      "displayName": "Authentication Plugin Settings",
+      "kind": "Configuration",
+      "required": true,
+      "purpose": "Provider-specific identity settings consumed only by the selected Common.Security authentication plugin.",
+      "configurationKey": "AuthenticationPlugin:Settings",
+      "isConfigured": false,
+      "example": "Configured per authentication provider and deployment."
+    },
+    {
       "id": "integration-plugin-assembly",
       "displayName": "Integration Plugin Assembly",
       "kind": "Configuration",
