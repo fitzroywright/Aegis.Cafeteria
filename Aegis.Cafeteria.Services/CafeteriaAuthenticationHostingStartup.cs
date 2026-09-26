@@ -5,12 +5,12 @@ using Aegis.Cafeteria.Services.Email;
 using Aegis.Cafeteria.Services.Engineering.Diagnostics;
 using Aegis.Cafeteria.Services.Workers;
 using Common.Diagnostics;
+using Common.Security.Integration;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 
 [assembly: HostingStartup(typeof(CafeteriaAuthenticationHostingStartup))]
 
-using Common.Security.Integration;
 namespace Aegis.Cafeteria.Services;
 
 public sealed class CafeteriaAuthenticationHostingStartup : IHostingStartup
