@@ -1,4 +1,5 @@
 using Aegis.Cafeteria.Infrastructure.Identity;
+using Aegis.Cafeteria.Infrastructure.Security;
 using Aegis.Cafeteria.Services;
 using Aegis.Cafeteria.Services.Email;
 using Aegis.Cafeteria.Services.Engineering.Diagnostics;
