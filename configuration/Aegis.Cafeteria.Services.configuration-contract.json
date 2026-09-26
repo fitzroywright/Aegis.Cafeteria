@@ -55,16 +55,6 @@
       "example": "plugins/Aegis.Cafeteria.Plugin.Integration.dll"
     },
     {
-      "id": "integration-plugin-url",
-      "displayName": "Integration Plugin URL",
-      "kind": "ExternalService",
-      "required": true,
-      "purpose": "Base URL used by the selected Cafeteria integration plugin.",
-      "configurationKey": "IntegrationPlugin:BaseUrl",
-      "isConfigured": false,
-      "example": "https://integration.example.internal"
-    },
-    {
       "id": "secrets-provider-configuration",
       "displayName": "Secrets Provider Configuration",
       "kind": "Configuration",
