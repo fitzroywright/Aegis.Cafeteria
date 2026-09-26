@@ -27,6 +27,18 @@ public sealed class PosTransactionOutboxWorker(
             catch (Exception exception)
             {
                 logger.LogError(exception, "POS transaction outbox cycle failed; queued events will retry");
+
+                // Never spin in a hot exception loop. A failed outbox probe must
+                // yield before retrying so it cannot starve the WinForms UI or
+                // flood the debugger/output pipeline.
+                try
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
             }
         }
     }
