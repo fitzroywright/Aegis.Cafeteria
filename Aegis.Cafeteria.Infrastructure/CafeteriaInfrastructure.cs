@@ -18,8 +18,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Common.Security.Abstractions;
-using CommonSecurityActiveDirectory = Common.Security.Authenticators.ActiveDirectory;
-using Common.Security.Options;
 
 public static class CafeteriaInfrastructure
 {
@@ -81,18 +79,8 @@ public static class CafeteriaInfrastructure
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(options);
 
-        ActiveDirectoryAuthenticationOptions activeDirectoryOptions = new()
-        {
-            Domain = options.Domain,
-            SearchBase = options.SearchBase,
-            Port = options.Port,
-            TimeoutSeconds = options.TimeoutSeconds,
-            Servers = options.Servers,
-            AdministrativeGroups = options.AdministrativeGroups
-        };
-
+        // IAuthenticator is supplied by the configured Common.Security authentication plugin.
         services.AddSingleton(options);
-        services.AddSingleton<IAuthenticator>(_ => new CommonSecurityActiveDirectory(activeDirectoryOptions));
         services.AddSingleton<CommonSecurityOperatorAuthenticator>();
         services.AddSingleton<IOperatorAuthenticator>(serviceProvider =>
             new LocalFirstOperatorAuthenticator(
