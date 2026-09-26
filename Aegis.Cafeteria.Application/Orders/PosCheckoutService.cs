@@ -4,23 +4,28 @@ using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Reporting;
 using Aegis.Cafeteria.Application.Security;
 using Aegis.Cafeteria.Domain.Orders;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 public sealed class PosCheckoutService
 {
     private readonly ICafeteriaPersistenceStore persistenceStore;
     private readonly IPostSaleObserver[] postSaleObservers;
     private readonly IOperatorSession? operatorSession;
+    private readonly ILogger<PosCheckoutService>? logger;
 
     public PosCheckoutService
     (
           ICafeteriaPersistenceStore persistenceStore
         , IEnumerable<IPostSaleObserver>? postSaleObservers = null
         , IOperatorSession? operatorSession = null
+        , ILogger<PosCheckoutService>? logger = null
     )
     {
         this.persistenceStore = persistenceStore;
         this.postSaleObservers = postSaleObservers?.ToArray() ?? [];
         this.operatorSession = operatorSession;
+        this.logger = logger;
     }
 
     [Obsolete("Production callers should use PosCheckoutRequest.")]
@@ -63,6 +68,8 @@ public sealed class PosCheckoutService
 
     public async Task<Order> CompleteAsync(PosCheckoutRequest request, CancellationToken cancellationToken = default)
     {
+        Stopwatch total = Stopwatch.StartNew();
+        Stopwatch step = Stopwatch.StartNew();
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Account);
         ArgumentNullException.ThrowIfNull(request.Lines);
@@ -127,13 +134,19 @@ public sealed class PosCheckoutService
 
         string cashierName = this.operatorSession?.Current?.DisplayName?.Trim() ?? request.CashierUserId.Trim();
         order.Complete(payments, now, request.CashierUserId, request.TerminalId, cashierName);
+        logger?.LogInformation("PERF Checkout OrderId={OrderId} validation/build {ElapsedMs} ms", order.Id, step.ElapsedMilliseconds);
+
+        step.Restart();
         await this.persistenceStore.SaveOrderAsync(order, cancellationToken);
+        logger?.LogInformation("PERF Checkout OrderId={OrderId} persistence {ElapsedMs} ms", order.Id, step.ElapsedMilliseconds);
 
-
+        step.Restart();
         foreach (IPostSaleObserver observer in this.postSaleObservers)
         {
             _ = ObservePostSaleAsync(observer, account, order, cancellationToken);
         }
+        logger?.LogInformation("PERF Checkout OrderId={OrderId} observer scheduling {ElapsedMs} ms Count={ObserverCount}", order.Id, step.ElapsedMilliseconds, this.postSaleObservers.Length);
+        logger?.LogInformation("PERF Checkout OrderId={OrderId} TOTAL {ElapsedMs} ms", order.Id, total.ElapsedMilliseconds);
 
         return order;
     }
