@@ -17,8 +17,12 @@ public sealed class CafeteriaAuthenticationHostingStartup : IHostingStartup
     {
         builder.ConfigureServices
         (
-            services =>
+            (context, services) =>
             {
+                AuthenticationPluginLoader.Register(
+                    services,
+                    context.Configuration,
+                    context.HostingEnvironment.ContentRootPath);
                 services.AddManagementCommonSecurityAuthentication();
                 services.AddSingleton<CafeteriaRoleResolver>();
                 services.AddSingleton<IStartupFilter, ManagementCommonSecurityStartupFilter>();
