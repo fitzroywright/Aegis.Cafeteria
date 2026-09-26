@@ -1081,7 +1081,7 @@ public sealed class MainForm : Form
         CustomerPaymentEligibility paymentEligibility = CustomerPaymentPolicy.Evaluate(account);
         this.customerPaymentButton.Enabled = paymentEligibility.Allowed;
         UpdateCheckoutState();
-        _ = UpdateCustomerDisplayAsync(account);
+        _ = LoadCustomerDetailsAsync(account);
     }
 
     private void InitializeCustomerDisplay()
@@ -1105,10 +1105,8 @@ public sealed class MainForm : Form
             this.customerDisplayScreen.Bounds);
     }
 
-    private async Task UpdateCustomerDisplayAsync(CustomerAccountView account)
+    private async Task LoadCustomerDetailsAsync(CustomerAccountView account)
     {
-        if (this.customerDisplay is null || this.customerDisplayScreen is null) return;
-
         try
         {
             IReadOnlyList<CustomerMonthlyTransactionView> history = account.Customer.IsCashCustomer
@@ -1120,8 +1118,31 @@ public sealed class MainForm : Form
 
             if (this.currentCustomer?.Customer.Id != account.Customer.Id) return;
 
-            void ShowOnDisplay()
+            void ApplyDetails()
             {
+                if (this.currentCustomer?.Customer.Id != account.Customer.Id) return;
+
+                this.transactionSource.DataSource = history.Select(x => new
+                {
+                    Date = x.OccurredAt.LocalDateTime,
+                    x.Kind,
+                    x.Description,
+                    Amount = x.Amount,
+                    Account = x.CafeteriaAccountAmount,
+                    Cash = x.CashAmount,
+                    x.ReferenceId
+                }).ToList();
+
+                if (this.transactions.Columns[nameof(CustomerMonthlyTransactionView.ReferenceId)] is DataGridViewColumn referenceColumn)
+                    referenceColumn.Visible = false;
+                if (this.transactions.Columns["Kind"] is DataGridViewColumn transactionTypeColumn)
+                    transactionTypeColumn.HeaderText = "Transaction Type";
+                if (this.transactions.Columns["Amount"] is DataGridViewColumn saleTotalColumn)
+                    saleTotalColumn.HeaderText = "Sale Total";
+                if (this.transactions.Columns["Account"] is DataGridViewColumn employeeCardColumn)
+                    employeeCardColumn.HeaderText = CafeteriaDisplayText.EmployeeCard;
+                SyncGridHeaderAlignment(this.transactions);
+
                 if (this.customerDisplay is null || this.customerDisplayScreen is null) return;
                 this.customerDisplay.PlaceOn(this.customerDisplayScreen);
                 this.customerDisplay.ShowCustomer(account, history, account.Period.Year, account.Period.Month);
@@ -1129,12 +1150,12 @@ public sealed class MainForm : Form
                 this.customerDisplay.BringToFront();
             }
 
-            if (InvokeRequired) BeginInvoke((Action)ShowOnDisplay);
-            else ShowOnDisplay();
+            if (InvokeRequired) BeginInvoke((Action)ApplyDetails);
+            else ApplyDetails();
         }
         catch (Exception ex)
         {
-            this.logger.LogWarning(ex, "Could not update the customer-facing display for customer {CustomerId}", account.Customer.Id);
+            this.logger.LogWarning(ex, "Could not load detailed transaction history for customer {CustomerId}", account.Customer.Id);
         }
     }
 
