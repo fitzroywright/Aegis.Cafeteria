@@ -10,7 +10,6 @@ using Aegis.Cafeteria.Infrastructure.Logging;
 using Aegis.Cafeteria.Infrastructure.Persistence;
 using Aegis.Cafeteria.Infrastructure.Registration;
 using Aegis.Cafeteria.Infrastructure.Security;
-using Aegis.Cafeteria.Infrastructure.Secrets;
 using Aegis.Cafeteria.Reporting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,8 +38,9 @@ internal static class Program
         CafeteriaRuntimeOptions runtime;
         try
         {
-            IApplicationSecretProvider startupSecrets = ApplicationSecretProviderFactory.Create(builder.Configuration, builder.Environment);
-            runtime = CafeteriaRuntimeOptionsResolver.ResolvePosAsync(builder.Configuration, startupSecrets)
+            runtime = CafeteriaRuntimeOptionsResolver.ResolvePosAsync(
+                    builder.Configuration,
+                    secrets: null!)
                 .GetAwaiter()
                 .GetResult();
         }
