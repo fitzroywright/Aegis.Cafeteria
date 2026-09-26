@@ -1,6 +1,5 @@
 namespace Aegis.Cafeteria.Services.Workers;
 
-using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Services.Persistence;
@@ -116,7 +115,7 @@ public sealed class ExternalPublicationWorker(
     private static CafeteriaOutboundTransaction BuildPosTransaction(
         CafeteriaServiceEventEnvelope envelope)
     {
-        PosTransactionEvent value = JsonSerializer.Deserialize<PosTransactionEvent>(
+        PosTransactionEnvelope value = JsonSerializer.Deserialize<PosTransactionEnvelope>(
             envelope.PayloadJson)
             ?? throw new InvalidOperationException("Invalid POS transaction service event payload.");
 
@@ -213,6 +212,20 @@ public sealed class ExternalPublicationWorker(
 
         return string.Join(", ", descriptions);
     }
+
+    private sealed record PosTransactionEnvelope(
+        Guid EventId,
+        Guid CorrelationId,
+        string Kind,
+        Guid OrderId,
+        int CustomerId,
+        string Actor,
+        string? TerminalId,
+        int AccountYear,
+        int AccountMonth,
+        DateTimeOffset OccurredAt,
+        string PayloadJson,
+        string? Reason);
 
     private static CafeteriaOutboundTransaction BuildExternalLedgerEntry(
         CafeteriaServiceEventEnvelope envelope)
