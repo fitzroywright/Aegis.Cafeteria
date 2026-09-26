@@ -1,5 +1,6 @@
 namespace Aegis.Cafeteria.Services.Workers;
 
+using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Services.Persistence;
