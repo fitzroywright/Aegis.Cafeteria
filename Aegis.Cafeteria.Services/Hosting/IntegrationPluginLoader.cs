@@ -14,6 +14,7 @@ internal static class IntegrationPluginLoader
         , typeof(IEmployeeFactSource)
         , typeof(IEmployeeIdScanPublisher)
         , typeof(IWorkforceReferenceSource)
+        , typeof(ILegacyCafeteriaMigrationSource)
     ];
 
     internal static void Register(
