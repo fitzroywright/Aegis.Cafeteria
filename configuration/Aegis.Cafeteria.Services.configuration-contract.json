@@ -65,24 +65,24 @@
       "example": "https://integration.example.internal"
     },
     {
-      "id": "openbao-url",
-      "displayName": "OpenBao URL",
-      "kind": "ExternalService",
+      "id": "secrets-provider-configuration",
+      "displayName": "Secrets Provider Configuration",
+      "kind": "Configuration",
       "required": true,
-      "purpose": "Identifies the OpenBao instance used for application secrets.",
-      "configurationKey": "Secrets:OpenBao:Address",
+      "purpose": "Defines the Common.Secrets providers available to Cafeteria Services without coupling the application to a specific secrets product.",
+      "configurationKey": "CommonSecrets:Providers",
       "isConfigured": false,
-      "example": "https://openbao.example.internal"
+      "example": "Configure one or more Common.Secrets providers appropriate to the deployment."
     },
     {
-      "id": "openbao-credentials",
-      "displayName": "OpenBao credentials",
-      "kind": "Secret",
+      "id": "secrets-provider-order",
+      "displayName": "Secrets Provider Order",
+      "kind": "Configuration",
       "required": true,
-      "purpose": "Provides Cafeteria Services with its OpenBao authentication material.",
-      "secretName": "cafeteria/openbao-auth",
+      "purpose": "Defines the Common.Secrets provider resolution order used by Cafeteria Services.",
+      "configurationKey": "CommonSecrets:ProviderOrder",
       "isConfigured": false,
-      "sensitive": true
+      "example": "Environment, Configuration, or another installed provider."
     },
     {
       "id": "site-id",
@@ -92,7 +92,7 @@
       "purpose": "Identifies the deployment site served by this Cafeteria Services instance.",
       "configurationKey": "Site:Id",
       "isConfigured": false,
-      "example": "FFP-JM"
+      "example": "SITE-01"
     },
     {
       "id": "service-identity",
