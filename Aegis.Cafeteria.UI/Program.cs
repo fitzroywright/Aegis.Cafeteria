@@ -38,9 +38,7 @@ internal static class Program
         CafeteriaRuntimeOptions runtime;
         try
         {
-            runtime = CafeteriaRuntimeOptionsResolver.ResolvePosAsync(
-                    builder.Configuration,
-                    secrets: null!)
+            runtime = CafeteriaRuntimeOptionsResolver.ResolvePosAsync(builder.Configuration)
                 .GetAwaiter()
                 .GetResult();
         }
