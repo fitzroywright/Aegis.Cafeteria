@@ -1,6 +1,7 @@
 using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Services.Persistence;
+using Aegis.Cafeteria.Infrastructure.ActiveDirectory;
 
 namespace Aegis.Cafeteria.Services;
 
@@ -28,11 +29,29 @@ internal static class IntegrationEndpoints
         CancellationToken ct)
         => PublishLedgerAsync(entry, store, ct);
 
-    private static async Task<IResult> GetCustomersAsync(IWorkforceReferenceSource source, CustomerCreditPolicyStore policies, CancellationToken ct)
+    private static async Task<IResult> GetCustomersAsync(
+        IWorkforceReferenceSource source,
+        CustomerCreditPolicyStore policies,
+        EmployeeDirectoryMetadataCache directoryCache,
+        CancellationToken ct)
     {
         IReadOnlyList<ExternalCustomerSnapshot> customers = await source.GetCustomersAsync(ct);
         IReadOnlyDictionary<int, decimal> limits = await policies.GetAllAdditionalCreditLimitsAsync(ct);
-        return Results.Ok(customers.Select(x => x with { AdditionalCreditLimit = limits.GetValueOrDefault(x.CustomerId, 0m) }).ToArray());
+
+        ExternalCustomerSnapshot[] enriched = customers.Select(customer =>
+        {
+            ActiveDirectoryEmployeeRecord? metadata = directoryCache.Get(customer.LoginName);
+            return customer with
+            {
+                AdditionalCreditLimit = limits.GetValueOrDefault(customer.CustomerId, 0m),
+                EmailAddress = metadata?.EmailAddress ?? customer.EmailAddress,
+                Department = metadata?.Department ?? customer.Department,
+                Manager = metadata?.Manager ?? customer.Manager,
+                Extension = metadata?.Extension ?? customer.Extension
+            };
+        }).ToArray();
+
+        return Results.Ok(enriched);
     }
 
     private static async Task<IResult> PublishLedgerAsync(
