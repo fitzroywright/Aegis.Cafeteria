@@ -141,6 +141,8 @@ public static class CafeteriaRuntimeOptionsResolver
             PollSeconds = Math.Max(5, svc.GetValue("PollSeconds", 15)),
             RequestTimeoutSeconds = Math.Max(5, svc.GetValue("RequestTimeoutSeconds", 10)),
             StartupRefreshTimeoutSeconds = Math.Max(5, svc.GetValue("StartupRefreshTimeoutSeconds", 12)),
+            ReferenceRefreshIntervalMinutes = Math.Max(1, svc.GetValue("ReferenceRefreshIntervalMinutes", 10)),
+            EmptyCacheRefreshDelaySeconds = Math.Max(1, svc.GetValue("EmptyCacheRefreshDelaySeconds", 5)),
             ApiKey = string.IsNullOrWhiteSpace(serviceApiKey) ? null : serviceApiKey.Trim(),
             RealtimeEnabled = svc.GetValue("RealtimeEnabled", true),
             HubPath = svc["HubPath"]?.Trim() ?? "/hubs/cafeteria",
