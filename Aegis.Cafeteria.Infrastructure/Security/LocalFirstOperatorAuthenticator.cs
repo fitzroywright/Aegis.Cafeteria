@@ -30,7 +30,7 @@ public sealed class LocalFirstOperatorAuthenticator(
 
         if (servicesAuthenticator is not null)
         {
-            _ = EstablishServicesSessionAsync(loginName, password);
+            _ = Task.Run(() => EstablishServicesSessionAsync(loginName, password));
         }
 
         return local;
