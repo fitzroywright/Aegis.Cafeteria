@@ -395,9 +395,7 @@ public sealed class ManagementCommonSecurityAuthenticator
             .Cast<string>()
             .ToArray();
 
-        AuthorizedGroups = configuredGroups.Length == 0
-            ? ["Cafeteria Managers", "Cafeteria Administrators", "Domain Admins"]
-            : configuredGroups;
+        AuthorizedGroups = configuredGroups;
     }
 
     public IReadOnlyList<string> AuthorizedGroups { get; }
