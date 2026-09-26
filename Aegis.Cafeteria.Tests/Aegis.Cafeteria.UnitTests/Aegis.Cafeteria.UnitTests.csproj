@@ -16,6 +16,7 @@
     <ProjectReference Include="..\..\Aegis.Cafeteria.Infrastructure\Aegis.Cafeteria.Infrastructure.csproj" />
     <ProjectReference Include="..\..\Aegis.Cafeteria.Services\Aegis.Cafeteria.Services.csproj" />
     <ProjectReference Include="$(CommonRoot)\Common.Security\Common.Security.csproj" />
+    <ProjectReference Include="$(CommonRoot)\Common.Security\Common.Security.Plugin.ActiveDirectory\Common.Security.Plugin.ActiveDirectory.csproj" />
     <ProjectReference Include="$(CommonRoot)\Common.Diagnostics\Common.Diagnostics.csproj" />
   </ItemGroup>
   <ItemGroup><Using Include="Xunit" /></ItemGroup>
