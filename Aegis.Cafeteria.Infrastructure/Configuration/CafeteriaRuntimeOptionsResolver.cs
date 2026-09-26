@@ -30,7 +30,6 @@ public static class CafeteriaRuntimeOptionsResolver
         CafeteriaRuntimeOptions runtime = await ResolveCoreAsync(
             configuration,
             secrets: null,
-            allowDirectFfpDatabase: false,
             allowRemoteSecrets: false,
             cancellationToken);
 
@@ -67,7 +66,6 @@ public static class CafeteriaRuntimeOptionsResolver
         return ResolveCoreAsync(
             configuration,
             secrets,
-            allowDirectFfpDatabase: true,
             allowRemoteSecrets: true,
             cancellationToken);
     }
@@ -75,7 +73,6 @@ public static class CafeteriaRuntimeOptionsResolver
     private static async Task<CafeteriaRuntimeOptions> ResolveCoreAsync(
         IConfiguration configuration,
         IApplicationSecretProvider? secrets,
-        bool allowDirectFfpDatabase,
         bool allowRemoteSecrets,
         CancellationToken cancellationToken)
     {
