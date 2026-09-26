@@ -5,6 +5,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <CommonRoot Condition="'$(CommonRoot)' == ''">$(MSBuildThisFileDirectory)..\..\Common</CommonRoot>
 </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Aegis.Cafeteria.Application\Aegis.Cafeteria.Application.csproj" />
@@ -12,6 +13,8 @@
     <ProjectReference Include="..\Aegis.Cafeteria.Infrastructure\Aegis.Cafeteria.Infrastructure.csproj" />
     <ProjectReference Include="..\Aegis.Cafeteria.Reporting\Aegis.Cafeteria.Reporting.csproj" />
       <ProjectReference Include="..\Aegis.Cafeteria.Presentation\Aegis.Cafeteria.Presentation.csproj" />
+    <ProjectReference Include="$(CommonRoot)\Common.Security\Common.Security.Plugin.ActiveDirectory\Common.Security.Plugin.ActiveDirectory.csproj"
+                      ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
@@ -22,4 +25,17 @@
 <None Update="appsettings.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
     <None Update="appsettings.Development.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
   </ItemGroup>
+
+  <Target Name="StageAuthenticationPluginAfterBuild" AfterTargets="Build">
+    <PropertyGroup>
+      <AuthenticationPluginSource>$(CommonRoot)\Common.Security\Common.Security.Plugin.ActiveDirectory\bin\$(Configuration)\net10.0\Common.Security.Plugin.ActiveDirectory.dll</AuthenticationPluginSource>
+    </PropertyGroup>
+    <MakeDir Directories="$(OutDir)plugins" />
+    <Copy SourceFiles="$(AuthenticationPluginSource)"
+          DestinationFolder="$(OutDir)plugins"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(AuthenticationPluginSource)')" />
+    <Error Condition="!Exists('$(OutDir)plugins\Common.Security.Plugin.ActiveDirectory.dll')"
+           Text="Authentication plugin was not staged to $(OutDir)plugins." />
+  </Target>
 </Project>
