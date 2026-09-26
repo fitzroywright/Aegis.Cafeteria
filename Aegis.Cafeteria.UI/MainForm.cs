@@ -176,11 +176,10 @@ public sealed class MainForm : Form
         ConfigureGrids();
         BuildLayout();
 
-        Shown += async (_, _) =>
+        Shown += (_, _) =>
         {
             ApplyMainSplitLayout();
             InitializeCustomerDisplay();
-            await LoadProductsAsync();
             UpdateOperatorStatus();
             this.cacheStatusTimer.Start();
             if (this.uiOptions.CustomerInactivityTimeoutSeconds > 0)
@@ -191,8 +190,8 @@ public sealed class MainForm : Form
             }
             FocusCustomerLookup();
 
-            // Dashboard and status data are useful, but they are not part of the cashier
-            // critical path. Load them after the till is already interactive.
+            // Everything below is non-critical presentation/reference work.
+            _ = LoadProductsAsync();
             _ = LoadRecentTransactionsAsync();
             _ = LoadIdleDashboardAsync();
             _ = UpdateCacheStatusAsync();
@@ -803,7 +802,7 @@ public sealed class MainForm : Form
     {
         try
         {
-            var status = await this.cacheStatusProvider.GetAsync();
+            var status = await Task.Run(() => this.cacheStatusProvider.GetAsync());
             var age = status.Age(DateTimeOffset.UtcNow);
             var ageMinutes = age?.TotalMinutes;
 
@@ -937,7 +936,7 @@ public sealed class MainForm : Form
     {
         using var dialog = new CustomerSearchDialog(this.identification);
         if (dialog.ShowDialog(this) != DialogResult.OK || dialog.SelectedCustomer is null) return;
-        var account = await this.identification.LoadAsync(dialog.SelectedCustomer.CustomerId);
+        var account = await Task.Run(() => this.identification.LoadAsync(dialog.SelectedCustomer.CustomerId));
         if (account is not null) ShowCustomer(account);
     }
 
@@ -955,14 +954,14 @@ public sealed class MainForm : Form
         try
         {
             UseWaitCursor = true;
-            var result = await this.identification.ResolveAsync(value, 50);
+            var result = await Task.Run(() => this.identification.ResolveAsync(value, 50));
             CustomerAccountView? account = result.Account;
 
             if (account is null && result.Candidates.Count > 0)
             {
                 var chosen = ChooseCustomer(result.Candidates, value);
                 if (chosen is null) return;
-                account = await this.identification.LoadAsync(chosen.CustomerId);
+                account = await Task.Run(() => this.identification.LoadAsync(chosen.CustomerId));
             }
 
             if (account is null)
@@ -1113,10 +1112,10 @@ public sealed class MainForm : Form
         {
             IReadOnlyList<CustomerMonthlyTransactionView> history = account.Customer.IsCashCustomer
                 ? Array.Empty<CustomerMonthlyTransactionView>()
-                : await this.accountQuery.GetTransactionsAsync(
+                : await Task.Run(() => this.accountQuery.GetTransactionsAsync(
                     account.Customer.Id,
                     account.Period.Year,
-                    account.Period.Month);
+                    account.Period.Month));
 
             if (this.currentCustomer?.Customer.Id != account.Customer.Id) return;
 
@@ -1177,8 +1176,9 @@ public sealed class MainForm : Form
         {
             if (string.IsNullOrWhiteSpace(search))
             {
-                this.productCatalog = await this.products.GetAllAsync();
-                this.productSource.DataSource = this.productCatalog.ToList();
+                IReadOnlyList<ProductCatalogItem> loaded = await Task.Run(() => this.products.GetAllAsync());
+                this.productCatalog = loaded;
+                this.productSource.DataSource = loaded.ToList();
                 return;
             }
 
@@ -1310,7 +1310,8 @@ public sealed class MainForm : Form
 
         try
         {
-            var rows = await this.recentTransactions.GetTodayAsync(this.uiOptions.RecentTransactionCount);
+            int take = this.uiOptions.RecentTransactionCount;
+            var rows = await Task.Run(() => this.recentTransactions.GetTodayAsync(take));
             this.recentTransactionSource.DataSource = rows.Select(x => new
             {
                 x.OrderId,
@@ -1358,13 +1359,15 @@ public sealed class MainForm : Form
                 dialog.CreditAmount,
                 operatorIdentity.UserId,
                 this.persistenceOptions.TerminalId);
-            await this.checkout.CompleteAsync(request);
+            await Task.Run(() => this.checkout.CompleteAsync(request));
             this.cart.Clear();
             RefreshCart();
             if (!this.currentCustomer.Customer.IsCashCustomer)
             {
-                this.currentCustomer = await this.identification.LoadAsync(this.currentCustomer.Customer.Id);
-                if (this.currentCustomer is not null) ShowCustomer(this.currentCustomer);
+                int customerId = this.currentCustomer.Customer.Id;
+                CustomerAccountView? refreshed = await Task.Run(() => this.identification.LoadAsync(customerId));
+                this.currentCustomer = refreshed;
+                if (refreshed is not null) ShowCustomer(refreshed);
             }
             else
             {
