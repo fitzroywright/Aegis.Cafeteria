@@ -8,6 +8,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Runtime dependency of the dynamically loaded integration plugin. The Migration
+         executable itself contains no SQL access code. -->
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.3" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Aegis.Cafeteria.Application\Aegis.Cafeteria.Application.csproj" />
     <ProjectReference Include="..\Aegis.Cafeteria.Plugin.Integration\Aegis.Cafeteria.Plugin.Integration.csproj"
                       ReferenceOutputAssembly="false" />
