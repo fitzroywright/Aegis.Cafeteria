@@ -150,8 +150,15 @@ public sealed class ExternalPublicationWorker(
                 : itemList
         };
 
-        string identificationMethod = "POS";
-        string? identificationCode = null;
+        string identificationMethod =
+            root.TryGetProperty("IdentificationMethod", out JsonElement methodElement)
+                ? methodElement.GetString()?.Trim() ?? "POS"
+                : "POS";
+
+        string? identificationCode =
+            root.TryGetProperty("IdentificationCode", out JsonElement codeElement)
+                ? codeElement.GetString()?.Trim()
+                : null;
 
         return new CafeteriaOutboundTransaction(
             value.EventId,
