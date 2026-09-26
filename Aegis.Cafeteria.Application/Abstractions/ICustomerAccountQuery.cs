@@ -10,7 +10,8 @@ public interface ICustomerAccountQuery
         int customerId,
         int year,
         int month,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default)
+        => GetAsync(customerId, year, month, cancellationToken);
 
     Task<IReadOnlyList<CustomerMonthlyTransactionView>> GetTransactionsAsync(
         int customerId,
