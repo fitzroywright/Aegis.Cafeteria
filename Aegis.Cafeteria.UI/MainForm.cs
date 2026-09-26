@@ -942,6 +942,7 @@ public sealed class MainForm : Form
 
     private async Task IdentifyAsync()
     {
+        Stopwatch performanceTimer = Stopwatch.StartNew();
         var value = this.lookup.Text.Trim();
         if (value.Length == 0)
         {
@@ -981,7 +982,9 @@ public sealed class MainForm : Form
             FocusCustomerLookup(selectAll: true);
         }
         finally { UseWaitCursor = false; }
-    }
+    
+        this.logger.LogInformation("POS identify completed in {ElapsedMilliseconds} ms", performanceTimer.ElapsedMilliseconds);
+}
 
     private void FocusCustomerLookup(bool selectAll = false)
     {
@@ -1143,6 +1146,7 @@ public sealed class MainForm : Form
 
     private async Task LoadProductsAsync(string? search = null)
     {
+        Stopwatch performanceTimer = Stopwatch.StartNew();
         try
         {
             if (string.IsNullOrWhiteSpace(search))
@@ -1164,7 +1168,9 @@ public sealed class MainForm : Form
             this.syncStatus.Text = "● Product catalog unavailable";
             this.syncStatus.ForeColor = Red;
         }
-    }
+    
+        this.logger.LogInformation("POS product load completed in {ElapsedMilliseconds} ms", performanceTimer.ElapsedMilliseconds);
+}
 
     private void AddSelectedProduct(int rowIndex)
     {
@@ -1269,6 +1275,7 @@ public sealed class MainForm : Form
 
     private async Task LoadRecentTransactionsAsync()
     {
+        Stopwatch performanceTimer = Stopwatch.StartNew();
         if (this.uiOptions.RecentTransactionCount <= 0)
         {
             this.recentTransactionSource.DataSource = null;
@@ -1292,10 +1299,13 @@ public sealed class MainForm : Form
         {
             this.logger.LogWarning(ex, "Could not load recent POS transactions");
         }
-    }
+    
+        this.logger.LogInformation("POS recent transaction refresh completed in {ElapsedMilliseconds} ms", performanceTimer.ElapsedMilliseconds);
+}
 
     private async Task CheckoutAsync()
     {
+        Stopwatch performanceTimer = Stopwatch.StartNew();
         if (this.currentCustomer is null || this.cart.Count == 0) return;
         decimal total = this.cart.Sum(x => x.Total);
         TenderCustomerContext tenderContext = TenderCustomerPolicy.Evaluate(this.currentCustomer);
@@ -1345,7 +1355,9 @@ public sealed class MainForm : Form
             MessageBox.Show(this, ex.Message, "Checkout Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally { UpdateCheckoutState(); }
-    }
+    
+        this.logger.LogInformation("POS checkout completed in {ElapsedMilliseconds} ms", performanceTimer.ElapsedMilliseconds);
+}
 
     private OperatorIdentity RequireOperator()
         => this.operatorSession.Current ?? throw new UnauthorizedAccessException("An authenticated cafeteria operator is required.");
