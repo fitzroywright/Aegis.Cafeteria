@@ -1,12 +1,14 @@
 namespace Aegis.Cafeteria.Infrastructure.ActiveDirectory;
 
+using Common.Security.Models;
+
 public sealed class EmployeeDirectoryMetadataCache
 {
     private readonly object syncRoot = new();
-    private IReadOnlyDictionary<string, ActiveDirectoryEmployeeRecord> records =
-        new Dictionary<string, ActiveDirectoryEmployeeRecord>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyDictionary<string, DirectoryUserProfile> records =
+        new Dictionary<string, DirectoryUserProfile>(StringComparer.OrdinalIgnoreCase);
 
-    public ActiveDirectoryEmployeeRecord? Get(string? loginName)
+    public DirectoryUserProfile? Get(string? loginName)
     {
         string normalized = NormalizeLoginName(loginName);
         if (normalized.Length == 0)
@@ -16,17 +18,17 @@ public sealed class EmployeeDirectoryMetadataCache
 
         lock (this.syncRoot)
         {
-            return this.records.TryGetValue(normalized, out ActiveDirectoryEmployeeRecord? record)
+            return this.records.TryGetValue(normalized, out DirectoryUserProfile? record)
                 ? record
                 : null;
         }
     }
 
-    public void Replace(IReadOnlyDictionary<string, ActiveDirectoryEmployeeRecord> records)
+    public void Replace(IReadOnlyDictionary<string, DirectoryUserProfile> records)
     {
         ArgumentNullException.ThrowIfNull(records);
 
-        Dictionary<string, ActiveDirectoryEmployeeRecord> snapshot =
+        Dictionary<string, DirectoryUserProfile> snapshot =
             new(records, StringComparer.OrdinalIgnoreCase);
 
         lock (this.syncRoot)
