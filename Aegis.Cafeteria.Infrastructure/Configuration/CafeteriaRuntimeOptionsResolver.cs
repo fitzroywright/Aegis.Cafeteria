@@ -23,7 +23,6 @@ public static class CafeteriaRuntimeOptionsResolver
 
     public static async Task<CafeteriaRuntimeOptions> ResolvePosAsync(
         IConfiguration configuration,
-        IApplicationSecretProvider secrets,
         string registrationApplicationId = "Aegis.Cafeteria.POS",
         string registrationDisplayName = "Aegis Cafeteria POS",
         CancellationToken cancellationToken = default)
