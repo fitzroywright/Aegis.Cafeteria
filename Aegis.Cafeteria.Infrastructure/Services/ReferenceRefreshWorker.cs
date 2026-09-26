@@ -16,9 +16,28 @@ public sealed class ReferenceRefreshWorker(
         if (!options.Enabled)
             return;
 
+        TimeSpan refreshInterval = TimeSpan.FromMinutes(Math.Max(1, options.ReferenceRefreshIntervalMinutes));
+
+        // Never launch a large workforce/photo refresh as part of POS startup.
+        // Existing local cache is immediately usable. If the cache is empty, allow
+        // a short grace period and populate it in the background; otherwise wait
+        // for the normal refresh interval before the first automatic refresh.
+        CustomerReferenceCacheStatus initialStatus = await cacheStatus.GetAsync(stoppingToken);
+        TimeSpan initialDelay = initialStatus.EmployeeCount > 0
+            ? refreshInterval
+            : TimeSpan.FromSeconds(Math.Max(1, options.EmptyCacheRefreshDelaySeconds));
+
+        try
+        {
+            await Task.Delay(initialDelay, stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            return;
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
-            TimeSpan refreshInterval = TimeSpan.FromMinutes(Math.Max(1, options.ReferenceRefreshIntervalMinutes));
             CustomerReferenceCacheStatus status = await cacheStatus.GetAsync(stoppingToken);
             DateTimeOffset? freshness = status.LastSuccessUtc ?? status.CacheUpdatedAtUtc;
 
