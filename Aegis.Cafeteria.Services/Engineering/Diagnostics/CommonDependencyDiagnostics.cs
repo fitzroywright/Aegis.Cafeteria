@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net.Sockets;
 using Common.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Aegis.Cafeteria.Services.Persistence;
 
@@ -38,18 +39,36 @@ public sealed class CafeteriaDatabaseDiagnostic(IDbContextFactory<ServiceDbConte
         if (!await db.Database.CanConnectAsync(cancellationToken))
             return (DiagnosticStatus.Unhealthy, "Cafeteria service database is unavailable.");
 
-        bool ffpEnabled = configuration.GetValue("FfpIntegration:Enabled", false);
-        if (!ffpEnabled) return (DiagnosticStatus.Warning, "Service database is healthy; FFP SQL integration is disabled.");
-        string serverValue = configuration["FfpIntegration:Server"] ?? string.Empty;
-        string host = serverValue.Replace("tcp:", string.Empty, StringComparison.OrdinalIgnoreCase).Split(',')[0];
+        bool integrationEnabled = configuration.GetValue("IntegrationPlugin:Enabled", false);
+        if (!integrationEnabled)
+            return (DiagnosticStatus.Warning, "Service database is healthy; FFP Manager integration plugin is disabled.");
+
+        string? connectionString =
+            configuration["IntegrationPlugin:ConnectionString"]
+            ?? configuration.GetConnectionString("FfpManager")
+            ?? Environment.GetEnvironmentVariable("FFPMANAGER_CONNECTION_STRING")
+            ?? Environment.GetEnvironmentVariable("FFPMANAGER_TEST");
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+            return (DiagnosticStatus.Unhealthy, "FFP Manager integration is enabled but no integration connection string is configured.");
+
+        SqlConnectionStringBuilder builder = new(connectionString);
+        string serverValue = builder.DataSource?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(serverValue))
+            return (DiagnosticStatus.Unhealthy, "FFP Manager integration is enabled but the SQL data source is empty.");
+
+        string host = serverValue.Replace("tcp:", string.Empty, StringComparison.OrdinalIgnoreCase).Split(',')[0].Trim();
         int port = 1433;
         string[] parts = serverValue.Split(',');
-        if (parts.Length > 1 && int.TryParse(parts[1], out int parsedPort)) port = parsedPort;
+        if (parts.Length > 1 && int.TryParse(parts[1], out int parsedPort))
+            port = parsedPort;
+
         using TcpClient client = new();
         using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(5));
         await client.ConnectAsync(host, port, timeout.Token);
-        return (DiagnosticStatus.Healthy, $"Service database is healthy and FFP SQL endpoint {host}:{port} is reachable.");
+
+        return (DiagnosticStatus.Healthy, $"Service database is healthy; FFP Manager integration is enabled and SQL endpoint {host}:{port} is reachable.");
     }
 }
 
