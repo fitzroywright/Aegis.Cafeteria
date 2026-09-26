@@ -1,32 +1,41 @@
-using Microsoft.Data.SqlClient;
+using Aegis.Cafeteria.Application.Integration;
 using System.Net.Http.Json;
+using System.Reflection;
+using System.Runtime.Loader;
 
 MigrationOptions options = MigrationOptions.Parse(args);
+ILegacyCafeteriaMigrationSource source = LoadMigrationSource(options.PluginPath);
+string connectionString = options.ResolveConnectionString();
 
 if (options.Mode == MigrationMode.ProductBootstrap)
 {
-    await RunProductBootstrapAsync(options);
+    await RunProductBootstrapAsync(options, source, connectionString);
     return;
 }
 
+DateTimeOffset throughAt = DateTimeOffset.Now;
 Console.WriteLine($"Aegis.Cafeteria legacy migration - {options.Year:D4}-{options.Month:D2}");
-Console.WriteLine($"Source: {options.Server} / {options.Database}");
+Console.WriteLine($"Source provider: {Path.GetFileName(options.PluginPath)}");
 Console.WriteLine($"Mode: {(options.Execute ? "EXECUTE" : "DRY RUN")}");
 
-LegacyMonthMigrationRequest request = await ReadLegacyMonthAsync(options);
+LegacyCafeteriaMonthSnapshot snapshot = await source.ReadMonthAsync(
+    connectionString,
+    options.Year,
+    options.Month,
+    throughAt);
 
-Console.WriteLine($"Through: {request.ThroughAt:O}");
-Console.WriteLine($"Transactions: {request.Transactions.Count}");
-Console.WriteLine($"Accounts: {request.Accounts.Count}");
-Console.WriteLine($"Net scan value: {request.Transactions.Sum(x => x.ScanValue):N2}");
-Console.WriteLine($"Account credit limit total: {request.Accounts.Sum(x => x.CreditLimit):N2}");
-Console.WriteLine($"Account available balance total: {request.Accounts.Sum(x => x.AvailableBalance):N2}");
+Console.WriteLine($"Through: {snapshot.ThroughAt:O}");
+Console.WriteLine($"Transactions: {snapshot.Transactions.Count}");
+Console.WriteLine($"Accounts: {snapshot.Accounts.Count}");
+Console.WriteLine($"Net transaction value: {snapshot.Transactions.Sum(x => x.ScanValue):N2}");
+Console.WriteLine($"Account credit limit total: {snapshot.Accounts.Sum(x => x.CreditLimit):N2}");
+Console.WriteLine($"Account available balance total: {snapshot.Accounts.Sum(x => x.AvailableBalance):N2}");
 
-foreach (IGrouping<int, LegacyTransactionMigrationItem> group in request.Transactions
+foreach (IGrouping<int, LegacyCafeteriaTransactionSnapshot> group in snapshot.Transactions
     .GroupBy(x => x.ScanType)
     .OrderBy(x => x.Key))
 {
-    Console.WriteLine($"ScanType {group.Key}: {group.Count()} transaction(s), {group.Sum(x => x.ScanValue):N2}");
+    Console.WriteLine($"Source type {group.Key}: {group.Count()} transaction(s), {group.Sum(x => x.ScanValue):N2}");
 }
 
 if (!options.Execute)
@@ -35,17 +44,10 @@ if (!options.Execute)
     return;
 }
 
-using HttpClientHandler handler = new()
-{
-    UseDefaultCredentials = true
-};
-using HttpClient http = new(handler)
-{
-    BaseAddress = new Uri(options.ServicesUrl.TrimEnd('/') + "/"),
-    Timeout = TimeSpan.FromMinutes(5)
-};
-
-using HttpResponseMessage response = await http.PostAsJsonAsync("api/migration/legacy-month", request);
+using HttpClient http = CreateServicesClient(options.ServicesUrl);
+using HttpResponseMessage response = await http.PostAsJsonAsync(
+    "api/migration/legacy-month",
+    snapshot);
 string responseBody = await response.Content.ReadAsStringAsync();
 
 if (!response.IsSuccessStatusCode)
@@ -57,39 +59,34 @@ if (!response.IsSuccessStatusCode)
 Console.WriteLine("Migration accepted by Cafeteria Services.");
 Console.WriteLine(responseBody);
 
-static async Task RunProductBootstrapAsync(MigrationOptions options)
+static async Task RunProductBootstrapAsync(
+    MigrationOptions options,
+    ILegacyCafeteriaMigrationSource source,
+    string connectionString)
 {
     Console.WriteLine("Aegis.Cafeteria product catalog migration");
-    Console.WriteLine($"Source: {options.Server} / {options.Database}");
+    Console.WriteLine($"Source provider: {Path.GetFileName(options.PluginPath)}");
     Console.WriteLine($"Services: {options.ServicesUrl}");
     Console.WriteLine($"Mode: {(options.Execute ? "EXECUTE" : "DRY RUN")}");
 
-    ProductMigrationRequest request = await ReadProductsAsync(options);
+    IReadOnlyList<LegacyCafeteriaProductSnapshot> products =
+        await source.ReadProductsAsync(connectionString);
 
-    Console.WriteLine($"Source products: {request.Products.Count}");
+    Console.WriteLine($"Source products: {products.Count}");
 
     if (!options.Execute)
     {
-        foreach (ProductMigrationItem product in request.Products)
+        foreach (LegacyCafeteriaProductSnapshot product in products)
             Console.WriteLine($"{product.ProductId}: {product.Code} | {product.Name} | {product.Price:N2}");
 
         Console.WriteLine("Dry run complete. Re-run with --execute to submit the product migration.");
         return;
     }
 
-    using HttpClientHandler handler = new()
-    {
-        UseDefaultCredentials = true
-    };
-    using HttpClient http = new(handler)
-    {
-        BaseAddress = new Uri(options.ServicesUrl.TrimEnd('/') + "/"),
-        Timeout = TimeSpan.FromMinutes(5)
-    };
-
+    using HttpClient http = CreateServicesClient(options.ServicesUrl);
     using HttpResponseMessage response = await http.PostAsJsonAsync(
         "api/migration/products",
-        request);
+        new { Products = products });
 
     string responseBody = await response.Content.ReadAsStringAsync();
     if (!response.IsSuccessStatusCode)
@@ -102,194 +99,45 @@ static async Task RunProductBootstrapAsync(MigrationOptions options)
     Console.WriteLine(responseBody);
 }
 
-static async Task<ProductMigrationRequest> ReadProductsAsync(MigrationOptions options)
+static HttpClient CreateServicesClient(string servicesUrl)
 {
-    const string sql = @"
-SELECT
-      ID
-    , ISNULL(CONVERT(nvarchar(64), Code), '') AS Code
-    , ISNULL(CONVERT(nvarchar(256), Name), '') AS Name
-    , ISNULL(Price, 0) AS Price
-FROM dbo.LunchItems
-WHERE ISNULL(CONVERT(nvarchar(64), Code), '') <> @ReservedPolicyCode
-ORDER BY ID;";
-
-    SqlConnectionStringBuilder builder = new()
+    HttpClientHandler handler = new()
     {
-        DataSource = options.Server!,
-        InitialCatalog = options.Database!,
-        IntegratedSecurity = true,
-        Encrypt = options.Encrypt,
-        TrustServerCertificate = options.TrustServerCertificate,
-        ApplicationName = "Aegis.Cafeteria.Migration"
+        UseDefaultCredentials = true
     };
 
-    List<ProductMigrationItem> products = [];
-
-    await using SqlConnection connection = new(builder.ConnectionString);
-    await connection.OpenAsync();
-
-    await using SqlCommand command = new(sql, connection);
-    command.Parameters.AddWithValue("@ReservedPolicyCode", options.ReservedPolicyCode);
-
-    await using SqlDataReader reader = await command.ExecuteReaderAsync();
-    while (await reader.ReadAsync())
+    return new HttpClient(handler)
     {
-        int productId = Convert.ToInt32(reader.GetValue(0));
-        string code = Convert.ToString(reader.GetValue(1))?.Trim() ?? string.Empty;
-        string name = Convert.ToString(reader.GetValue(2))?.Trim() ?? string.Empty;
-        decimal price = Convert.ToDecimal(reader.GetValue(3));
-
-        if (productId <= 0 || string.IsNullOrWhiteSpace(name) || price < 0m)
-            continue;
-
-        products.Add(new ProductMigrationItem(
-            productId,
-            code,
-            name,
-            price));
-    }
-
-    return new ProductMigrationRequest(products);
-}
-
-static async Task<LegacyMonthMigrationRequest> ReadLegacyMonthAsync(MigrationOptions options)
-{
-    DateTime start = new(options.Year, options.Month, 1);
-    DateTime end = start.AddMonths(1);
-    DateTimeOffset throughAt = DateTimeOffset.Now;
-
-    const string transactionSql = @"
-SELECT
-      s.ID
-    , s.EmployeeID
-    , s.ScanDate
-    , ISNULL(s.IDName, '')
-    , ISNULL(s.[Description], '')
-    , ISNULL(s.ScanValue, 0)
-    , ISNULL(s.UserName, '')
-    , ISNULL(s.ScanCode, '')
-    , ISNULL(s.ScanType, 0)
-FROM dbo.EmployeeIDScans AS s
-INNER JOIN dbo.Employees AS e ON e.ID = s.EmployeeID
-WHERE s.ScanDate >= @Start
-  AND s.ScanDate < @End
-  AND s.ScanDate <= @ThroughAt
-  AND e.EligibleForLunchTicket = 1
-  AND s.ScanType IN (3, 8, 4)
-ORDER BY s.ScanDate, s.ID;";
-
-    const string accountSql = @"
-SELECT
-      e.ID
-    , ISNULL(e.CreditLimit, 0)
-    , ISNULL(e.AvailableBalance, 0)
-FROM dbo.Employees AS e
-WHERE e.EligibleForLunchTicket = 1
-ORDER BY e.ID;";
-
-    SqlConnectionStringBuilder builder = new()
-    {
-        DataSource = options.Server!,
-        InitialCatalog = options.Database!,
-        IntegratedSecurity = true,
-        Encrypt = options.Encrypt,
-        TrustServerCertificate = options.TrustServerCertificate,
-        ApplicationName = "Aegis.Cafeteria.Migration"
+        BaseAddress = new Uri(servicesUrl.TrimEnd('/') + "/"),
+        Timeout = TimeSpan.FromMinutes(5)
     };
-
-    List<LegacyTransactionMigrationItem> transactions = [];
-    List<LegacyAccountMigrationItem> accounts = [];
-
-    await using SqlConnection connection = new(builder.ConnectionString);
-    await connection.OpenAsync();
-
-    await using (SqlCommand command = new(transactionSql, connection))
-    {
-        command.Parameters.AddWithValue("@Start", start);
-        command.Parameters.AddWithValue("@End", end);
-        command.Parameters.AddWithValue("@ThroughAt", throughAt.LocalDateTime);
-
-        await using SqlDataReader reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            transactions.Add(new LegacyTransactionMigrationItem
-            (
-                  Convert.ToInt64(reader.GetValue(0))
-                , Convert.ToInt32(reader.GetValue(1))
-                , new DateTimeOffset(reader.GetDateTime(2))
-                , Convert.ToString(reader.GetValue(3))?.Trim() ?? string.Empty
-                , Convert.ToString(reader.GetValue(4))?.Trim() ?? string.Empty
-                , Convert.ToDecimal(reader.GetValue(5))
-                , Convert.ToString(reader.GetValue(6))?.Trim() ?? string.Empty
-                , Convert.ToString(reader.GetValue(7))?.Trim() ?? string.Empty
-                , Convert.ToInt32(reader.GetValue(8))
-            ));
-        }
-    }
-
-    await using (SqlCommand command = new(accountSql, connection))
-    {
-        await using SqlDataReader reader = await command.ExecuteReaderAsync();
-        while (await reader.ReadAsync())
-        {
-            accounts.Add(new LegacyAccountMigrationItem
-            (
-                  Convert.ToInt32(reader.GetValue(0))
-                , Convert.ToDecimal(reader.GetValue(1))
-                , Convert.ToDecimal(reader.GetValue(2))
-            ));
-        }
-    }
-
-    return new LegacyMonthMigrationRequest
-    (
-          options.Year
-        , options.Month
-        , throughAt
-        , transactions
-        , accounts
-    );
 }
 
+static ILegacyCafeteriaMigrationSource LoadMigrationSource(string configuredPath)
+{
+    string path = Path.IsPathRooted(configuredPath)
+        ? Path.GetFullPath(configuredPath)
+        : Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, configuredPath));
 
-internal sealed record ProductMigrationRequest(
-    IReadOnlyList<ProductMigrationItem> Products);
+    if (!File.Exists(path))
+        throw new FileNotFoundException("Configured Cafeteria migration integration plugin was not found.", path);
 
-internal sealed record ProductMigrationItem(
-    int ProductId,
-    string Code,
-    string Name,
-    decimal Price);
+    Assembly assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(path);
+    Type contract = typeof(ILegacyCafeteriaMigrationSource);
+    Type[] matches = assembly.GetTypes()
+        .Where(type => type.IsClass && !type.IsAbstract && type.IsPublic && contract.IsAssignableFrom(type))
+        .ToArray();
 
-internal sealed record LegacyMonthMigrationRequest
-(
-      int Year
-    , int Month
-    , DateTimeOffset ThroughAt
-    , IReadOnlyList<LegacyTransactionMigrationItem> Transactions
-    , IReadOnlyList<LegacyAccountMigrationItem> Accounts
-);
+    if (matches.Length != 1)
+    {
+        throw new InvalidOperationException(
+            $"Integration plugin must contain exactly one {contract.FullName} implementation; found {matches.Length}.");
+    }
 
-internal sealed record LegacyTransactionMigrationItem
-(
-      long SourceId
-    , int CustomerId
-    , DateTimeOffset OccurredAt
-    , string IdName
-    , string Description
-    , decimal ScanValue
-    , string UserName
-    , string ScanCode
-    , int ScanType
-);
-
-internal sealed record LegacyAccountMigrationItem
-(
-      int CustomerId
-    , decimal CreditLimit
-    , decimal AvailableBalance
-);
+    return (ILegacyCafeteriaMigrationSource)(
+        Activator.CreateInstance(matches[0])
+        ?? throw new InvalidOperationException($"Could not create migration source {matches[0].FullName}."));
+}
 
 internal enum MigrationMode
 {
@@ -297,19 +145,18 @@ internal enum MigrationMode
     ProductBootstrap
 }
 
-internal sealed record MigrationOptions
-(
-      MigrationMode Mode
-    , string? Server
-    , string? Database
-    , string ServicesUrl
-    , int Year
-    , int Month
-    , bool Execute
-    , bool Encrypt
-    , bool TrustServerCertificate
-    , string ReservedPolicyCode
-)
+internal sealed record MigrationOptions(
+    MigrationMode Mode,
+    string? ConnectionString,
+    string? Server,
+    string? Database,
+    string ServicesUrl,
+    string PluginPath,
+    int Year,
+    int Month,
+    bool Execute,
+    bool Encrypt,
+    bool TrustServerCertificate)
 {
     internal static MigrationOptions Parse(string[] args)
     {
@@ -318,9 +165,7 @@ internal sealed record MigrationOptions
         {
             string argument = args[index];
             if (!argument.StartsWith("--", StringComparison.Ordinal))
-            {
                 continue;
-            }
 
             string key = argument[2..];
             string? value = index + 1 < args.Length && !args[index + 1].StartsWith("--", StringComparison.Ordinal)
@@ -333,9 +178,11 @@ internal sealed record MigrationOptions
             ? MigrationMode.ProductBootstrap
             : MigrationMode.LegacyMonth;
 
-        string? server = Required(values, "server");
-        string? database = Required(values, "database");
         string servicesUrl = Required(values, "services-url");
+        string pluginPath = values.TryGetValue("plugin", out string? plugin)
+            && !string.IsNullOrWhiteSpace(plugin)
+                ? plugin.Trim()
+                : Path.Combine("plugins", "Aegis.Cafeteria.Plugin.Integration.dll");
 
         int year = values.TryGetValue("year", out string? yearText) && int.TryParse(yearText, out int parsedYear)
             ? parsedYear
@@ -344,32 +191,42 @@ internal sealed record MigrationOptions
             ? parsedMonth
             : DateTime.Today.Month;
 
-        if (year is < 2000 or > 9999)
+        if (year is < 2000 or > 9999) throw new ArgumentOutOfRangeException(nameof(year));
+        if (month is < 1 or > 12) throw new ArgumentOutOfRangeException(nameof(month));
+
+        values.TryGetValue("connection-string", out string? connectionString);
+        values.TryGetValue("server", out string? server);
+        values.TryGetValue("database", out string? database);
+
+        if (string.IsNullOrWhiteSpace(connectionString)
+            && (string.IsNullOrWhiteSpace(server) || string.IsNullOrWhiteSpace(database)))
         {
-            throw new ArgumentOutOfRangeException(nameof(year));
+            throw new ArgumentException(
+                "Specify --connection-string, or provide both --server and --database.");
         }
 
-        if (month is < 1 or > 12)
-        {
-            throw new ArgumentOutOfRangeException(nameof(month));
-        }
+        return new MigrationOptions(
+            mode,
+            connectionString?.Trim(),
+            server?.Trim(),
+            database?.Trim(),
+            servicesUrl,
+            pluginPath,
+            year,
+            month,
+            values.ContainsKey("execute"),
+            !values.ContainsKey("no-encrypt"),
+            values.ContainsKey("trust-server-certificate"));
+    }
 
-        return new MigrationOptions
-        (
-              mode
-            , server
-            , database
-            , servicesUrl
-            , year
-            , month
-            , values.ContainsKey("execute")
-            , !values.ContainsKey("no-encrypt")
-            , values.ContainsKey("trust-server-certificate")
-            , values.TryGetValue("reserved-policy-code", out string? reservedPolicyCode)
-                && !string.IsNullOrWhiteSpace(reservedPolicyCode)
-                    ? reservedPolicyCode.Trim()
-                    : "FFP00"
-        );
+    internal string ResolveConnectionString()
+    {
+        if (!string.IsNullOrWhiteSpace(ConnectionString))
+            return ConnectionString;
+
+        string encrypt = Encrypt ? "True" : "False";
+        string trust = TrustServerCertificate ? "True" : "False";
+        return $"Integrated Security=SSPI;Pooling=false;Data Source={Server};Initial Catalog={Database};Encrypt={encrypt};TrustServerCertificate={trust}";
     }
 
     private static string Required(IReadOnlyDictionary<string, string?> values, string key)
