@@ -49,7 +49,24 @@ public sealed class LocalPersistenceStore(
     public async Task<IReadOnlyList<PosTransactionOutboxRow>> GetPendingPosTransactionsAsync(int take, DateTimeOffset now, CancellationToken ct = default)
     {
         await using LocalCafeteriaDbContext db = await factory.CreateDbContextAsync(ct);
-        return await db.PosTransactionOutbox.AsNoTracking().Where(x => x.PublishedAt == null && x.NextAttemptAt <= now).OrderBy(x => x.CreatedAt).Take(Math.Clamp(take, 1, 100)).ToArrayAsync(ct);
+
+        int requested = Math.Clamp(take, 1, 100);
+
+        // SQLite/EF cannot reliably translate DateTimeOffset comparisons for
+        // NextAttemptAt. Keep the SQL predicate to the nullable publication
+        // state, then apply retry-time ordering/filtering in memory over a
+        // bounded candidate set.
+        PosTransactionOutboxRow[] candidates = await db.PosTransactionOutbox
+            .AsNoTracking()
+            .Where(x => x.PublishedAt == null)
+            .Take(Math.Max(500, requested * 5))
+            .ToArrayAsync(ct);
+
+        return candidates
+            .Where(x => x.NextAttemptAt <= now)
+            .OrderBy(x => x.CreatedAt)
+            .Take(requested)
+            .ToArray();
     }
 
     public Task MarkPosTransactionPublishedAsync(Guid eventId, DateTimeOffset publishedAt, CancellationToken ct = default)
