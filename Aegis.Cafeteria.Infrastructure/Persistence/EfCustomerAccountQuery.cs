@@ -11,9 +11,11 @@ using Aegis.Cafeteria.Domain.Orders;
 using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Infrastructure.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 using System.Text.Json;
 
-public sealed class EfCustomerAccountQuery(IDbContextFactory<LocalCafeteriaDbContext> factory,MonthlyCreditAllocationService allocationService,IExternalPublicationStatusProvider publicationStatusProvider):ICustomerAccountQuery
+public sealed class EfCustomerAccountQuery(IDbContextFactory<LocalCafeteriaDbContext> factory,MonthlyCreditAllocationService allocationService,IExternalPublicationStatusProvider publicationStatusProvider,ILogger<EfCustomerAccountQuery>? logger=null):ICustomerAccountQuery
 {
  public async Task<CustomerAccountView?> GetAsync(int customerId,int year,int month,CancellationToken cancellationToken=default)
  {
@@ -28,19 +30,28 @@ public sealed class EfCustomerAccountQuery(IDbContextFactory<LocalCafeteriaDbCon
 
  public async Task<CustomerAccountView?> GetSummaryAsync(int customerId,int year,int month,CancellationToken cancellationToken=default)
  {
+  Stopwatch total=Stopwatch.StartNew();
+  Stopwatch step=Stopwatch.StartNew();
   if(customerId<=0)throw new ArgumentOutOfRangeException(nameof(customerId)); if(year<1)throw new ArgumentOutOfRangeException(nameof(year)); if(month is <1 or >12)throw new ArgumentOutOfRangeException(nameof(month));
 
   CustomerRow? customerRow;
   AccountPeriodRow? periodRow;
   await using(LocalCafeteriaDbContext db=await factory.CreateDbContextAsync(cancellationToken))
   {
+   logger?.LogInformation("PERF AccountSummary CustomerId={CustomerId} DbContext1 {ElapsedMs} ms",customerId,step.ElapsedMilliseconds);
+   step.Restart();
    customerRow=await db.Customers.AsNoTracking().SingleOrDefaultAsync(x=>x.Id==customerId,cancellationToken);
+   logger?.LogInformation("PERF AccountSummary CustomerId={CustomerId} customer row {ElapsedMs} ms",customerId,step.ElapsedMilliseconds);
    if(customerRow is null)return null;
+   step.Restart();
    periodRow=await db.AccountPeriods.AsNoTracking().SingleOrDefaultAsync(x=>x.CustomerId==customerId&&x.Year==year&&x.Month==month,cancellationToken);
+   logger?.LogInformation("PERF AccountSummary CustomerId={CustomerId} account period {ElapsedMs} ms",customerId,step.ElapsedMilliseconds);
   }
 
   Customer customer=DomainReadMapper.ToDomain(customerRow);
+  step.Restart();
   MonthlyCreditAllocation allocation=await allocationService.EnsureAsync(customer,year,month,cancellationToken);
+  logger?.LogInformation("PERF AccountSummary CustomerId={CustomerId} allocation ensure {ElapsedMs} ms",customerId,step.ElapsedMilliseconds);
   CustomerFinancialStatusView financial;
 
   if(!customer.IsEligibleForCredit)
@@ -60,22 +71,34 @@ public sealed class EfCustomerAccountQuery(IDbContextFactory<LocalCafeteriaDbCon
    decimal cashRefunded=0m;
    decimal creditRefunded=0m;
 
+   step.Restart();
    await using(LocalCafeteriaDbContext db=await factory.CreateDbContextAsync(cancellationToken))
    {
+    logger?.LogInformation("PERF AccountSummary CustomerId={CustomerId} DbContext2 {ElapsedMs} ms",customerId,step.ElapsedMilliseconds);
+    step.Restart();
     orderIds=await db.Orders.AsNoTracking()
       .Where(x=>x.CustomerId==customerId&&x.AccountYear==year&&x.AccountMonth==month&&x.Status==(int)OrderStatus.Completed)
       .Select(x=>x.Id)
       .ToArrayAsync(cancellationToken);
+    logger?.LogInformation("PERF AccountSummary CustomerId={CustomerId} order ids {ElapsedMs} ms Count={Count}",customerId,step.ElapsedMilliseconds,orderIds.Length);
 
+    step.Restart();
     events=await db.AccountEvents.AsNoTracking()
       .Where(x=>x.CustomerId==customerId&&x.AccountYear==year&&x.AccountMonth==month)
       .ToArrayAsync(cancellationToken);
+    logger?.LogInformation("PERF AccountSummary CustomerId={CustomerId} account events {ElapsedMs} ms Count={Count}",customerId,step.ElapsedMilliseconds,events.Length);
 
     if(orderIds.Length>0)
     {
+     step.Restart();
      OrderItemRow[] items=await db.OrderItems.AsNoTracking().Where(x=>orderIds.Contains(x.OrderId)).ToArrayAsync(cancellationToken);
+     logger?.LogInformation("PERF AccountSummary CustomerId={CustomerId} order items {ElapsedMs} ms Count={Count}",customerId,step.ElapsedMilliseconds,items.Length);
+     step.Restart();
      OrderPaymentRow[] payments=await db.OrderPayments.AsNoTracking().Where(x=>orderIds.Contains(x.OrderId)).ToArrayAsync(cancellationToken);
+     logger?.LogInformation("PERF AccountSummary CustomerId={CustomerId} order payments {ElapsedMs} ms Count={Count}",customerId,step.ElapsedMilliseconds,payments.Length);
+     step.Restart();
      OrderRefundRow[] refundRows=await db.OrderRefunds.AsNoTracking().Where(x=>orderIds.Contains(x.OrderId)).ToArrayAsync(cancellationToken);
+     logger?.LogInformation("PERF AccountSummary CustomerId={CustomerId} refund rows {ElapsedMs} ms Count={Count}",customerId,step.ElapsedMilliseconds,refundRows.Length);
      Guid[] refundIds=refundRows.Where(x=>x.RefundedAt.Year==year&&x.RefundedAt.Month==month).Select(x=>x.Id).ToArray();
 
      totalOrderSales=items.Sum(x=>x.UnitPrice*x.Quantity);
@@ -85,8 +108,12 @@ public sealed class EfCustomerAccountQuery(IDbContextFactory<LocalCafeteriaDbCon
 
      if(refundIds.Length>0)
      {
+      step.Restart();
       OrderRefundItemRow[] refundItems=await db.OrderRefundItems.AsNoTracking().Where(x=>refundIds.Contains(x.RefundId)).ToArrayAsync(cancellationToken);
+      logger?.LogInformation("PERF AccountSummary CustomerId={CustomerId} refund items {ElapsedMs} ms Count={Count}",customerId,step.ElapsedMilliseconds,refundItems.Length);
+      step.Restart();
       RefundAllocationRow[] allocations=await db.RefundAllocations.AsNoTracking().Where(x=>refundIds.Contains(x.RefundId)).ToArrayAsync(cancellationToken);
+      logger?.LogInformation("PERF AccountSummary CustomerId={CustomerId} refund allocations {ElapsedMs} ms Count={Count}",customerId,step.ElapsedMilliseconds,allocations.Length);
       totalRefunds=refundItems.Sum(x=>x.UnitPrice*x.Quantity);
       cafeteriaAccountRefunded=allocations.Where(x=>x.Method==(int)PaymentMethod.CafeteriaAccount).Sum(x=>x.Amount);
       cashRefunded=allocations.Where(x=>x.Method==(int)PaymentMethod.Cash).Sum(x=>x.Amount);
@@ -167,6 +194,7 @@ public sealed class EfCustomerAccountQuery(IDbContextFactory<LocalCafeteriaDbCon
     currentCreditSaleDebt);
   }
 
+  logger?.LogInformation("PERF AccountSummary CustomerId={CustomerId} TOTAL {ElapsedMs} ms Orders={OrderCount} Events={EventCount}",customerId,total.ElapsedMilliseconds,customer.IsEligibleForCredit?1:0,customer.IsEligibleForCredit?1:0);
   return new CustomerAccountView(
    new CustomerIdentityView(customer.Id,customer.Name,customer.Photo,customer.IsEligibleForCredit,false,customerRow.EmailAddress),
    new AccountPeriodView(year,month,allocation.EligibleWorkingDays,allocation.EmployeeFundedAllocation,allocation.SubsidyAllocation,periodRow?.IsClosed??false),
