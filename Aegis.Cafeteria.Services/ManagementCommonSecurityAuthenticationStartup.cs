@@ -4,9 +4,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using Common.Security;
 using Common.Security.Abstractions;
-using Common.Security.Authenticators;
 using Common.Security.Models;
-using Common.Security.Options;
 using Microsoft.AspNetCore.Http;
 
 public sealed class ManagementCommonSecurityAuthenticationStartup : IHostedService
@@ -383,29 +381,11 @@ public sealed class ManagementCommonSecurityAuthenticator
 {
     private readonly IAuthenticator authenticator;
 
-    public ManagementCommonSecurityAuthenticator(IConfiguration configuration)
+    public ManagementCommonSecurityAuthenticator(
+        IAuthenticator authenticator,
+        IConfiguration configuration)
     {
-        IConfigurationSection security = configuration.GetSection("Security");
-
-        string configuredDomain = security["Domain"]?.Trim() ?? string.Empty;
-        string domain = string.IsNullOrWhiteSpace(configuredDomain)
-            ? "fftpj.local"
-            : configuredDomain;
-
-        string configuredSearchBase = security["SearchBase"]?.Trim() ?? string.Empty;
-        string searchBase = string.IsNullOrWhiteSpace(configuredSearchBase)
-            ? "DC=fftpj,DC=local"
-            : configuredSearchBase;
-
-        int port = security.GetValue<int?>("Port") ?? 636;
-        int timeoutSeconds = security.GetValue<int?>("TimeoutSeconds") ?? 5;
-        string[] servers = security
-            .GetSection("Servers")
-            .GetChildren()
-            .Select(child => child.Value?.Trim())
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Cast<string>()
-            .ToArray();
+        this.authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
 
         string[] configuredGroups = configuration
             .GetSection("ManagementApi:AuthorizedGroups")
@@ -418,26 +398,12 @@ public sealed class ManagementCommonSecurityAuthenticator
         AuthorizedGroups = configuredGroups.Length == 0
             ? ["Cafeteria Managers", "Cafeteria Administrators", "Domain Admins"]
             : configuredGroups;
-
-        ActiveDirectoryAuthenticationOptions options = new()
-        {
-              Domain = domain
-            , SearchBase = searchBase
-            , Port = port
-            , TimeoutSeconds = timeoutSeconds
-            , Servers = servers
-            , AdministrativeGroups = AuthorizedGroups
-        };
-
-        authenticator = new ActiveDirectory(options);
     }
 
     public IReadOnlyList<string> AuthorizedGroups { get; }
 
     public AuthenticationResult Authenticate(string loginName, string password)
-    {
-        return authenticator.Authenticate(loginName, password);
-    }
+        => authenticator.Authenticate(loginName, password);
 }
 
 public sealed class ManagementServiceTokenStore
