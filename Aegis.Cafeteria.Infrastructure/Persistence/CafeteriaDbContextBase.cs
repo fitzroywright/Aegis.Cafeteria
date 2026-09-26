@@ -89,7 +89,12 @@ public abstract class CafeteriaDbContextBase(DbContextOptions options) : DbConte
         b.Entity<OrderRow>().HasIndex(x => new { x.TerminalId, x.CompletedAt });
         b.Entity<OrderRow>().HasIndex(x => new { x.CashierUserId, x.CompletedAt });
         b.Entity<OrderRow>().HasIndex(x => new { x.IDMethod, x.CompletedAt });
+        b.Entity<OrderItemRow>().HasIndex(x => x.OrderId);
+        b.Entity<OrderPaymentRow>().HasIndex(x => x.OrderId);
+        b.Entity<OrderRefundRow>().HasIndex(x => x.OrderId);
         b.Entity<OrderRefundRow>().HasIndex(x => x.RefundedAt);
+        b.Entity<OrderRefundItemRow>().HasIndex(x => x.RefundId);
+        b.Entity<RefundAllocationRow>().HasIndex(x => x.RefundId);
         b.Entity<ProductRow>().HasIndex(x => x.Name);
         b.Entity<AccountEventRow>().HasIndex(x => new { x.CustomerId, x.AccountYear, x.AccountMonth, x.OccurredAt });
         b.Entity<MonthlyCreditAllocationRow>().HasIndex(x => new { x.Year, x.Month });
