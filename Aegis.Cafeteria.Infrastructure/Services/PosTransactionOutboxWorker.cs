@@ -5,6 +5,7 @@ using Aegis.Cafeteria.Infrastructure.Persistence;
 using Aegis.Cafeteria.Infrastructure.Persistence.Models;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 public sealed class PosTransactionOutboxWorker(
     LocalPersistenceStore store,
@@ -45,8 +46,11 @@ public sealed class PosTransactionOutboxWorker(
 
     internal async Task<int> PublishBatchAsync(CancellationToken cancellationToken)
     {
+        Stopwatch total = Stopwatch.StartNew();
+        Stopwatch step = Stopwatch.StartNew();
         DateTimeOffset now = DateTimeOffset.UtcNow;
         IReadOnlyList<PosTransactionOutboxRow> pending = await store.GetPendingPosTransactionsAsync(50, now, cancellationToken);
+        logger.LogInformation("PERF Outbox pending query {ElapsedMs} ms Count={Count}", step.ElapsedMilliseconds, pending.Count);
         int published = 0;
 
         foreach (PosTransactionOutboxRow row in pending)
@@ -54,8 +58,12 @@ public sealed class PosTransactionOutboxWorker(
             try
             {
                 PosTransactionEvent transactionEvent = new(row.EventId,row.CorrelationId,row.Kind,row.OrderId,row.CustomerId,row.Actor,row.TerminalId,row.AccountYear,row.AccountMonth,row.OccurredAt,row.PayloadJson,row.Reason);
+                step.Restart();
                 await servicesClient.PublishTransactionEventAsync(transactionEvent, cancellationToken);
+                logger.LogInformation("PERF Outbox EventId={EventId} HTTP publish {ElapsedMs} ms", row.EventId, step.ElapsedMilliseconds);
+                step.Restart();
                 await store.MarkPosTransactionPublishedAsync(row.EventId, DateTimeOffset.UtcNow, cancellationToken);
+                logger.LogInformation("PERF Outbox EventId={EventId} mark published {ElapsedMs} ms", row.EventId, step.ElapsedMilliseconds);
                 published++;
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
@@ -70,6 +78,7 @@ public sealed class PosTransactionOutboxWorker(
             }
         }
 
+        logger.LogInformation("PERF Outbox batch TOTAL {ElapsedMs} ms Published={Published} Pending={Pending}", total.ElapsedMilliseconds, published, pending.Count);
         return published;
     }
 }
