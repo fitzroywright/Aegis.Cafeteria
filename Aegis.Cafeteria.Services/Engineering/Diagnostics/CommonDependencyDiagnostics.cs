@@ -117,29 +117,22 @@ public sealed class CafeteriaMessagingDiagnostic(IConfiguration configuration) :
     }
 }
 
-public sealed class CafeteriaActiveDirectoryDiagnostic(IConfiguration configuration) : CafeteriaDependencyDiagnosticBase
+public sealed class CafeteriaAuthenticationProviderDiagnostic(IConfiguration configuration) : CafeteriaDependencyDiagnosticBase
 {
-    public override string Name => "Active Directory";
-    protected override async Task<(DiagnosticStatus, string)> CheckAsync(CancellationToken cancellationToken)
+    public override string Name => "Authentication";
+    protected override Task<(DiagnosticStatus, string)> CheckAsync(CancellationToken cancellationToken)
     {
-        string[] servers = configuration.GetSection("Security:Servers").Get<string[]>() ?? [];
-        int port = configuration.GetValue("Security:Port", 636);
-        if (servers.Length == 0) return (DiagnosticStatus.Warning, "No Active Directory servers are configured for Cafeteria security.");
-        foreach (string server in servers)
-        {
-            try
-            {
-                using TcpClient client = new();
-                using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                timeout.CancelAfter(TimeSpan.FromSeconds(5));
-                await client.ConnectAsync(server, port, timeout.Token);
-                return (DiagnosticStatus.Healthy, $"Active Directory endpoint {server}:{port} is reachable.");
-            }
-            catch when (!cancellationToken.IsCancellationRequested)
-            {
-            }
-        }
-        return (DiagnosticStatus.Unhealthy, $"No configured Active Directory server is reachable on TCP/{port}.");
+        bool enabled = configuration.GetValue("AuthenticationPlugin:Enabled", true);
+        if (!enabled)
+            return Task.FromResult((DiagnosticStatus.Unhealthy, "Authentication plugin is disabled."));
+
+        string assemblyPath = configuration["AuthenticationPlugin:AssemblyPath"]?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(assemblyPath))
+            return Task.FromResult((DiagnosticStatus.Unhealthy, "AuthenticationPlugin:AssemblyPath is not configured."));
+
+        return Task.FromResult((
+            DiagnosticStatus.Unknown,
+            $"Authentication plugin '{assemblyPath}' is configured. Provider-specific connectivity is verified by Common.Security/provider diagnostics."));
     }
 }
 
