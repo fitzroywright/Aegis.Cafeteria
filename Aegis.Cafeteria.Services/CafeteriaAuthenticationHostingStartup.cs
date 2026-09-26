@@ -1,4 +1,4 @@
-using Aegis.Cafeteria.Infrastructure.ActiveDirectory;
+using Aegis.Cafeteria.Infrastructure.Identity;
 using Aegis.Cafeteria.Services;
 using Aegis.Cafeteria.Services.Email;
 using Aegis.Cafeteria.Services.Engineering.Diagnostics;
@@ -53,7 +53,7 @@ public sealed class CafeteriaAuthenticationHostingStartup : IHostingStartup
 
                 // Long-running coordination belongs to the Windows service, not the POS terminal.
                 // The POS keeps only terminal-local cache/outbox transfer required for offline-first operation.
-                services.AddSingleton<EmployeeDirectoryMetadataCache>();
+                services.AddSingleton<DirectoryProfileCache>();
                 services.AddHostedService<EmployeeDirectorySyncWorker>();
                 services.AddSingleton<OutboundEmailWorker>();
                 services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<OutboundEmailWorker>());
