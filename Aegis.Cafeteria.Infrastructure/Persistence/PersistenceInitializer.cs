@@ -46,12 +46,28 @@ public sealed class PersistenceInitializer(
         await db.Database.ExecuteSqlRawAsync("PRAGMA synchronous=FULL;", ct);
         await db.Database.ExecuteSqlRawAsync("PRAGMA foreign_keys=ON;", ct);
         await db.Database.ExecuteSqlRawAsync("PRAGMA busy_timeout=5000;", ct);
+        await EnsurePerformanceIndexesAsync(db, ct);
 
         logger.LogInformation(
             "Local SQLite persistence initialized at schema version {SchemaVersion} with WAL, FULL synchronous durability and foreign keys enabled",
             CurrentLocalSchemaVersion);
     }
 
+
+    private static async Task EnsurePerformanceIndexesAsync(LocalCafeteriaDbContext db, CancellationToken ct)
+    {
+        string[] commands =
+        [
+            "CREATE INDEX IF NOT EXISTS \"IX_OrderItems_OrderId\" ON \"OrderItems\" (\"OrderId\");",
+            "CREATE INDEX IF NOT EXISTS \"IX_OrderPayments_OrderId\" ON \"OrderPayments\" (\"OrderId\");",
+            "CREATE INDEX IF NOT EXISTS \"IX_OrderRefunds_OrderId\" ON \"OrderRefunds\" (\"OrderId\");",
+            "CREATE INDEX IF NOT EXISTS \"IX_OrderRefundItems_RefundId\" ON \"OrderRefundItems\" (\"RefundId\");",
+            "CREATE INDEX IF NOT EXISTS \"IX_RefundAllocations_RefundId\" ON \"RefundAllocations\" (\"RefundId\");"
+        ];
+
+        foreach (string command in commands)
+            await db.Database.ExecuteSqlRawAsync(command, ct);
+    }
 
     private static async Task UpgradeSchemaIfRequiredAsync(LocalCafeteriaDbContext db, CancellationToken ct)
     {
