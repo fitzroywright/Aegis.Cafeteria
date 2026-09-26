@@ -24,13 +24,13 @@ The preferred form is to pass the integration source connection string:
 
 ```powershell
 dotnet run --project Aegis.Cafeteria.Migration -- \
-  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=JMDB01;Initial Catalog=FFP;Encrypt=True;TrustServerCertificate=True" \
+  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=LEGACY-SQL;Initial Catalog=LegacyCafeteria;Encrypt=True;TrustServerCertificate=True" \
   --services-url https://cafeteria-services.ffpja.org \
   --year 2026 \
   --month 10
 ```
 
-For backward compatibility, `--server` and `--database` may still be supplied instead of `--connection-string`. Those values are used only to construct a generic SQL connection string; source-system schema knowledge remains inside the plugin.
+For backward compatibility, `--server` and `--database` may still be supplied instead of `--connection-string`. Those values are used only to construct a generic source connection string; source-system schema knowledge remains inside the plugin.
 
 The default plugin path is:
 
@@ -46,7 +46,7 @@ After reviewing the dry-run totals:
 
 ```powershell
 dotnet run --project Aegis.Cafeteria.Migration -- \
-  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=JMDB01;Initial Catalog=FFP;Encrypt=True;TrustServerCertificate=True" \
+  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=LEGACY-SQL;Initial Catalog=LegacyCafeteria;Encrypt=True;TrustServerCertificate=True" \
   --services-url https://cafeteria-services.ffpja.org \
   --year 2026 \
   --month 10 \
@@ -62,7 +62,7 @@ Dry run:
 ```powershell
 dotnet run --project Aegis.Cafeteria.Migration -- \
   --product-bootstrap \
-  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=JMDB01;Initial Catalog=FFP;Encrypt=True;TrustServerCertificate=True" \
+  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=LEGACY-SQL;Initial Catalog=LegacyCafeteria;Encrypt=True;TrustServerCertificate=True" \
   --services-url https://cafeteria-services.ffpja.org
 ```
 
@@ -71,7 +71,7 @@ Execute:
 ```powershell
 dotnet run --project Aegis.Cafeteria.Migration -- \
   --product-bootstrap \
-  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=JMDB01;Initial Catalog=FFP;Encrypt=True;TrustServerCertificate=True" \
+  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=LEGACY-SQL;Initial Catalog=LegacyCafeteria;Encrypt=True;TrustServerCertificate=True" \
   --services-url https://cafeteria-services.ffpja.org \
   --execute
 ```
