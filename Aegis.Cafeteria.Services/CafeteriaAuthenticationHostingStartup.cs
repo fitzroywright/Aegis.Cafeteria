@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 
 [assembly: HostingStartup(typeof(CafeteriaAuthenticationHostingStartup))]
 
+using Common.Security.Integration;
 namespace Aegis.Cafeteria.Services;
 
 public sealed class CafeteriaAuthenticationHostingStartup : IHostingStartup
