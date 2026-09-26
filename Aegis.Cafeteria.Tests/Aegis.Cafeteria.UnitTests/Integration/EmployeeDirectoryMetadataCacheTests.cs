@@ -1,13 +1,14 @@
 namespace Aegis.Cafeteria.UnitTests.Integration;
 
-using Aegis.Cafeteria.Infrastructure.ActiveDirectory;
+using Aegis.Cafeteria.Infrastructure.Identity;
+using Common.Security.Models;
 
-public sealed class EmployeeDirectoryMetadataCacheTests
+public sealed class DirectoryProfileCacheTests
 {
     [Fact]
     public void Get_EmptyCache_ReturnsNull()
     {
-        EmployeeDirectoryMetadataCache cache = new();
+        DirectoryProfileCache cache = new();
 
         Assert.Null(cache.Get("fwright"));
     }
@@ -19,14 +20,14 @@ public sealed class EmployeeDirectoryMetadataCacheTests
     [InlineData("fwright@fftpj.local")]
     public void Get_NormalizesLoginName(string loginName)
     {
-        EmployeeDirectoryMetadataCache cache = new();
-        ActiveDirectoryEmployeeRecord employee = new("fwright", "fwright@fftpj.local", "IT", "1234", "Manager");
-        cache.Replace(new Dictionary<string, ActiveDirectoryEmployeeRecord>(StringComparer.OrdinalIgnoreCase)
+        DirectoryProfileCache cache = new();
+        DirectoryUserProfile employee = new("fwright", "Fitzroy Wright", "fwright@fftpj.local", "IT", "1234", "Manager", []);
+        cache.Replace(new Dictionary<string, DirectoryUserProfile>(StringComparer.OrdinalIgnoreCase)
         {
             ["fwright"] = employee
         });
 
-        ActiveDirectoryEmployeeRecord? result = cache.Get(loginName);
+        DirectoryUserProfile? result = cache.Get(loginName);
 
         Assert.Same(employee, result);
     }
@@ -34,14 +35,14 @@ public sealed class EmployeeDirectoryMetadataCacheTests
     [Fact]
     public void Replace_ReplacesPriorSnapshot()
     {
-        EmployeeDirectoryMetadataCache cache = new();
-        cache.Replace(new Dictionary<string, ActiveDirectoryEmployeeRecord>(StringComparer.OrdinalIgnoreCase)
+        DirectoryProfileCache cache = new();
+        cache.Replace(new Dictionary<string, DirectoryUserProfile>(StringComparer.OrdinalIgnoreCase)
         {
-            ["olduser"] = new("olduser", "old@example.com", "Old", "", "")
+            ["olduser"] = new("olduser", "Old User", "old@example.com", "Old", "", "", [])
         });
 
-        ActiveDirectoryEmployeeRecord current = new("newuser", "new@example.com", "New", "", "");
-        cache.Replace(new Dictionary<string, ActiveDirectoryEmployeeRecord>(StringComparer.OrdinalIgnoreCase)
+        DirectoryUserProfile current = new("newuser", "New User", "new@example.com", "New", "", "", []);
+        cache.Replace(new Dictionary<string, DirectoryUserProfile>(StringComparer.OrdinalIgnoreCase)
         {
             ["newuser"] = current
         });
@@ -53,10 +54,10 @@ public sealed class EmployeeDirectoryMetadataCacheTests
     [Fact]
     public void Replace_CopiesInputDictionary()
     {
-        EmployeeDirectoryMetadataCache cache = new();
-        Dictionary<string, ActiveDirectoryEmployeeRecord> source = new(StringComparer.OrdinalIgnoreCase)
+        DirectoryProfileCache cache = new();
+        Dictionary<string, DirectoryUserProfile> source = new(StringComparer.OrdinalIgnoreCase)
         {
-            ["fwright"] = new("fwright", "fwright@fftpj.local", "IT", "1234", "")
+            ["fwright"] = new("fwright", "Fitzroy Wright", "fwright@fftpj.local", "IT", "1234", "", [])
         };
         cache.Replace(source);
 
@@ -71,7 +72,7 @@ public sealed class EmployeeDirectoryMetadataCacheTests
     [InlineData("   ")]
     public void Get_MissingLoginName_ReturnsNull(string? loginName)
     {
-        EmployeeDirectoryMetadataCache cache = new();
+        DirectoryProfileCache cache = new();
 
         Assert.Null(cache.Get(loginName));
     }
