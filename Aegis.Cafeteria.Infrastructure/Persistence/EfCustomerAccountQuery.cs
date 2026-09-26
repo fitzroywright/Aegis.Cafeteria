@@ -203,7 +203,31 @@ public sealed class EfCustomerAccountQuery(IDbContextFactory<LocalCafeteriaDbCon
    new ExternalPublicationStatus(false,0,0,null,null),
    BuildFundingStatus(customer,allocation));
  }
- public async Task<IReadOnlyList<CustomerMonthlyTransactionView>> GetTransactionsAsync(int customerId,int year,int month,CancellationToken cancellationToken=default){if(customerId<=0)throw new ArgumentOutOfRangeException(nameof(customerId));await using LocalCafeteriaDbContext db=await factory.CreateDbContextAsync(cancellationToken);OrderRow[] orders=await db.Orders.AsNoTracking().AsSplitQuery().Include(x=>x.Items).Include(x=>x.Payments).Include(x=>x.Refunds).ThenInclude(x=>x.Items).Include(x=>x.Refunds).ThenInclude(x=>x.Allocations).Where(x=>x.CustomerId==customerId&&x.AccountYear==year&&x.AccountMonth==month).ToArrayAsync(cancellationToken);AccountEventRow[] events=(await db.AccountEvents.AsNoTracking().Where(x=>x.CustomerId==customerId&&x.AccountYear==year&&x.AccountMonth==month).ToArrayAsync(cancellationToken)).OrderBy(x=>x.OccurredAt).ThenBy(x=>x.Id).ToArray();return BuildTransactions(orders,events,year,month);}
+ public async Task<IReadOnlyList<CustomerMonthlyTransactionView>> GetTransactionsAsync(int customerId,int year,int month,CancellationToken cancellationToken=default)
+ {
+  if(customerId<=0)throw new ArgumentOutOfRangeException(nameof(customerId));
+  Stopwatch total=Stopwatch.StartNew();
+  Stopwatch step=Stopwatch.StartNew();
+  await using LocalCafeteriaDbContext db=await factory.CreateDbContextAsync(cancellationToken);
+  logger?.LogInformation("PERF Transactions CustomerId={CustomerId} DbContext {ElapsedMs} ms",customerId,step.ElapsedMilliseconds);
+  step.Restart();
+  OrderRow[] orders=await db.Orders.AsNoTracking().AsSplitQuery()
+   .Include(x=>x.Items).Include(x=>x.Payments).Include(x=>x.Refunds).ThenInclude(x=>x.Items)
+   .Include(x=>x.Refunds).ThenInclude(x=>x.Allocations)
+   .Where(x=>x.CustomerId==customerId&&x.AccountYear==year&&x.AccountMonth==month)
+   .ToArrayAsync(cancellationToken);
+  logger?.LogInformation("PERF Transactions CustomerId={CustomerId} order graph {ElapsedMs} ms Count={Count}",customerId,step.ElapsedMilliseconds,orders.Length);
+  step.Restart();
+  AccountEventRow[] events=(await db.AccountEvents.AsNoTracking()
+   .Where(x=>x.CustomerId==customerId&&x.AccountYear==year&&x.AccountMonth==month)
+   .ToArrayAsync(cancellationToken)).OrderBy(x=>x.OccurredAt).ThenBy(x=>x.Id).ToArray();
+  logger?.LogInformation("PERF Transactions CustomerId={CustomerId} events {ElapsedMs} ms Count={Count}",customerId,step.ElapsedMilliseconds,events.Length);
+  step.Restart();
+  IReadOnlyList<CustomerMonthlyTransactionView> result=BuildTransactions(orders,events,year,month);
+  logger?.LogInformation("PERF Transactions CustomerId={CustomerId} projection {ElapsedMs} ms Count={Count}",customerId,step.ElapsedMilliseconds,result.Count);
+  logger?.LogInformation("PERF Transactions CustomerId={CustomerId} TOTAL {ElapsedMs} ms",customerId,total.ElapsedMilliseconds);
+  return result;
+ }
  private static CustomerFinancialStatusView NoCreditFinancialStatus()=>new(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0);
  private static CustomerFundingStatusView BuildFundingStatus(Customer customer,MonthlyCreditAllocation allocation){if(!customer.IsEligibleForCredit)return new(false,false,null,"Not eligible for cafeteria credit");bool policyLoaded=allocation.CreditLimitPrice>0m||allocation.SubsidyCost>0m;if(!policyLoaded)return new(false,false,null,"Cafeteria rate policy is not loaded; temporary zero funding is in effect.");return new(true,true,allocation.CalculatedAt,$"Monthly Cafeteria funding loaded: credit rate {allocation.CreditLimitPrice:N2}; subsidy rate {allocation.SubsidyCost:N2}");}
  private static T[] Deserialize<T>(IEnumerable<AccountEventRow> events,string type)=>events.Where(x=>x.EventType==type).Select(x=>PersistencePayloadSerializer.Deserialize<T>(x.PayloadJson)).ToArray();
