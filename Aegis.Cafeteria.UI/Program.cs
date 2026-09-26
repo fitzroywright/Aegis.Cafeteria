@@ -66,6 +66,11 @@ internal static class Program
             RegisterControlPlaneModules(builder, runtime, "Windows");
             builder.Services.AddSingleton<IEmployeeParticipationQuery, EfEmployeeParticipationQuery>();
 
+            AuthenticationPluginLoader.Register(
+                builder.Services,
+                builder.Configuration,
+                builder.Environment.ContentRootPath);
+
             OperatorSecurityOptions securityOptions = builder.Configuration.GetSection("Security").Get<OperatorSecurityOptions>()
                 ?? new OperatorSecurityOptions();
             CafeteriaUiOptions uiOptions = builder.Configuration.GetSection("Ui").Get<CafeteriaUiOptions>()
