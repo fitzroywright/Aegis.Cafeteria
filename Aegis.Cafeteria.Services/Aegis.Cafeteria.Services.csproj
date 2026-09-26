@@ -11,6 +11,8 @@
     <ProjectReference Include="..\Aegis.Cafeteria.Infrastructure\Aegis.Cafeteria.Infrastructure.csproj" />
     <ProjectReference Include="..\Aegis.Cafeteria.Plugin.Integration\Aegis.Cafeteria.Plugin.Integration.csproj"
                       ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(CommonRoot)\Common.Security\Common.Security.Plugin.ActiveDirectory\Common.Security.Plugin.ActiveDirectory.csproj"
+                      ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(CommonRoot)\Common.Diagnostics\Common.Diagnostics.csproj" AdditionalProperties="Configuration=$(Configuration)" />
     <ProjectReference Include="$(CommonRoot)\Common.Secrets\Common.Secrets.csproj" AdditionalProperties="Configuration=$(Configuration)" />
     <ProjectReference Include="$(CommonRoot)\Common.Registration\Common.Registration.csproj" AdditionalProperties="Configuration=$(Configuration)" />
@@ -27,6 +29,31 @@
     <None Update="appsettings.Development.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
     <Content Include="../configuration/Aegis.Cafeteria.Services.configuration-contract.json" Link="configuration/Aegis.Cafeteria.Services.configuration-contract.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
+
+  <Target Name="StageAuthenticationPluginAfterBuild" AfterTargets="Build">
+    <PropertyGroup>
+      <AuthenticationPluginSource>$(CommonRoot)\Common.Security\Common.Security.Plugin.ActiveDirectory\bin\$(Configuration)\net10.0\Common.Security.Plugin.ActiveDirectory.dll</AuthenticationPluginSource>
+    </PropertyGroup>
+    <MakeDir Directories="$(OutDir)plugins" />
+    <Copy SourceFiles="$(AuthenticationPluginSource)"
+          DestinationFolder="$(OutDir)plugins"
+          SkipUnchangedFiles="true"
+          Condition="Exists('$(AuthenticationPluginSource)')" />
+    <Error Condition="!Exists('$(OutDir)plugins\Common.Security.Plugin.ActiveDirectory.dll')"
+           Text="Authentication plugin was not staged to $(OutDir)plugins." />
+  </Target>
+
+  <Target Name="StageAuthenticationPluginForPublish" AfterTargets="Publish">
+    <PropertyGroup>
+      <AuthenticationPluginSource>$(CommonRoot)\Common.Security\Common.Security.Plugin.ActiveDirectory\bin\$(Configuration)\net10.0\Common.Security.Plugin.ActiveDirectory.dll</AuthenticationPluginSource>
+    </PropertyGroup>
+    <MakeDir Directories="$(PublishDir)plugins" />
+    <Copy SourceFiles="$(AuthenticationPluginSource)"
+          DestinationFolder="$(PublishDir)plugins"
+          SkipUnchangedFiles="true" />
+    <Error Condition="!Exists('$(PublishDir)plugins\Common.Security.Plugin.ActiveDirectory.dll')"
+           Text="Authentication plugin was not staged to $(PublishDir)plugins." />
+  </Target>
 
   <Target Name="StageIntegrationPluginAfterBuild" AfterTargets="Build">
     <PropertyGroup>
