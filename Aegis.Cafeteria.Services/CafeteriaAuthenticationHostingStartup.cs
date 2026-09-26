@@ -64,7 +64,7 @@ public sealed class CafeteriaAuthenticationHostingStartup : IHostingStartup
                 services.AddDiagnosticCheck<CafeteriaSecretsDiagnostic>();
                 services.AddDiagnosticCheck<CafeteriaStorageDiagnostic>();
                 services.AddDiagnosticCheck<CafeteriaMessagingDiagnostic>();
-                services.AddDiagnosticCheck<CafeteriaActiveDirectoryDiagnostic>();
+                services.AddDiagnosticCheck<CafeteriaAuthenticationProviderDiagnostic>();
                 services.AddHostedService<CafeteriaDependencyDiagnosticHostedService>();
             }
         );
