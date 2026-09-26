@@ -2,6 +2,8 @@ namespace Aegis.Cafeteria.Services.Workers;
 
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Infrastructure.ActiveDirectory;
+using Common.Security.Abstractions;
+using Common.Security.Models;
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -9,10 +11,10 @@ using Microsoft.Extensions.Logging;
 public sealed class EmployeeDirectorySyncWorker(
     IWorkforceReferenceSource workforceSource,
     EmployeeDirectoryMetadataCache directoryCache,
+    IDirectoryProfileProvider directory,
     ILogger<EmployeeDirectorySyncWorker> logger) : BackgroundService
 {
     private static readonly TimeSpan RefreshInterval = TimeSpan.FromMinutes(15);
-    private readonly ActiveDirectoryEmployeeDirectory directory = new();
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -27,8 +29,8 @@ public sealed class EmployeeDirectorySyncWorker(
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToArray();
 
-                IReadOnlyDictionary<string, ActiveDirectoryEmployeeRecord> records =
-                    this.directory.GetByLoginNames(loginNames);
+                IReadOnlyDictionary<string, DirectoryUserProfile> records =
+                    await directory.GetByLoginNamesAsync(loginNames, stoppingToken);
                 directoryCache.Replace(records);
 
                 logger.LogInformation(
