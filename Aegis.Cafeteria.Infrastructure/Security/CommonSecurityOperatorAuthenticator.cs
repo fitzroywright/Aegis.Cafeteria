@@ -10,9 +10,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
-/// Authenticates cafeteria operators through Common.Security. AD/LDAPS proves
-/// identity and returns group membership; the Cafeteria database owns the
-/// application roles and permissions used to decide manager authority.
+/// Authenticates cafeteria operators through the configured Common.Security provider.
+/// The provider proves identity and returns claims/group membership; the Cafeteria
+/// database owns application roles and permissions used to decide manager authority.
 /// </summary>
 public sealed class CommonSecurityOperatorAuthenticator : IOperatorAuthenticator
 {
