@@ -105,11 +105,58 @@ public sealed class ExternalPublicationWorker(
             CafeteriaServiceEventKind.AccountPeriodClose => null,
             CafeteriaServiceEventKind.ProductCatalogImport => null,
             CafeteriaServiceEventKind.LegacyTransactionImport => null,
-            CafeteriaServiceEventKind.PosTransaction => null,
+            CafeteriaServiceEventKind.PosTransaction => BuildPosTransaction(envelope),
             CafeteriaServiceEventKind.ExternalLedgerEntry => BuildExternalLedgerEntry(envelope),
             _ => throw new InvalidOperationException(
                 $"Unsupported outbound Cafeteria event kind {envelope.Kind}.")
         };
+    }
+
+    private static CafeteriaOutboundTransaction BuildPosTransaction(
+        CafeteriaServiceEventEnvelope envelope)
+    {
+        PosTransactionEvent value = JsonSerializer.Deserialize<PosTransactionEvent>(
+            envelope.PayloadJson)
+            ?? throw new InvalidOperationException("Invalid POS transaction service event payload.");
+
+        using JsonDocument document = JsonDocument.Parse(value.PayloadJson);
+        JsonElement root = document.RootElement;
+
+        decimal amount = 0m;
+        if (root.TryGetProperty("Total", out JsonElement totalElement) && totalElement.TryGetDecimal(out decimal total))
+            amount = total;
+
+        string description = value.Kind switch
+        {
+            "SaleCompleted" => $"Cafeteria Purchase {amount:N2}",
+            "CreditSaleCompleted" => $"Cafeteria Credit Purchase {amount:N2}",
+            "RefundIssuedFull" => $"Cafeteria Full Refund {amount:N2}",
+            "RefundIssuedPartial" => $"Cafeteria Partial Refund {amount:N2}",
+            "SaleVoided" => $"Cafeteria Sale Voided {amount:N2}",
+            _ => $"Cafeteria POS {value.Kind} {amount:N2}"
+        };
+
+        string identificationMethod = "POS";
+        string? identificationCode = null;
+
+        return new CafeteriaOutboundTransaction(
+            value.EventId,
+            value.CustomerId,
+            value.Kind switch
+            {
+                "SaleCompleted" => "Purchase",
+                "CreditSaleCompleted" => "Purchase",
+                "RefundIssuedFull" => "Refund",
+                "RefundIssuedPartial" => "Refund",
+                "SaleVoided" => "Refund",
+                _ => "Purchase"
+            },
+            value.OccurredAt,
+            amount,
+            description,
+            identificationMethod,
+            value.Actor,
+            identificationCode);
     }
 
     private static CafeteriaOutboundTransaction BuildExternalLedgerEntry(
