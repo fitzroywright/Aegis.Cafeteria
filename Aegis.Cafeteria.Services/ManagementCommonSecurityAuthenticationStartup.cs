@@ -149,7 +149,7 @@ public static class ManagementCommonSecurityAuthenticationExtensions
 
         if (session.IsManager)
         {
-            claims.Add(new Claim(ClaimTypes.Role, "CafeteriaManager"));
+            claims.Add(new Claim(ClaimTypes.Role, CafeteriaRoles.Manager));
         }
 
         context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Common.Security"));
