@@ -41,21 +41,17 @@ public sealed class CafeteriaDatabaseDiagnostic(IDbContextFactory<ServiceDbConte
 
         bool integrationEnabled = configuration.GetValue("IntegrationPlugin:Enabled", false);
         if (!integrationEnabled)
-            return (DiagnosticStatus.Warning, "Service database is healthy; FFP Manager integration plugin is disabled.");
+            return (DiagnosticStatus.Warning, "Service database is healthy; External integration plugin is disabled.");
 
-        string? connectionString =
-            configuration["IntegrationPlugin:ConnectionString"]
-            ?? configuration.GetConnectionString("FfpManager")
-            ?? Environment.GetEnvironmentVariable("FFPMANAGER_CONNECTION_STRING")
-            ?? Environment.GetEnvironmentVariable("FFPMANAGER_TEST");
+        string? connectionString = configuration["IntegrationPlugin:ConnectionString"];
 
         if (string.IsNullOrWhiteSpace(connectionString))
-            return (DiagnosticStatus.Unhealthy, "FFP Manager integration is enabled but no integration connection string is configured.");
+            return (DiagnosticStatus.Unhealthy, "External integration is enabled but no integration connection string is configured.");
 
         SqlConnectionStringBuilder builder = new(connectionString);
         string serverValue = builder.DataSource?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(serverValue))
-            return (DiagnosticStatus.Unhealthy, "FFP Manager integration is enabled but the SQL data source is empty.");
+            return (DiagnosticStatus.Unhealthy, "External integration is enabled but the SQL data source is empty.");
 
         string host = serverValue.Replace("tcp:", string.Empty, StringComparison.OrdinalIgnoreCase).Split(',')[0].Trim();
         int port = 1433;
@@ -68,7 +64,7 @@ public sealed class CafeteriaDatabaseDiagnostic(IDbContextFactory<ServiceDbConte
         timeout.CancelAfter(TimeSpan.FromSeconds(5));
         await client.ConnectAsync(host, port, timeout.Token);
 
-        return (DiagnosticStatus.Healthy, $"Service database is healthy; FFP Manager integration is enabled and SQL endpoint {host}:{port} is reachable.");
+        return (DiagnosticStatus.Healthy, $"Service database is healthy; External integration is enabled and SQL endpoint {host}:{port} is reachable.");
     }
 }
 
