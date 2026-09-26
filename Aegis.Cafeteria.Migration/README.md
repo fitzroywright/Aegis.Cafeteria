@@ -1,16 +1,8 @@
 # Aegis.Cafeteria.Migration
 
-One-time cutover utility for importing legacy month-to-date cafeteria activity from FFP Manager.
+One-time cutover utility for importing legacy cafeteria activity through the configured Cafeteria integration plugin.
 
-This project is intentionally separate from the normal POS and Cafeteria Services runtime. It reads the legacy SQL database directly and submits a migration payload to the feature-gated Cafeteria Services migration endpoint.
-
-The utility imports only legacy scan types:
-
-- 3 - monthly allocation
-- 8 - cafeteria purchase
-- 4 - stipend/card reduction
-
-It also reads current legacy CreditLimit and AvailableBalance values for reconciliation reporting.
+The migration executable contains no source-system table, column, transaction-type, or product-policy knowledge. It loads an `ILegacyCafeteriaMigrationSource` implementation from the integration plugin, requests generic migration snapshots, displays dry-run totals, and submits those generic records to Cafeteria Services.
 
 ## Safety
 
@@ -26,43 +18,51 @@ Cafeteria Services must temporarily have:
 
 The endpoint still requires Cafeteria management authorization. Disable the migration feature again immediately after cutover.
 
-## Example
+## Source connection
+
+The preferred form is to pass the integration source connection string:
 
 ```powershell
 dotnet run --project Aegis.Cafeteria.Migration -- \
-  --server JM-SQL01 \
-  --database FFPManager \
+  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=JMDB01;Initial Catalog=FFP;Encrypt=True;TrustServerCertificate=True" \
   --services-url https://cafeteria-services.ffpja.org \
   --year 2026 \
   --month 10
 ```
 
-After reviewing the dry-run totals, execute:
+For backward compatibility, `--server` and `--database` may still be supplied instead of `--connection-string`. Those values are used only to construct a generic SQL connection string; source-system schema knowledge remains inside the plugin.
+
+The default plugin path is:
+
+```text
+plugins/Aegis.Cafeteria.Plugin.Integration.dll
+```
+
+Override it with `--plugin <path>` when necessary.
+
+## Execute month migration
+
+After reviewing the dry-run totals:
 
 ```powershell
 dotnet run --project Aegis.Cafeteria.Migration -- \
-  --server JM-SQL01 \
-  --database FFPManager \
+  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=JMDB01;Initial Catalog=FFP;Encrypt=True;TrustServerCertificate=True" \
   --services-url https://cafeteria-services.ffpja.org \
   --year 2026 \
   --month 10 \
   --execute
 ```
 
-The source SQL connection uses Windows Integrated Security.
-
-
 ## Product catalog migration
 
-Product bootstrap is a standalone migration concern. The normal Cafeteria runtime does not query the legacy LunchItems table.
+Product bootstrap also goes through the integration plugin. The migration executable does not know the source product table or reserved policy-row rules.
 
 Dry run:
 
 ```powershell
 dotnet run --project Aegis.Cafeteria.Migration -- \
   --product-bootstrap \
-  --server JM-SQL01 \
-  --database FFPManager \
+  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=JMDB01;Initial Catalog=FFP;Encrypt=True;TrustServerCertificate=True" \
   --services-url https://cafeteria-services.ffpja.org
 ```
 
@@ -71,10 +71,9 @@ Execute:
 ```powershell
 dotnet run --project Aegis.Cafeteria.Migration -- \
   --product-bootstrap \
-  --server JM-SQL01 \
-  --database FFPManager \
+  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=JMDB01;Initial Catalog=FFP;Encrypt=True;TrustServerCertificate=True" \
   --services-url https://cafeteria-services.ffpja.org \
   --execute
 ```
 
-The migration utility reads `dbo.LunchItems` directly, excludes the reserved policy code (default `FFP00`, override with `--reserved-policy-code`), and submits only generic product records to Cafeteria Services.
+The integration plugin is responsible for translating its external source into the generic migration contracts.
