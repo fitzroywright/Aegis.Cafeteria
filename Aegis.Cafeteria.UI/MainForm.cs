@@ -112,6 +112,7 @@ public sealed class MainForm : Form
     };
 
     private CustomerAccountView? currentCustomer;
+    private bool customerDetailsLoaded;
     private readonly BindingSource transactionSource = new();
     private readonly BindingSource productSource = new();
     private readonly BindingSource cartSource = new();
@@ -1003,6 +1004,7 @@ public sealed class MainForm : Form
     {
         RegisterActivity();
         this.currentCustomer = account;
+        this.customerDetailsLoaded = account.Customer.IsCashCustomer;
         UpdateRecentTransactionsVisibility();
         this.idlePanel.Visible = false;
         this.customerPanel.Visible = true;
@@ -1121,6 +1123,9 @@ public sealed class MainForm : Form
             void ApplyDetails()
             {
                 if (this.currentCustomer?.Customer.Id != account.Customer.Id) return;
+
+                this.currentCustomer = account with { Transactions = history };
+                this.customerDetailsLoaded = true;
 
                 this.transactionSource.DataSource = history.Select(x => new
                 {
@@ -1662,6 +1667,7 @@ public sealed class MainForm : Form
     private void ClearCustomer()
     {
         this.currentCustomer = null;
+        this.customerDetailsLoaded = false;
         UpdateRecentTransactionsVisibility();
         this.cart.Clear();
         RefreshCart();
