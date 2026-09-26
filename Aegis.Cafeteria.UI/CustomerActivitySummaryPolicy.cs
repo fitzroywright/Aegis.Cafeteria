@@ -50,6 +50,13 @@ internal static class CustomerActivitySummaryPolicy
         fundingStatus.TextChanged += (_, _) => Refresh(mainForm, fundingStatus);
         fundingStatus.ForeColorChanged += (_, _) => EnsureSummaryStyle(fundingStatus);
         fundingStatus.BackColorChanged += (_, _) => EnsureSummaryStyle(fundingStatus);
+
+        BindingSource? transactionSource = GetField<BindingSource>(mainForm, "transactionSource");
+        if (transactionSource is not null)
+        {
+            transactionSource.ListChanged += (_, _) => Refresh(mainForm, fundingStatus);
+        }
+
         Refresh(mainForm, fundingStatus);
     }
 
@@ -70,6 +77,14 @@ internal static class CustomerActivitySummaryPolicy
             {
                 summary.Text = string.Empty;
                 summary.Visible = false;
+                return;
+            }
+
+            bool detailsLoaded = GetValueField<bool>(mainForm, "customerDetailsLoaded");
+            if (!detailsLoaded)
+            {
+                summary.Visible = true;
+                summary.Text = "Loading purchase history...";
                 return;
             }
 
@@ -123,5 +138,12 @@ internal static class CustomerActivitySummaryPolicy
     {
         FieldInfo? field = typeof(MainForm).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
         return field?.GetValue(mainForm) as T;
+    }
+
+    private static T GetValueField<T>(MainForm mainForm, string fieldName)
+        where T : struct
+    {
+        FieldInfo? field = typeof(MainForm).GetField(fieldName, BindingFlags.Instance | BindingFlags.NonPublic);
+        return field?.GetValue(mainForm) is T value ? value : default;
     }
 }
