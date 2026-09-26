@@ -121,7 +121,7 @@ public sealed class EfCustomerAccountQuery(IDbContextFactory<LocalCafeteriaDbCon
    decimal subsidyEligibleCharges=Math.Min(totalCharges,baseCreditAvailable);
    decimal companyResponsibility=Math.Min(subsidyEligibleCharges,remainingCompanyContribution);
    decimal companyContributionUsed=stipendCardReduction+companyResponsibility;
-   decimal subsidyRemaining=Math.Max(0m,subsidyLimit-companyContributionUsed);
+   decimal remainingCompanyContributionAfterCharges=Math.Max(0m,subsidyLimit-companyContributionUsed);
    decimal customerResponsibility=Math.Max(0m,totalCharges-companyResponsibility);
    decimal grossLiability=carriedDebt+settlementAmount+customerResponsibility+currentCreditSaleDebt;
    decimal paid=customerPayments.Where(x=>x.CustomerId==customerId&&x.ReceivedAt.Year==year&&x.ReceivedAt.Month==month).Sum(x=>x.Amount);
@@ -133,6 +133,10 @@ public sealed class EfCustomerAccountQuery(IDbContextFactory<LocalCafeteriaDbCon
    decimal totalAllocationUsage=carriedDebt+settlementAmount+stipendCardReduction+totalCharges;
    decimal netAllocationUsage=Math.Max(0m,totalAllocationUsage-paymentsAppliedToAllocationLiability);
    decimal availableCredit=Math.Clamp(totalSpendingCapacity-netAllocationUsage,0m,totalSpendingCapacity);
+   decimal remainingSubsidyEligibleBaseCredit=Math.Max(0m,
+    baseMonthlyCredit-Math.Max(0m,carriedDebt+settlementAmount+stipendCardReduction+totalCharges-paid));
+   decimal subsidyAmountRemaining=Math.Min(remainingCompanyContributionAfterCharges,remainingSubsidyEligibleBaseCredit);
+   decimal nonSubsidyAmountRemaining=Math.Max(0m,availableCredit-subsidyAmountRemaining);
    decimal usageBeyondBase=Math.Max(0m,netAllocationUsage-baseMonthlyCredit);
    decimal additionalCreditUsed=Math.Min(additionalCreditApproved,usageBeyondBase);
    decimal unusedAdditionalCredit=Math.Max(0m,additionalCreditApproved-additionalCreditUsed);
@@ -141,8 +145,8 @@ public sealed class EfCustomerAccountQuery(IDbContextFactory<LocalCafeteriaDbCon
     baseMonthlyCredit,
     subsidyLimit,
     companyContributionUsed,
-    subsidyRemaining,
-    availableCredit,
+    subsidyAmountRemaining,
+    nonSubsidyAmountRemaining,
     availableCredit,
     carriedDebt,
     grossLiability,
