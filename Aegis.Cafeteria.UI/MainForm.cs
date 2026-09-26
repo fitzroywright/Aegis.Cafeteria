@@ -1226,56 +1226,70 @@ public sealed class MainForm : Form
         try
         {
             ICafeteriaReportService reportService = this.services.GetRequiredService<ICafeteriaReportService>();
-            DateOnly today = DateOnly.FromDateTime(DateTime.Today);
-            CafeteriaReport report = await reportService.GenerateAsync(
-                CafeteriaReportKind.DailySales,
-                new ReportFilter(today, today));
-
-            decimal Metric(string label)
-                => report.Metrics.FirstOrDefault(x => string.Equals(x.Label, label, StringComparison.OrdinalIgnoreCase))?.Value ?? 0m;
-
-            this.todayNetSales.Text = Money(Metric("Net sales"));
-            this.todayTransactions.Text = Metric("Transactions").ToString("N0");
-            this.todayRefunds.Text = Money(Metric("Refunds"));
-
-            int daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
-            DateOnly monday = today.AddDays(-daysSinceMonday);
-            DateOnly friday = monday.AddDays(4);
-            CafeteriaReport weeklyReport = await reportService.GenerateAsync(
-                CafeteriaReportKind.DailySales,
-                new ReportFilter(monday, friday));
-            IReadOnlyList<IReadOnlyDictionary<string, object?>> weeklyRows = weeklyReport.Tables
-                .FirstOrDefault(x => string.Equals(x.Title, "Daily detail", StringComparison.OrdinalIgnoreCase))?
-                .Rows ?? [];
-
-            List<(string Label, decimal Value)> weekdayValues = [];
-            for (int dayOffset = 0; dayOffset < 5; dayOffset++)
+            DashboardSnapshot snapshot = await Task.Run(async () =>
             {
-                DateOnly day = monday.AddDays(dayOffset);
-                IReadOnlyDictionary<string, object?>? row = weeklyRows.FirstOrDefault(x =>
+                DateOnly today = DateOnly.FromDateTime(DateTime.Today);
+                CafeteriaReport report = await reportService.GenerateAsync(
+                    CafeteriaReportKind.DailySales,
+                    new ReportFilter(today, today));
+
+                decimal Metric(string label)
+                    => report.Metrics.FirstOrDefault(x => string.Equals(x.Label, label, StringComparison.OrdinalIgnoreCase))?.Value ?? 0m;
+
+                int daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
+                DateOnly monday = today.AddDays(-daysSinceMonday);
+                DateOnly friday = monday.AddDays(4);
+
+                CafeteriaReport weeklyReport = await reportService.GenerateAsync(
+                    CafeteriaReportKind.DailySales,
+                    new ReportFilter(monday, friday));
+
+                IReadOnlyList<IReadOnlyDictionary<string, object?>> weeklyRows = weeklyReport.Tables
+                    .FirstOrDefault(x => string.Equals(x.Title, "Daily detail", StringComparison.OrdinalIgnoreCase))?
+                    .Rows ?? [];
+
+                List<(string Label, decimal Value)> weekdayValues = [];
+                for (int dayOffset = 0; dayOffset < 5; dayOffset++)
                 {
-                    object? dateValue = x.GetValueOrDefault("date");
-                    return dateValue is DateOnly reportDate && reportDate == day;
-                });
-                decimal value = row is null ? 0m : Convert.ToDecimal(row.GetValueOrDefault("net") ?? 0m);
-                weekdayValues.Add((day.ToString("dddd"), value));
-            }
-            this.weeklySalesByDay.SetData("SALES VALUE BY DAY — THIS WEEK", weekdayValues, "C0");
+                    DateOnly day = monday.AddDays(dayOffset);
+                    IReadOnlyDictionary<string, object?>? row = weeklyRows.FirstOrDefault(x =>
+                    {
+                        object? dateValue = x.GetValueOrDefault("date");
+                        return dateValue is DateOnly reportDate && reportDate == day;
+                    });
+                    decimal value = row is null ? 0m : Convert.ToDecimal(row.GetValueOrDefault("net") ?? 0m);
+                    weekdayValues.Add((day.ToString("dddd"), value));
+                }
 
-            CafeteriaReport productReport = await reportService.GenerateAsync(
-                CafeteriaReportKind.ProductSales,
-                new ReportFilter(today, today));
-            IReadOnlyList<IReadOnlyDictionary<string, object?>> productRows = productReport.Tables
-                .FirstOrDefault(x => string.Equals(x.Title, "Product detail", StringComparison.OrdinalIgnoreCase))?
-                .Rows ?? [];
-            var productSales = productRows.Select(row => new
-            {
-                Name = Convert.ToString(row.GetValueOrDefault("product")) ?? "Unknown",
-                Value = Convert.ToDecimal(row.GetValueOrDefault("sales") ?? 0m)
-            }).ToArray();
+                CafeteriaReport productReport = await reportService.GenerateAsync(
+                    CafeteriaReportKind.ProductSales,
+                    new ReportFilter(today, today));
 
-            this.todayItemsByValue.SetData("ITEMS SOLD — VALUE", DashboardPieBuckets(productSales.Select(x => (x.Name, x.Value))), "C0");
-            this.todayDashboardStatus.Text = CafeteriaDisplay.Updated(DateTime.Now);
+                IReadOnlyList<IReadOnlyDictionary<string, object?>> productRows = productReport.Tables
+                    .FirstOrDefault(x => string.Equals(x.Title, "Product detail", StringComparison.OrdinalIgnoreCase))?
+                    .Rows ?? [];
+
+                (string Name, decimal Value)[] productSales = productRows
+                    .Select(row => (
+                        Convert.ToString(row.GetValueOrDefault("product")) ?? "Unknown",
+                        Convert.ToDecimal(row.GetValueOrDefault("sales") ?? 0m)))
+                    .ToArray();
+
+                return new DashboardSnapshot(
+                    Metric("Net sales"),
+                    Metric("Transactions"),
+                    Metric("Refunds"),
+                    weekdayValues,
+                    DashboardPieBuckets(productSales),
+                    DateTime.Now);
+            });
+
+            this.todayNetSales.Text = Money(snapshot.NetSales);
+            this.todayTransactions.Text = snapshot.Transactions.ToString("N0");
+            this.todayRefunds.Text = Money(snapshot.Refunds);
+            this.weeklySalesByDay.SetData("SALES VALUE BY DAY — THIS WEEK", snapshot.WeekdayValues, "C0");
+            this.todayItemsByValue.SetData("ITEMS SOLD — VALUE", snapshot.ProductValues, "C0");
+            this.todayDashboardStatus.Text = CafeteriaDisplay.Updated(snapshot.GeneratedAt);
         }
         catch (Exception ex)
         {
@@ -1291,6 +1305,14 @@ public sealed class MainForm : Form
             this.todayDashboardStatus.Text = "Dashboard temporarily unavailable";
         }
     }
+
+    private sealed record DashboardSnapshot(
+        decimal NetSales,
+        decimal Transactions,
+        decimal Refunds,
+        IReadOnlyList<(string Label, decimal Value)> WeekdayValues,
+        IReadOnlyList<(string Label, decimal Value)> ProductValues,
+        DateTime GeneratedAt);
 
     private static IReadOnlyList<(string Label, decimal Value)> DashboardPieBuckets(IEnumerable<(string Label, decimal Value)> source)
     {
@@ -1424,12 +1446,17 @@ public sealed class MainForm : Form
 
         try
         {
-            await this.voidService.VoidCurrentSaleAsync(
-                this.currentCustomer,
-                this.cart.Select(x => new PosOrderLine(x.ProductId, x.ProductName, x.UnitPrice, x.Quantity)).ToArray(),
+            CustomerAccountView account = this.currentCustomer;
+            PosOrderLine[] lines = this.cart
+                .Select(x => new PosOrderLine(x.ProductId, x.ProductName, x.UnitPrice, x.Quantity))
+                .ToArray();
+            string reason = reasonDialog.Reason;
+            await Task.Run(() => this.voidService.VoidCurrentSaleAsync(
+                account,
+                lines,
                 manager.UserId,
                 this.persistenceOptions.TerminalId,
-                reasonDialog.Reason);
+                reason));
             this.cart.Clear();
             RefreshCart();
             this.posStatus.Text = $"● Sale voided by {manager.UserId}";
@@ -1460,9 +1487,13 @@ public sealed class MainForm : Form
         {
             this.customerPaymentButton.Enabled = false;
             var operatorId = this.operatorSession.Current?.UserId ?? throw new UnauthorizedAccessException("An authenticated cafeteria operator is required.");
-            await this.customerPayments.RecordAsync(this.currentCustomer, dialog.Amount, dialog.PaymentMethod, operatorId, dialog.Reference);
-            var customerId = this.currentCustomer.Customer.Id;
-            var refreshed = await this.identification.LoadAsync(customerId);
+            CustomerAccountView account = this.currentCustomer;
+            decimal amount = dialog.Amount;
+            PaymentMethod paymentMethod = dialog.PaymentMethod;
+            string? reference = dialog.Reference;
+            await Task.Run(() => this.customerPayments.RecordAsync(account, amount, paymentMethod, operatorId, reference));
+            int customerId = account.Customer.Id;
+            var refreshed = await Task.Run(() => this.identification.LoadAsync(customerId));
             if (refreshed is not null) ShowCustomer(refreshed);
             this.posStatus.Text = $"Customer payment recorded: {dialog.Amount:C2}";
             this.posStatus.ForeColor = Green;
@@ -1556,12 +1587,14 @@ public sealed class MainForm : Form
                 manager.UserId,
                 DateTimeOffset.Now,
                 reasonDialog.Reason);
-            await this.persistenceStore.SaveOrderAsync(order);
+            await Task.Run(() => this.persistenceStore.SaveOrderAsync(order));
 
             if (!accountBeforeRefund.Customer.IsCashCustomer)
             {
-                this.currentCustomer = await this.identification.LoadAsync(accountBeforeRefund.Customer.Id);
-                if (this.currentCustomer is not null) ShowCustomer(this.currentCustomer);
+                CustomerAccountView? refreshed = await Task.Run(
+                    () => this.identification.LoadAsync(accountBeforeRefund.Customer.Id));
+                this.currentCustomer = refreshed;
+                if (refreshed is not null) ShowCustomer(refreshed);
             }
             this.posStatus.Text = $"● Refund completed by {manager.UserId}";
             this.posStatus.ForeColor = Color.DarkOrange;
@@ -1600,11 +1633,12 @@ public sealed class MainForm : Form
 
             if (string.Equals(kind, "Purchase", StringComparison.OrdinalIgnoreCase) && referenceValue is Guid orderId)
             {
-                return await this.orderQuery.GetAsync(orderId);
+                return await Task.Run(() => this.orderQuery.GetAsync(orderId));
             }
         }
 
-        var recent = await this.orderQuery.GetRecentCompletedAsync(this.currentCustomer.Customer.Id, 50);
+        int customerId = this.currentCustomer.Customer.Id;
+        var recent = await Task.Run(() => this.orderQuery.GetRecentCompletedAsync(customerId, 50));
         var refundable = recent
             .Where(x => RefundEligibilityPolicy.Evaluate(x).Allowed)
             .Take(5)
