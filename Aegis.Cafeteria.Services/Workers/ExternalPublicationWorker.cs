@@ -127,14 +127,27 @@ public sealed class ExternalPublicationWorker(
         if (root.TryGetProperty("Total", out JsonElement totalElement) && totalElement.TryGetDecimal(out decimal total))
             amount = total;
 
+        string itemList = BuildPosItemList(root);
         string description = value.Kind switch
         {
-            "SaleCompleted" => $"Cafeteria Purchase {amount:N2}",
-            "CreditSaleCompleted" => $"Cafeteria Credit Purchase {amount:N2}",
-            "RefundIssuedFull" => $"Cafeteria Full Refund {amount:N2}",
-            "RefundIssuedPartial" => $"Cafeteria Partial Refund {amount:N2}",
-            "SaleVoided" => $"Cafeteria Sale Voided {amount:N2}",
-            _ => $"Cafeteria POS {value.Kind} {amount:N2}"
+            "SaleCompleted" => string.IsNullOrWhiteSpace(itemList)
+                ? $"Cafeteria Purchase {amount:N2}"
+                : itemList,
+            "CreditSaleCompleted" => string.IsNullOrWhiteSpace(itemList)
+                ? $"Cafeteria Credit Purchase {amount:N2}"
+                : itemList,
+            "RefundIssuedFull" => string.IsNullOrWhiteSpace(itemList)
+                ? $"Cafeteria Full Refund {amount:N2}"
+                : $"Refund: {itemList}",
+            "RefundIssuedPartial" => string.IsNullOrWhiteSpace(itemList)
+                ? $"Cafeteria Partial Refund {amount:N2}"
+                : $"Refund: {itemList}",
+            "SaleVoided" => string.IsNullOrWhiteSpace(itemList)
+                ? $"Cafeteria Sale Voided {amount:N2}"
+                : $"Void: {itemList}",
+            _ => string.IsNullOrWhiteSpace(itemList)
+                ? $"Cafeteria POS {value.Kind} {amount:N2}"
+                : itemList
         };
 
         string identificationMethod = "POS";
@@ -158,6 +171,40 @@ public sealed class ExternalPublicationWorker(
             identificationMethod,
             value.Actor,
             identificationCode);
+    }
+
+    private static string BuildPosItemList(JsonElement root)
+    {
+        if (!root.TryGetProperty("Items", out JsonElement items)
+            || items.ValueKind != JsonValueKind.Array)
+        {
+            return string.Empty;
+        }
+
+        List<string> descriptions = [];
+        foreach (JsonElement item in items.EnumerateArray())
+        {
+            string name = item.TryGetProperty("ProductName", out JsonElement nameElement)
+                ? nameElement.GetString()?.Trim() ?? string.Empty
+                : string.Empty;
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            int quantity = 1;
+            if (item.TryGetProperty("Quantity", out JsonElement quantityElement)
+                && quantityElement.TryGetInt32(out int parsedQuantity)
+                && parsedQuantity > 0)
+            {
+                quantity = parsedQuantity;
+            }
+
+            descriptions.Add(quantity == 1 ? name : $"{quantity} x {name}");
+        }
+
+        return string.Join(", ", descriptions);
     }
 
     private static CafeteriaOutboundTransaction BuildExternalLedgerEntry(
