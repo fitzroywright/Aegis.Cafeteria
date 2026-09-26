@@ -63,7 +63,7 @@ public sealed class EfCustomerIdentificationService(IDbContextFactory<LocalCafet
         }
         if(matchedIds.Count==0)return[];
         List<Models.CustomerRow> customers=await db.Customers.AsNoTracking().Where(x=>matchedIds.Contains(x.Id)).ToListAsync(cancellationToken);
-        string nameSearchCode = rawSearch.Length == 0 ? "Name Search" : $"Name Search - {rawSearch}";
+        const string nameSearchCode = "NAME SEARCH";
         foreach(int customerId in matchedIds)
             identificationContexts[customerId]=new CustomerIdentificationContext(IDMethod.Name,nameSearchCode);
         return matchedIds.Select(id=>customers.Single(x=>x.Id==id)).Select(x=>new CustomerSearchCandidate(x.Id,x.Name,x.IsEligibleForCredit,x.Photo,x.Department,x.Manager,x.EmailAddress,x.Extension)).ToArray();
