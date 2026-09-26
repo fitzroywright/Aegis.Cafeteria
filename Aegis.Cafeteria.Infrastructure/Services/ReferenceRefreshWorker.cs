@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 public sealed class ReferenceRefreshWorker(
     ReferenceDataRefreshService refresh,
     CafeteriaServicesOptions options,
+    ICustomerReferenceCacheStatus cacheStatus,
     ILogger<ReferenceRefreshWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -17,6 +18,27 @@ public sealed class ReferenceRefreshWorker(
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            TimeSpan refreshInterval = TimeSpan.FromMinutes(Math.Max(1, options.ReferenceRefreshIntervalMinutes));
+            CustomerReferenceCacheStatus status = await cacheStatus.GetAsync(stoppingToken);
+            DateTimeOffset? freshness = status.LastSuccessUtc ?? status.CacheUpdatedAtUtc;
+
+            if (freshness.HasValue)
+            {
+                TimeSpan age = DateTimeOffset.UtcNow - freshness.Value;
+                if (age < refreshInterval)
+                {
+                    try
+                    {
+                        await Task.Delay(refreshInterval - age, stoppingToken);
+                        continue;
+                    }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                }
+            }
+
             DateOnly today = DateOnly.FromDateTime(DateTime.Today);
 
             await TryRefreshAsync(
@@ -31,9 +53,7 @@ public sealed class ReferenceRefreshWorker(
 
             try
             {
-                await Task.Delay(
-                    TimeSpan.FromMinutes(Math.Max(1, options.ReferenceRefreshIntervalMinutes)),
-                    stoppingToken);
+                await Task.Delay(refreshInterval, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
