@@ -1,4 +1,5 @@
 namespace Aegis.Cafeteria.Infrastructure.Persistence;
+using System.Diagnostics;
 
 using Aegis.Cafeteria.Infrastructure.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
@@ -126,5 +127,29 @@ public sealed class LocalPersistenceStore(
     }
 
     private async Task SaveAsync(Func<LocalCafeteriaDbContext,Task> action,CancellationToken ct)
-    { await using var db=await factory.CreateDbContextAsync(ct); await using var tx=await db.Database.BeginTransactionAsync(ct); await action(db); await db.SaveChangesAsync(ct); await tx.CommitAsync(ct); logger.LogDebug("Local cafeteria state committed"); }
+    {
+        Stopwatch total = Stopwatch.StartNew();
+        Stopwatch step = Stopwatch.StartNew();
+
+        await using var db = await factory.CreateDbContextAsync(ct);
+        logger.LogInformation("PERF LocalSave DbContext {ElapsedMs} ms", step.ElapsedMilliseconds);
+
+        step.Restart();
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        logger.LogInformation("PERF LocalSave BeginTransaction {ElapsedMs} ms", step.ElapsedMilliseconds);
+
+        step.Restart();
+        await action(db);
+        logger.LogInformation("PERF LocalSave Action {ElapsedMs} ms", step.ElapsedMilliseconds);
+
+        step.Restart();
+        await db.SaveChangesAsync(ct);
+        logger.LogInformation("PERF LocalSave SaveChanges {ElapsedMs} ms", step.ElapsedMilliseconds);
+
+        step.Restart();
+        await tx.CommitAsync(ct);
+        logger.LogInformation("PERF LocalSave Commit {ElapsedMs} ms", step.ElapsedMilliseconds);
+
+        logger.LogInformation("PERF LocalSave TOTAL {ElapsedMs} ms", total.ElapsedMilliseconds);
+    }
 }
