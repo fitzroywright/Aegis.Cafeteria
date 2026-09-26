@@ -1,6 +1,6 @@
 namespace Aegis.Cafeteria.Application.Integration;
 
-/// <summary>Anti-corruption boundary for FFP employee and holiday reference data. Aegis has no lunch-ticket concept.</summary>
+/// <summary>Anti-corruption boundary for external workforce and holiday reference data.</summary>
 public interface IWorkforceReferenceSource
 {
     Task<IReadOnlyList<ExternalCustomerSnapshot>> GetCustomersAsync(CancellationToken cancellationToken = default);
