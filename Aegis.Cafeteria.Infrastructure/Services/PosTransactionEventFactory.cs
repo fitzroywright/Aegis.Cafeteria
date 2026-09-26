@@ -56,6 +56,8 @@ public static class PosTransactionEventFactory
             order.CashRefunded,
             order.CreditRefunded,
             order.NetTotal,
+            IdentificationMethod = order.IdentificationMethod?.ToString(),
+            IdentificationCode = order.IdentificationCode,
             Items = order.Items.Select(item => new { item.Id, item.ProductId, item.ProductName, item.UnitPrice, item.Quantity, item.Total }).ToArray(),
             Payments = order.Payments.Select(payment => new { payment.Id, Method = payment.Method.ToString(), payment.Amount, payment.RecordedAt }).ToArray(),
             Refunds = order.Refunds.Select(refund => new { refund.Id, refund.Total, refund.CafeteriaAccountAmount, refund.CashAmount, refund.CreditAmount, refund.RefundedBy, refund.RefundedAt, refund.Reason }).ToArray()
