@@ -31,9 +31,17 @@ public sealed class LocalPersistenceStore(
     public Task SaveOrderWithTransactionAsync(OrderRow order, PosTransactionOutboxRow transaction, CancellationToken ct = default)
         => SaveAsync(async db =>
         {
+            Stopwatch step = Stopwatch.StartNew();
             await financialPostingService.SaveOrderAsync(db, order, ct);
+            logger.LogInformation("PERF SaveOrder OrderId={OrderId} financial posting {ElapsedMs} ms", order.Id, step.ElapsedMilliseconds);
+
+            step.Restart();
             bool exists = await db.PosTransactionOutbox.AnyAsync(x => x.EventId == transaction.EventId, ct);
+            logger.LogInformation("PERF SaveOrder OrderId={OrderId} outbox existence query {ElapsedMs} ms Exists={Exists}", order.Id, step.ElapsedMilliseconds, exists);
+
+            step.Restart();
             if (!exists) db.PosTransactionOutbox.Add(transaction);
+            logger.LogInformation("PERF SaveOrder OrderId={OrderId} outbox stage {ElapsedMs} ms", order.Id, step.ElapsedMilliseconds);
         }, ct);
     public Task SaveAccountEventAsync(AccountEventRow row, CancellationToken ct = default)
         => SaveAsync(db => financialPostingService.SaveAccountEventAsync(db, row, ct), ct);
