@@ -46,7 +46,8 @@ public sealed class EfWorkforceReferenceCache(IDbContextFactory<LocalCafeteriaDb
             row.Manager = employee.Manager?.Trim() ?? string.Empty;
             row.EmailAddress = employee.EmailAddress?.Trim() ?? string.Empty;
             row.Extension = employee.Extension?.Trim() ?? string.Empty;
-            if (employee.Photo is not null)
+            if (employee.Photo is not null
+                && !PhotoEquals(row.Photo, employee.Photo))
             {
                 row.Photo = employee.Photo;
             }
@@ -140,6 +141,14 @@ public sealed class EfWorkforceReferenceCache(IDbContextFactory<LocalCafeteriaDb
         {
             desired[claim] = new DesiredIdentifier(customerId, type, value.Trim(), normalized);
         }
+    }
+
+    private static bool PhotoEquals(byte[]? existing, byte[] incoming)
+    {
+        if (existing is null || existing.Length != incoming.Length)
+            return false;
+
+        return existing.AsSpan().SequenceEqual(incoming);
     }
 
     private static string BuildIdentifierClaim(CustomerIdentifierType type, string normalized)
