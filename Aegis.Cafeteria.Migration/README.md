@@ -24,7 +24,7 @@ The preferred form is to pass the integration source connection string:
 
 ```powershell
 dotnet run --project Aegis.Cafeteria.Migration -- \
-  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=LEGACY-SQL;Initial Catalog=LegacyCafeteria;Encrypt=True;TrustServerCertificate=True" \
+  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=LEGACY-SQL;Initial Catalog=LegacyDatabase;Encrypt=True;TrustServerCertificate=True" \
   --services-url https://cafeteria-services.ffpja.org \
   --year 2026 \
   --month 10
@@ -46,7 +46,7 @@ After reviewing the dry-run totals:
 
 ```powershell
 dotnet run --project Aegis.Cafeteria.Migration -- \
-  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=LEGACY-SQL;Initial Catalog=LegacyCafeteria;Encrypt=True;TrustServerCertificate=True" \
+  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=LEGACY-SQL;Initial Catalog=LegacyDatabase;Encrypt=True;TrustServerCertificate=True" \
   --services-url https://cafeteria-services.ffpja.org \
   --year 2026 \
   --month 10 \
@@ -62,7 +62,7 @@ Dry run:
 ```powershell
 dotnet run --project Aegis.Cafeteria.Migration -- \
   --product-bootstrap \
-  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=LEGACY-SQL;Initial Catalog=LegacyCafeteria;Encrypt=True;TrustServerCertificate=True" \
+  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=LEGACY-SQL;Initial Catalog=LegacyDatabase;Encrypt=True;TrustServerCertificate=True" \
   --services-url https://cafeteria-services.ffpja.org
 ```
 
@@ -71,7 +71,7 @@ Execute:
 ```powershell
 dotnet run --project Aegis.Cafeteria.Migration -- \
   --product-bootstrap \
-  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=LEGACY-SQL;Initial Catalog=LegacyCafeteria;Encrypt=True;TrustServerCertificate=True" \
+  --connection-string "Integrated Security=SSPI;Pooling=false;Data Source=LEGACY-SQL;Initial Catalog=LegacyDatabase;Encrypt=True;TrustServerCertificate=True" \
   --services-url https://cafeteria-services.ffpja.org \
   --execute
 ```
