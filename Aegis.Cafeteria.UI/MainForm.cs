@@ -1489,7 +1489,7 @@ public sealed class MainForm : Form
             var operatorId = this.operatorSession.Current?.UserId ?? throw new UnauthorizedAccessException("An authenticated cafeteria operator is required.");
             CustomerAccountView account = this.currentCustomer;
             decimal amount = dialog.Amount;
-            PaymentMethod paymentMethod = dialog.PaymentMethod;
+            string paymentMethod = dialog.PaymentMethod;
             string? reference = dialog.Reference;
             await Task.Run(() => this.customerPayments.RecordAsync(account, amount, paymentMethod, operatorId, reference));
             int customerId = account.Customer.Id;
