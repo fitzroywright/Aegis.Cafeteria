@@ -4,10 +4,8 @@ using Aegis.Cafeteria.Application.Security;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Infrastructure.Persistence;
 using Common.Security.Abstractions;
-using Common.Security.Authenticators;
 using Common.Security.Authorization;
 using Common.Security.Models;
-using Common.Security.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -22,31 +20,6 @@ public sealed class CommonSecurityOperatorAuthenticator : IOperatorAuthenticator
     private readonly ILogger<CommonSecurityOperatorAuthenticator> logger;
     private readonly CafeteriaAuthorizationStore? authorizationStore;
 
-    public CommonSecurityOperatorAuthenticator(
-        OperatorSecurityOptions options,
-        ILogger<CommonSecurityOperatorAuthenticator> logger)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        if (!options.Enabled)
-            throw new InvalidOperationException("Operator security cannot be disabled for the production POS.");
-
-        Validate(options);
-
-        ActiveDirectoryAuthenticationOptions adOptions = new()
-        {
-            Domain = options.Domain,
-            SearchBase = options.SearchBase,
-            Port = options.Port,
-            TimeoutSeconds = options.TimeoutSeconds,
-            Servers = options.Servers,
-            AdministrativeGroups = options.AdministrativeGroups
-        };
-
-        authenticator = new ActiveDirectory(adOptions);
-        this.logger = logger;
-    }
 
     public CommonSecurityOperatorAuthenticator(
         IAuthenticator authenticator,
@@ -145,25 +118,4 @@ public sealed class CommonSecurityOperatorAuthenticator : IOperatorAuthenticator
         return value.ToLowerInvariant();
     }
 
-    private static void Validate(OperatorSecurityOptions value)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(value.Domain);
-        ArgumentException.ThrowIfNullOrWhiteSpace(value.SearchBase);
-
-        if (value.Port is < 1 or > 65535)
-            throw new ArgumentOutOfRangeException(nameof(value.Port));
-
-        if (value.TimeoutSeconds <= 0)
-            throw new ArgumentOutOfRangeException(nameof(value.TimeoutSeconds));
-
-        if (value.Servers.Count == 0 || value.Servers.Any(string.IsNullOrWhiteSpace))
-            throw new ArgumentException(
-                "At least one valid LDAPS server is required.",
-                nameof(value.Servers));
-
-        if (value.AdministrativeGroups is null)
-            throw new ArgumentException(
-                "AdministrativeGroups must be configured.",
-                nameof(value.AdministrativeGroups));
-    }
 }
