@@ -954,14 +954,18 @@ public sealed class MainForm : Form
         try
         {
             UseWaitCursor = true;
+            Stopwatch stepTimer = Stopwatch.StartNew();
             var result = await Task.Run(() => this.identification.ResolveAsync(value, 50));
+            this.logger.LogInformation("PERF UI Identify resolve {ElapsedMilliseconds} ms", stepTimer.ElapsedMilliseconds);
             CustomerAccountView? account = result.Account;
 
             if (account is null && result.Candidates.Count > 0)
             {
                 var chosen = ChooseCustomer(result.Candidates, value);
                 if (chosen is null) return;
+                stepTimer.Restart();
                 account = await Task.Run(() => this.identification.LoadAsync(chosen.CustomerId));
+                this.logger.LogInformation("PERF UI Identify selected-customer load {ElapsedMilliseconds} ms CustomerId={CustomerId}", stepTimer.ElapsedMilliseconds, chosen.CustomerId);
             }
 
             if (account is null)
@@ -972,7 +976,9 @@ public sealed class MainForm : Form
             }
 
             this.lookup.Clear();
+            stepTimer.Restart();
             ShowCustomer(account);
+            this.logger.LogInformation("PERF UI Identify ShowCustomer {ElapsedMilliseconds} ms CustomerId={CustomerId}", stepTimer.ElapsedMilliseconds, account.Customer.Id);
             this.productSearch.Focus();
         }
         catch (Exception ex)
@@ -1110,12 +1116,14 @@ public sealed class MainForm : Form
     {
         try
         {
+            Stopwatch detailTimer = Stopwatch.StartNew();
             IReadOnlyList<CustomerMonthlyTransactionView> history = account.Customer.IsCashCustomer
                 ? Array.Empty<CustomerMonthlyTransactionView>()
                 : await Task.Run(() => this.accountQuery.GetTransactionsAsync(
                     account.Customer.Id,
                     account.Period.Year,
                     account.Period.Month));
+            this.logger.LogInformation("PERF UI CustomerDetails query {ElapsedMilliseconds} ms CustomerId={CustomerId} Count={Count}", detailTimer.ElapsedMilliseconds, account.Customer.Id, history.Count);
 
             if (this.currentCustomer?.Customer.Id != account.Customer.Id) return;
 
@@ -1154,8 +1162,10 @@ public sealed class MainForm : Form
                 this.customerDisplay.BringToFront();
             }
 
+            detailTimer.Restart();
             if (InvokeRequired) BeginInvoke((Action)ApplyDetails);
             else ApplyDetails();
+            this.logger.LogInformation("PERF UI CustomerDetails dispatch {ElapsedMilliseconds} ms CustomerId={CustomerId}", detailTimer.ElapsedMilliseconds, account.Customer.Id);
         }
         catch (Exception ex)
         {
@@ -1381,15 +1391,28 @@ public sealed class MainForm : Form
                 dialog.CreditAmount,
                 operatorIdentity.UserId,
                 this.persistenceOptions.TerminalId);
+            Stopwatch checkoutStep = Stopwatch.StartNew();
             await Task.Run(() => this.checkout.CompleteAsync(request));
+            this.logger.LogInformation("PERF UI Checkout service completion {ElapsedMilliseconds} ms", checkoutStep.ElapsedMilliseconds);
+
+            checkoutStep.Restart();
             this.cart.Clear();
             RefreshCart();
+            this.logger.LogInformation("PERF UI Checkout cart reset/bind {ElapsedMilliseconds} ms", checkoutStep.ElapsedMilliseconds);
+
             if (!this.currentCustomer.Customer.IsCashCustomer)
             {
                 int customerId = this.currentCustomer.Customer.Id;
+                checkoutStep.Restart();
                 CustomerAccountView? refreshed = await Task.Run(() => this.identification.LoadAsync(customerId));
+                this.logger.LogInformation("PERF UI Checkout customer reload {ElapsedMilliseconds} ms CustomerId={CustomerId}", checkoutStep.ElapsedMilliseconds, customerId);
                 this.currentCustomer = refreshed;
-                if (refreshed is not null) ShowCustomer(refreshed);
+                if (refreshed is not null)
+                {
+                    checkoutStep.Restart();
+                    ShowCustomer(refreshed);
+                    this.logger.LogInformation("PERF UI Checkout ShowCustomer {ElapsedMilliseconds} ms CustomerId={CustomerId}", checkoutStep.ElapsedMilliseconds, customerId);
+                }
             }
             else
             {
