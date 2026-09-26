@@ -1510,45 +1510,32 @@ public sealed class MainForm : Form
         }
     }
 
-    private Task OnCustomerAccountChangedAsync
-    (
-        int customerId
-    )
+    private Task OnCustomerAccountChangedAsync(int customerId)
     {
-        if (this.currentCustomer?.Customer.Id != customerId)
-        {
+        if (this.currentCustomer?.Customer.Id != customerId || IsDisposed || Disposing)
             return Task.CompletedTask;
-        }
 
-        if (IsDisposed || Disposing)
+        _ = Task.Run(async () =>
         {
-            return Task.CompletedTask;
-        }
-
-        BeginInvoke
-        (
-            async () =>
+            try
             {
-                try
-                {
-                    CustomerAccountView? refreshed = await this.identification.LoadAsync(customerId);
+                CustomerAccountView? refreshed = await this.identification.LoadAsync(customerId);
+                if (refreshed is null || IsDisposed || Disposing) return;
 
-                    if (refreshed is not null)
-                    {
-                        ShowCustomer(refreshed);
-                    }
-                }
-                catch (Exception exception)
+                BeginInvoke((Action)(() =>
                 {
-                    this.logger.LogWarning
-                    (
-                          exception
-                        , "Could not refresh displayed customer {CustomerId}"
-                        , customerId
-                    );
-                }
+                    if (this.currentCustomer?.Customer.Id == customerId)
+                        ShowCustomer(refreshed);
+                }));
             }
-        );
+            catch (Exception exception)
+            {
+                this.logger.LogWarning(
+                    exception,
+                    "Could not refresh displayed customer {CustomerId}",
+                    customerId);
+            }
+        });
 
         return Task.CompletedTask;
     }
