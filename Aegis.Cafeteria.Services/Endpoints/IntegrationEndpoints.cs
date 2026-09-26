@@ -1,7 +1,7 @@
 using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Services.Persistence;
-using Aegis.Cafeteria.Infrastructure.ActiveDirectory;
+using Aegis.Cafeteria.Infrastructure.Identity;
 using Common.Security.Models;
 
 namespace Aegis.Cafeteria.Services;
@@ -33,7 +33,7 @@ internal static class IntegrationEndpoints
     private static async Task<IResult> GetCustomersAsync(
         IWorkforceReferenceSource source,
         CustomerCreditPolicyStore policies,
-        EmployeeDirectoryMetadataCache directoryCache,
+        DirectoryProfileCache directoryCache,
         CancellationToken ct)
     {
         IReadOnlyList<ExternalCustomerSnapshot> customers = await source.GetCustomersAsync(ct);
