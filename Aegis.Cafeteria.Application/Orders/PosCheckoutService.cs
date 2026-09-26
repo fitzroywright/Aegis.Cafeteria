@@ -132,18 +132,28 @@ public sealed class PosCheckoutService
 
         foreach (IPostSaleObserver observer in this.postSaleObservers)
         {
-            try
-            {
-                await observer.OnSaleCompletedAsync(account, order, cancellationToken);
-            }
-            catch
-            {
-                // Post-sale convenience features must never turn a committed sale into a checkout failure.
-            }
+            _ = ObservePostSaleAsync(observer, account, order, cancellationToken);
         }
 
         return order;
     }
+    private static async Task ObservePostSaleAsync(
+        IPostSaleObserver observer,
+        CustomerAccountView account,
+        Order order,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await observer.OnSaleCompletedAsync(account, order, cancellationToken);
+        }
+        catch
+        {
+            // Post-sale convenience features are deliberately detached from the
+            // cashier critical path and must never turn a committed sale into a failure.
+        }
+    }
+
 }
 
 public sealed record PosCheckoutRequest(
