@@ -40,7 +40,7 @@ public sealed class ReportCenterWindow : Window
     };
     private readonly TextBox employeeSearch = new()
     {
-          Watermark = "Name, code, TRN, or identifier"
+          PlaceholderText = "Name, code, TRN, or identifier"
         , MinWidth = 300
     };
     private readonly ListBox employeeResults = new()
@@ -692,3 +692,4 @@ public sealed class ReportCenterWindow : Window
                 : $"{this.Customer.Name} — {this.Customer.Department}";
     }
 }
+

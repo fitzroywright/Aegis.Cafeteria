@@ -13,7 +13,7 @@ public sealed class EmployeeEmailPreferencesWindow : Window
 
     private readonly TextBox search = new()
     {
-          Watermark = "Name, code, TRN, or identifier"
+          PlaceholderText = "Name, code, TRN, or identifier"
         , MinWidth = 420
     };
 
@@ -36,7 +36,7 @@ public sealed class EmployeeEmailPreferencesWindow : Window
 
     private readonly TextBox email = new()
     {
-        Watermark = "Email address"
+        PlaceholderText = "Email address"
     };
 
     private readonly TextBlock status = new()
@@ -340,4 +340,5 @@ public sealed class EmployeeEmailPreferencesWindow : Window
         }
     }
 }
+
 

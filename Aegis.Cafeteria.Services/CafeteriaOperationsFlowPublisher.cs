@@ -14,7 +14,6 @@ public sealed record CafeteriaFlowTelemetryItem(
 
 public sealed class CafeteriaOperationsFlowPublisher(
     IConfiguration configuration,
-    IHostEnvironment environment,
     ILogger<CafeteriaOperationsFlowPublisher> logger) : BackgroundService
 {
     private const string ApplicationId = "Aegis.Cafeteria.Services";
@@ -136,3 +135,4 @@ public sealed class CafeteriaOperationsFlowPublisher(
         }
     }
 }
+

@@ -11,7 +11,7 @@ public sealed class CustomerPaymentWindow : Window
 {
     private readonly TextBox amount = new() { FontSize = 16, FontWeight = FontWeight.Bold };
     private readonly ComboBox method = new();
-    private readonly TextBox reference = new() { Watermark = "Optional receipt / POS / bank reference" };
+    private readonly TextBox reference = new() { PlaceholderText = "Optional receipt / POS / bank reference" };
     private readonly TextBlock remaining = new() { FontWeight = FontWeight.Bold, FontSize = 16 };
     private readonly decimal amountDue;
 
@@ -90,3 +90,4 @@ public sealed class CustomerPaymentWindow : Window
         Grid.SetRow(value, row); Grid.SetColumn(value, 1); grid.Children.Add(value);
     }
 }
+

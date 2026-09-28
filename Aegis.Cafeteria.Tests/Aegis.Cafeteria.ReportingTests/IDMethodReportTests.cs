@@ -17,12 +17,12 @@ public sealed class IDMethodReportTests
     [Fact]
     public async Task PurchaseItemDetail_IncludesPersistedIDMethodColumn()
     {
-        await WithDatabaseAsync(async (factory, orderId, completedAt) => { await SeedCompletedOrderAsync(factory,orderId,completedAt,(int)IDMethod.NFC,"04A1B2C3"); IDMethodReportDecorator sut=Create(factory,new NullAccountQuery()); ReportDocument report=await sut.GenerateAsync(CafeteriaReportKind.PurchaseItemDetail,Filter(completedAt)); ReportTable detail=Assert.Single(report.Tables.Where(x=>x.Title=="Itemized purchases")); Assert.Contains(detail.Columns,x=>x.Key=="idMethod"&&x.Heading=="ID Method"); Assert.Equal("NFC",Assert.Single(detail.Rows)["idMethod"]); });
+        await WithDatabaseAsync(async (factory, orderId, completedAt) => { await SeedCompletedOrderAsync(factory,orderId,completedAt,(int)IDMethod.NFC,"04A1B2C3"); IDMethodReportDecorator sut=Create(factory,new NullAccountQuery()); ReportDocument report=await sut.GenerateAsync(CafeteriaReportKind.PurchaseItemDetail,Filter(completedAt)); ReportTable detail=Assert.Single(report.Tables,x=>x.Title=="Itemized purchases"); Assert.Contains(detail.Columns,x=>x.Key=="idMethod"&&x.Heading=="ID Method"); Assert.Equal("NFC",Assert.Single(detail.Rows)["idMethod"]); });
     }
     [Fact]
     public async Task PurchaseItemDetail_LegacyOrderLeavesIDMethodBlank()
     {
-        await WithDatabaseAsync(async (factory,orderId,completedAt)=>{await SeedCompletedOrderAsync(factory,orderId,completedAt,null,null);IDMethodReportDecorator sut=Create(factory,new NullAccountQuery());ReportDocument report=await sut.GenerateAsync(CafeteriaReportKind.PurchaseItemDetail,Filter(completedAt));Assert.Equal(string.Empty,Assert.Single(Assert.Single(report.Tables.Where(x=>x.Title=="Itemized purchases")).Rows)["idMethod"]);});
+        await WithDatabaseAsync(async (factory,orderId,completedAt)=>{await SeedCompletedOrderAsync(factory,orderId,completedAt,null,null);IDMethodReportDecorator sut=Create(factory,new NullAccountQuery());ReportDocument report=await sut.GenerateAsync(CafeteriaReportKind.PurchaseItemDetail,Filter(completedAt));Assert.Equal(string.Empty,Assert.Single(Assert.Single(report.Tables,x=>x.Title=="Itemized purchases").Rows)["idMethod"]);});
     }
     [Fact]
     public async Task EmployeeStatement_UsesOriginatingOrderIDMethod()
@@ -42,3 +42,4 @@ public sealed class IDMethodReportTests
     private sealed class StatementAccountQuery(CustomerMonthlyTransactionView transaction):ICustomerAccountQuery{public Task<CustomerAccountView?> GetAsync(int customerId,int year,int month,CancellationToken cancellationToken=default)=>Task.FromResult<CustomerAccountView?>(new CustomerAccountView(new CustomerIdentityView(customerId,"Fitzroy Wright",null,true),new AccountPeriodView(year,month,20,0m,0m,false),new CustomerFinancialStatusView(0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m,0m),[transaction],new ExternalPublicationStatus(false,0,0,null,null)));public Task<IReadOnlyList<CustomerMonthlyTransactionView>> GetTransactionsAsync(int customerId,int year,int month,CancellationToken cancellationToken=default)=>Task.FromResult<IReadOnlyList<CustomerMonthlyTransactionView>>([transaction]);}
     private sealed class NullAccountQuery:ICustomerAccountQuery{public Task<CustomerAccountView?> GetAsync(int customerId,int year,int month,CancellationToken cancellationToken=default)=>Task.FromResult<CustomerAccountView?>(null);public Task<IReadOnlyList<CustomerMonthlyTransactionView>> GetTransactionsAsync(int customerId,int year,int month,CancellationToken cancellationToken=default)=>Task.FromResult<IReadOnlyList<CustomerMonthlyTransactionView>>([]);}
 }
+

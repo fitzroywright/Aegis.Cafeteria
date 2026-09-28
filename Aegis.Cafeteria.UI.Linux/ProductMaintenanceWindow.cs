@@ -10,8 +10,8 @@ public sealed class ProductMaintenanceWindow : Window
 {
     private readonly IProductCatalogMaintenance products;
     private readonly ListBox productList = new() { MinHeight = 320 };
-    private readonly TextBox productName = new() { Watermark = "Product name" };
-    private readonly TextBox productPrice = new() { Watermark = "Price" };
+    private readonly TextBox productName = new() { PlaceholderText = "Product name" };
+    private readonly TextBox productPrice = new() { PlaceholderText = "Price" };
     private readonly TextBlock status = new();
     private IReadOnlyList<ProductCatalogItem> currentProducts = Array.Empty<ProductCatalogItem>();
 
@@ -180,3 +180,4 @@ public sealed class ProductMaintenanceWindow : Window
         }
     }
 }
+

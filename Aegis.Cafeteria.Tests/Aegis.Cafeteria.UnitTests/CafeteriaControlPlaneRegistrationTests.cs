@@ -24,7 +24,7 @@ public sealed class CafeteriaControlPlaneRegistrationTests
     [InlineData("Aegis.Cafeteria.Management")]
     public void Cafeteria_module_ids_are_fully_qualified(string module)
     {
-        Assert.True(module.StartsWith("Aegis.Cafeteria.", StringComparison.Ordinal));
+        Assert.StartsWith("Aegis.Cafeteria.", module, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -40,7 +40,8 @@ public sealed class CafeteriaControlPlaneRegistrationTests
             instanceId);
 
         Assert.NotEqual(pos, ui);
-        Assert.True(pos.EndsWith("registration-identity.json", StringComparison.OrdinalIgnoreCase));
-        Assert.True(ui.EndsWith("registration-identity.json", StringComparison.OrdinalIgnoreCase));
+        Assert.EndsWith("registration-identity.json", pos, StringComparison.OrdinalIgnoreCase);
+        Assert.EndsWith("registration-identity.json", ui, StringComparison.OrdinalIgnoreCase);
     }
 }
+

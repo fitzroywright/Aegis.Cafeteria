@@ -10,8 +10,8 @@ public sealed class CustomerAccountCalculatorContractTests
     {
         MethodInfo method = Assert.Single(
             typeof(CustomerAccountCalculator)
-                .GetMethods(BindingFlags.Instance | BindingFlags.Public)
-                .Where(x => x.Name == nameof(CustomerAccountCalculator.Calculate)));
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public),
+            x => x.Name == nameof(CustomerAccountCalculator.Calculate));
 
         ParameterInfo[] parameters = method.GetParameters();
 
@@ -35,3 +35,4 @@ public sealed class CustomerAccountCalculatorContractTests
         Assert.True(parameters.Single(x => x.Name == "priorPeriodRefundCredits").IsOptional);
     }
 }
+

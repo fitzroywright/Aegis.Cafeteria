@@ -34,7 +34,7 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
         IDiagnosticLevelLocalTest[] tests = Catalogue();
 
         Assert.Equal(tests.Length, tests.Select(x => x.TestId).Distinct(StringComparer.OrdinalIgnoreCase).Count());
-        Assert.All(tests, test => Assert.True(test.TestId.StartsWith("CAFETERIA.SERVICES.", StringComparison.Ordinal)));
+        Assert.All(tests, test => Assert.StartsWith("CAFETERIA.SERVICES.", test.TestId, StringComparison.Ordinal));
     }
 
     [Fact]

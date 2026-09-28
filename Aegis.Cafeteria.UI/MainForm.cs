@@ -1394,6 +1394,7 @@ public sealed class MainForm : Form
     {
         Stopwatch performanceTimer = Stopwatch.StartNew();
         if (this.currentCustomer is null || this.cart.Count == 0) return;
+        int checkoutCustomerId = this.currentCustomer.Customer.Id;
         decimal total = this.cart.Sum(x => x.Total);
         TenderCustomerContext tenderContext = TenderCustomerPolicy.Evaluate(this.currentCustomer);
         using TenderDialog dialog = new
@@ -1453,7 +1454,7 @@ public sealed class MainForm : Form
         }
         catch (Exception ex)
         {
-            this.logger.LogError(ex, "Checkout failed for customer {CustomerId}", this.currentCustomer.Customer.Id);
+            this.logger.LogError(ex, "Checkout failed for customer {CustomerId}", checkoutCustomerId);
             MessageBox.Show(this, ex.Message, "Checkout Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally { UpdateCheckoutState(); }
@@ -1914,3 +1915,4 @@ public sealed class MainForm : Form
         public decimal Total => UnitPrice * Quantity;
     }
 }
+

@@ -13,6 +13,7 @@ public sealed class CustomerConstructorContractTests
 
         Assert.Equal(
             ["id", "name", "photo", "isEligibleForCredit", "additionalCreditLimit", "isActive", "employmentStartDate"],
-            parameters.Select(x => x.Name).ToArray());
+            parameters.Select(x => Assert.IsType<string>(x.Name)).ToArray());
     }
 }
+
