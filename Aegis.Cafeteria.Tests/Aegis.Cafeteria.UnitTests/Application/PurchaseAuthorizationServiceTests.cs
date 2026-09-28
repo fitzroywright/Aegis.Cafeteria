@@ -8,18 +8,18 @@ using Aegis.Cafeteria.Domain.Orders;
 public sealed class PurchaseAuthorizationServiceTests
 {
     [Fact]
-    public void EnsureCanPurchase_WhenOrderFitsAvailableCredit_DoesNotThrow()
+    public void EnsureCanChargeAccount_WhenOrderFitsAvailableCredit_DoesNotThrow()
     {
         var service = new PurchaseAuthorizationService();
         var customer = CreateCustomer();
         var order = CreateOrder(customer.Id, 500m);
         var account = Snapshot(availableCredit: 600m);
 
-        service.EnsureCanPurchase(customer, account, order);
+        service.EnsureCanChargeAccount(customer, account, order, order.Total);
     }
 
     [Fact]
-    public void EnsureCanPurchase_WhenOrderExceedsAvailableCredit_Throws()
+    public void EnsureCanChargeAccount_WhenOrderExceedsAvailableCredit_Throws()
     {
         var service = new PurchaseAuthorizationService();
         var customer = CreateCustomer();
@@ -27,7 +27,7 @@ public sealed class PurchaseAuthorizationServiceTests
         var account = Snapshot(availableCredit: 600m);
 
         Assert.Throws<InvalidOperationException>(() =>
-            service.EnsureCanPurchase(customer, account, order));
+            service.EnsureCanChargeAccount(customer, account, order, order.Total));
     }
 
     private static Customer CreateCustomer()
@@ -60,3 +60,4 @@ public sealed class PurchaseAuthorizationServiceTests
             AdditionalCreditUsed: 0m,
             UnusedAdditionalCredit: 0m);
 }
+

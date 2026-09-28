@@ -316,7 +316,7 @@ public static class ManagementCommonSecurityAuthenticationExtensions
         }
 
         string userName = NormalizeUserName(request.LoginName);
-        string displayName = result.UserInfo.DisplayName?.Trim();
+        string? displayName = result.UserInfo.DisplayName?.Trim();
         if (string.IsNullOrWhiteSpace(displayName))
         {
             displayName = userName;
@@ -464,3 +464,4 @@ public sealed record ManagementServiceTokenSession
     , bool IsManager
     , DateTimeOffset ExpiresAt
 );
+

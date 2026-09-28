@@ -58,7 +58,7 @@ public sealed class MainWindow : Window
     private Control? orderWorkspace;
     private Control? idleDashboard;
 
-    private readonly TextBox lookup = new() { Watermark = "Tap card or enter Code, TRN, or Name", MinWidth = 420 };
+    private readonly TextBox lookup = new() { PlaceholderText = "Tap card or enter Code, TRN, or Name", MinWidth = 420 };
     private readonly Button findButton = new() { Content = "Find", MinWidth = 80 };
     private readonly Button cashCustomerButton = new() { Content = "Cash Customer", MinWidth = 120 };
     private readonly TextBlock status = new() { Text = "Ready", VerticalAlignment = VerticalAlignment.Center };
@@ -84,12 +84,12 @@ public sealed class MainWindow : Window
     private readonly ListBox searchResults = new() { MinHeight = 80, MaxHeight = 130 };
     private readonly ListBox transactions = new();
     private readonly ListBox recentTransactions = new() { MinHeight = 120, MaxHeight = 180 };
-    private readonly TextBox productSearch = new() { Watermark = "Search products" };
+    private readonly TextBox productSearch = new() { PlaceholderText = "Search products" };
     private readonly ListBox productList = new();
     private readonly ListBox cartList = new();
     private readonly TextBlock cartTotal = new() { Text = "Total: $0.00", FontSize = 18, FontWeight = Avalonia.Media.FontWeight.Bold };
-    private readonly TextBox cafeteriaTender = new() { Watermark = "Cafeteria account", Text = "0.00" };
-    private readonly TextBox cashTender = new() { Watermark = "Cash received", Text = "0.00" };
+    private readonly TextBox cafeteriaTender = new() { PlaceholderText = "Cafeteria account", Text = "0.00" };
+    private readonly TextBox cashTender = new() { PlaceholderText = "Cash received", Text = "0.00" };
     private readonly TextBlock paymentRemaining = new() { Text = "Remaining: $0.00", FontWeight = Avalonia.Media.FontWeight.Bold };
     private readonly TextBlock changeDue = new() { Text = "Change: $0.00", FontWeight = Avalonia.Media.FontWeight.Bold };
     private bool updatingTender;
@@ -1027,6 +1027,7 @@ public sealed class MainWindow : Window
     private async Task CheckoutAsync()
     {
         if (currentCustomer is null || cart.Count == 0) return;
+        int checkoutCustomerId = currentCustomer.Customer.Id;
         if (!TryGetPayment(out var accountAmount, out _, out var cashApplied, out TenderQuote? quote))
         {
             status.Text = "Enter valid cafeteria-account and cash amounts";
@@ -1041,13 +1042,14 @@ public sealed class MainWindow : Window
         try
         {
             checkoutButton.IsEnabled = false;
-            await checkout.CompleteAsync(
+            await checkout.CompleteAsync(new PosCheckoutRequest(
                 currentCustomer,
                 cart.Select(x => new PosOrderLine(x.ProductId, x.ProductName, x.UnitPrice, x.Quantity)).ToArray(),
                 accountAmount,
                 cashApplied,
+                0m,
                 operatorSession.Current?.UserId ?? throw new UnauthorizedAccessException("An authenticated cafeteria operator is required."),
-                persistenceOptions.TerminalId);
+                persistenceOptions.TerminalId));
             cart.Clear();
             RefreshCart();
             if (!currentCustomer.Customer.IsCashCustomer)
@@ -1065,7 +1067,7 @@ public sealed class MainWindow : Window
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Checkout failed for customer {CustomerId}", currentCustomer.Customer.Id);
+            logger.LogError(ex, "Checkout failed for customer {CustomerId}", checkoutCustomerId);
             status.Text = $"Checkout error: {ex.Message}";
         }
         finally
@@ -1621,3 +1623,4 @@ public sealed class MainWindow : Window
         public override string ToString() => $"{Quantity} x {ProductName} @ {Money(UnitPrice)} = {Money(Total)}";
     }
 }
+

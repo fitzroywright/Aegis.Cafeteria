@@ -18,13 +18,14 @@ public sealed class PosCheckoutServiceTests
         PosCheckoutService service = new(store);
         CustomerAccountView view = View(available: 700m);
 
-        Order order = await service.CompleteAsync(
+        Order order = await service.CompleteAsync(new PosCheckoutRequest(
             view,
             [new PosOrderLine(1, "Lunch", 1_000m, 1)],
-            cafeteriaAccountAmount: 700m,
-            cashAmount: 300m,
-            cashierUserId: "fwright",
-            terminalId: "CAFETERIA-POS");
+            CafeteriaAccountAmount: 700m,
+            CashAmount: 300m,
+            CreditAmount: 0m,
+            CashierUserId: "fwright",
+            TerminalId: "CAFETERIA-POS"));
 
         Assert.Equal(OrderStatus.Completed, order.Status);
         Assert.Equal(700m, order.CafeteriaAccountPaid);
@@ -140,22 +141,22 @@ public sealed class PosCheckoutServiceTests
     public async Task CompleteAsync_RejectsAccountTenderAboveAvailableCredit()
     {
         PosCheckoutService service = new(new FakeStore());
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CompleteAsync(
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CompleteAsync(new PosCheckoutRequest(
             View(available: 500m),
             [new PosOrderLine(1, "Lunch", 1_000m, 1)],
-            cafeteriaAccountAmount: 600m,
-            cashAmount: 400m));
+            CafeteriaAccountAmount: 600m,
+            CashAmount: 400m, CreditAmount: 0m, CashierUserId: "legacy", TerminalId: Environment.MachineName)));
     }
 
     [Fact]
     public async Task CompleteAsync_RejectsTenderThatDoesNotEqualOrderTotal()
     {
         PosCheckoutService service = new(new FakeStore());
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CompleteAsync(
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CompleteAsync(new PosCheckoutRequest(
             View(available: 1_000m),
             [new PosOrderLine(1, "Lunch", 1_000m, 1)],
-            cafeteriaAccountAmount: 500m,
-            cashAmount: 400m));
+            CafeteriaAccountAmount: 500m,
+            CashAmount: 400m, CreditAmount: 0m, CashierUserId: "legacy", TerminalId: Environment.MachineName)));
     }
 
     [Fact]
@@ -165,21 +166,21 @@ public sealed class PosCheckoutServiceTests
         PosCheckoutService service = new(store);
         CustomerAccountView cash = CashCustomerAccountViewFactory.Create(new DateOnly(2026, 8, 24));
 
-        Order order = await service.CompleteAsync(
+        Order order = await service.CompleteAsync(new PosCheckoutRequest(
             cash,
             [new PosOrderLine(1, "Lunch", 1_000m, 1)],
-            cafeteriaAccountAmount: 0m,
-            cashAmount: 1_000m);
+            CafeteriaAccountAmount: 0m,
+            CashAmount: 1_000m, CreditAmount: 0m, CashierUserId: "legacy", TerminalId: Environment.MachineName));
 
         Assert.Equal(1_000m, order.CashPaid);
         Assert.Equal(0m, order.CafeteriaAccountPaid);
         Assert.Same(order, store.SavedOrder);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CompleteAsync(
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CompleteAsync(new PosCheckoutRequest(
             cash,
             [new PosOrderLine(1, "Lunch", 1_000m, 1)],
-            cafeteriaAccountAmount: 1m,
-            cashAmount: 999m));
+            CafeteriaAccountAmount: 1m,
+            CashAmount: 999m, CreditAmount: 0m, CashierUserId: "legacy", TerminalId: Environment.MachineName)));
     }
 
     [Fact]
@@ -193,15 +194,16 @@ public sealed class PosCheckoutServiceTests
 
         InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>
         (
-            () => service.CompleteAsync
+            () => service.CompleteAsync(new PosCheckoutRequest
             (
                   view
                 , [new PosOrderLine(1, "Lunch", 1_000m, 1)]
-                , cafeteriaAccountAmount: 1_000m
-                , cashAmount: 0m
-                , cashierUserId: "fwright"
-                , terminalId: "CAFETERIA-POS"
-            )
+                , CafeteriaAccountAmount: 1_000m
+                , CashAmount: 0m
+                , CreditAmount: 0m
+                , CashierUserId: "fwright"
+                , TerminalId: "CAFETERIA-POS"
+            ))
         );
 
         Assert.Contains("closed cafeteria period", exception.Message, StringComparison.OrdinalIgnoreCase);
@@ -292,3 +294,4 @@ public sealed class PosCheckoutServiceTests
         public Task SaveAccountPeriodCloseAsync(AccountPeriodClose close, CancellationToken cancellationToken = default) => Task.CompletedTask;
     }
 }
+

@@ -98,7 +98,7 @@ public sealed class RefundWindow : Window
             Grid.SetColumn(price, 1); grid.Children.Add(price);
             var available = new TextBlock { Text = $"Avail {row.RemainingQuantity}", VerticalAlignment = VerticalAlignment.Center };
             Grid.SetColumn(available, 2); grid.Children.Add(available);
-            row.QuantityBox.Watermark = "Qty";
+            row.QuantityBox.PlaceholderText = "Qty";
             row.QuantityBox.Text = "0";
             row.QuantityBox.TextChanged += (_, _) => { if (int.TryParse(row.QuantityBox.Text, out var qty) && qty >= 0 && qty <= row.RemainingQuantity) row.RefundQuantity = qty; UpdateSummary(true); };
             Grid.SetColumn(row.QuantityBox, 3); grid.Children.Add(row.QuantityBox);
@@ -155,3 +155,4 @@ public sealed class RefundWindow : Window
         public TextBox QuantityBox { get; } = new();
     }
 }
+
