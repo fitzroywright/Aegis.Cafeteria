@@ -9,6 +9,44 @@ public sealed class ReferenceDataRefreshService(
     ILogger<ReferenceDataRefreshService> logger)
 {
     private readonly SemaphoreSlim customerRefreshGate = new(1, 1);
+    private readonly object backgroundGate = new();
+    private Task? backgroundRefresh;
+    private ReferenceRefreshRunStatus backgroundStatus = new(false, "Ready to refresh");
+
+    public ReferenceRefreshRunStatus BackgroundStatus
+    {
+        get { lock (backgroundGate) { return backgroundStatus; } }
+    }
+
+    public Task WaitForBackgroundRefreshAsync()
+    {
+        lock (backgroundGate) { return backgroundRefresh ?? Task.CompletedTask; }
+    }
+
+    public bool StartBackgroundRefresh(DateOnly today)
+    {
+        lock (backgroundGate)
+        {
+            if (backgroundRefresh is { IsCompleted: false }) return false;
+            backgroundStatus = new(true, "Refreshing employees...");
+            backgroundRefresh = Task.Run(async () =>
+            {
+                try
+                {
+                    int count = await RefreshCustomersAsync();
+                    lock (backgroundGate) { backgroundStatus = new(true, $"{count:N0} employees saved • refreshing holidays..."); }
+                    await RefreshHolidaysAsync(today);
+                    lock (backgroundGate) { backgroundStatus = new(false, $"Refresh complete • {count:N0} employees saved"); }
+                }
+                catch (Exception exception)
+                {
+                    logger.LogWarning(exception, "Background reference refresh failed; committed batches remain available");
+                    lock (backgroundGate) { backgroundStatus = new(false, $"Refresh failed: {exception.GetBaseException().Message}"); }
+                }
+            });
+            return true;
+        }
+    }
 
     public async Task<int> RefreshCustomersAsync(CancellationToken cancellationToken = default)
     {
@@ -88,3 +126,5 @@ public sealed class ReferenceDataRefreshService(
         await RefreshHolidaysAsync(today, cancellationToken);
     }
 }
+
+public sealed record ReferenceRefreshRunStatus(bool Running, string Message);

@@ -49,13 +49,14 @@ internal static class IntegrationEndpoints
             return Results.Problem("The integration plugin does not support batched employee refresh.", statusCode: 501);
         }
         CustomerReferenceBatch batch = await pagedSource.GetCustomerBatchAsync(afterCustomerId, batchSize, ct);
-        IReadOnlyDictionary<int, decimal> limits = await policies.GetAllAdditionalCreditLimitsAsync(ct);
+        IReadOnlyDictionary<int, CustomerCreditPolicyRow> limits = await policies.GetAllPoliciesAsync(ct);
         ExternalCustomerSnapshot[] enriched = batch.Customers.Select(customer =>
         {
             DirectoryUserProfile? metadata = directoryCache.Get(customer.LoginName);
             return customer with
             {
-                  AdditionalCreditLimit = limits.GetValueOrDefault(customer.CustomerId, 0m)
+                  AdditionalCreditLimit = limits.GetValueOrDefault(customer.CustomerId)?.AdditionalCreditLimit ?? 0m
+                , AdditionalCreditPolicyUpdatedAt = limits.GetValueOrDefault(customer.CustomerId)?.UpdatedAt
                 , EmailAddress = metadata?.EmailAddress ?? customer.EmailAddress
                 , Department = metadata?.Department ?? customer.Department
                 , Manager = metadata?.Manager ?? customer.Manager
@@ -72,15 +73,16 @@ internal static class IntegrationEndpoints
         CancellationToken ct)
     {
         IReadOnlyList<ExternalCustomerSnapshot> customers = await source.GetCustomersAsync(ct);
-        IReadOnlyDictionary<int, decimal> limits = await policies.GetAllAdditionalCreditLimitsAsync(ct);
+        IReadOnlyDictionary<int, CustomerCreditPolicyRow> limits = await policies.GetAllPoliciesAsync(ct);
 
         ExternalCustomerSnapshot[] enriched = customers.Select(customer =>
         {
             DirectoryUserProfile? metadata = directoryCache.Get(customer.LoginName);
             return customer with
             {
-                AdditionalCreditLimit = limits.GetValueOrDefault(customer.CustomerId, 0m),
-                EmailAddress = metadata?.EmailAddress ?? customer.EmailAddress,
+                AdditionalCreditLimit = limits.GetValueOrDefault(customer.CustomerId)?.AdditionalCreditLimit ?? 0m
+                , AdditionalCreditPolicyUpdatedAt = limits.GetValueOrDefault(customer.CustomerId)?.UpdatedAt
+                , EmailAddress = metadata?.EmailAddress ?? customer.EmailAddress,
                 Department = metadata?.Department ?? customer.Department,
                 Manager = metadata?.Manager ?? customer.Manager,
                 Extension = metadata?.Extension ?? customer.Extension

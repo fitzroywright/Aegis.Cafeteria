@@ -64,7 +64,11 @@ public sealed class EfWorkforceReferenceCache(IDbContextFactory<LocalCafeteriaDb
             row.IsActive = employee.IsActive;
             row.EmploymentStartDate = employee.EmploymentStartDate;
             row.IsEligibleForCredit = employee.IsActive && employee.IsEligibleForCafeteriaCredit;
-            row.AdditionalCreditLimit = employee.AdditionalCreditLimit;
+            if (CreditPolicyVersion.ShouldApply(employee.AdditionalCreditPolicyUpdatedAt, row.AdditionalCreditPolicyUpdatedAt))
+            {
+                row.AdditionalCreditLimit = employee.AdditionalCreditLimit;
+                row.AdditionalCreditPolicyUpdatedAt = employee.AdditionalCreditPolicyUpdatedAt;
+            }
 
             AddDesiredIdentifier(desiredIdentifiers, employee.CustomerId, CustomerIdentifierType.NfcTag, employee.Nfc);
             AddDesiredIdentifier(desiredIdentifiers, employee.CustomerId, CustomerIdentifierType.Code, employee.Code);

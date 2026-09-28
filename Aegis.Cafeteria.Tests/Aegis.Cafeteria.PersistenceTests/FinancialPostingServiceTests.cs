@@ -11,6 +11,83 @@ using Microsoft.Extensions.Logging.Abstractions;
 public sealed class FinancialPostingServiceTests
 {
     [Fact]
+    public async Task Sale_RejectsStaleTender_WhenStipendLeavesPositiveButInsufficientCredit()
+    {
+        string file = SqliteTestDatabase.CreatePath("checkout-stale-tender");
+        try
+        {
+            (LocalDbContextFactory factory, EfCafeteriaPersistenceStore store) = await SetupAsync(file);
+            DateTimeOffset at = new(2026, 9, 28, 12, 0, 0, TimeSpan.Zero);
+            await store.SaveCustomerAsync(new Aegis.Cafeteria.Domain.Customers.Customer(77, "Employee", null, true, 0m));
+            await store.SaveMonthlyCreditAllocationAsync(new MonthlyCreditAllocation(77, 2026, 9, 1, true, 1000m, 600m, at));
+            await store.SaveStipendAsync(new Stipend(Guid.NewGuid(), 77, 600m, 600m, StipendPaymentMode.Advance, "manager", at));
+            InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(() => store.SaveOrderAsync(Sale(77, 600m, PaymentMethod.CafeteriaAccount, at)));
+            Assert.Contains("Available credit changed", error.Message);
+            await using (LocalCafeteriaDbContext rejected = factory.CreateDbContext())
+            {
+                Assert.Empty(await rejected.Orders.ToArrayAsync());
+                Assert.Empty(await rejected.PosTransactionOutbox.ToArrayAsync());
+            }
+            await store.SaveOrderAsync(Sale(77, 400m, PaymentMethod.CafeteriaAccount, at));
+            await using LocalCafeteriaDbContext final = factory.CreateDbContext();
+            Assert.Single(await final.Orders.ToArrayAsync());
+        }
+        finally { SqliteTestDatabase.Delete(file); }
+    }
+
+    [Fact]
+    public async Task Sale_RechecksStipendAndAdditionalCreditInsideCommit_AndAllowsCashDuringShortfall()
+    {
+        string file = SqliteTestDatabase.CreatePath("checkout-credit-race");
+        try
+        {
+            (LocalDbContextFactory factory, EfCafeteriaPersistenceStore store) = await SetupAsync(file);
+            DateTimeOffset at = new(2026, 9, 28, 12, 0, 0, TimeSpan.Zero);
+            await store.SaveCustomerAsync(new Aegis.Cafeteria.Domain.Customers.Customer(77, "Employee", null, true, 300m));
+            await store.SaveMonthlyCreditAllocationAsync(new MonthlyCreditAllocation(77, 2026, 9, 1, true, 1000m, 600m, at));
+            await store.SaveOrderAsync(Sale(77, 600m, PaymentMethod.CafeteriaAccount, at));
+            await store.SaveStipendAsync(new Stipend(Guid.NewGuid(), 77, 600m, 600m, StipendPaymentMode.Advance, "manager", at));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.SaveOrderAsync(Sale(77, 1m, PaymentMethod.CafeteriaAccount, at)));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.SaveOrderAsync(Sale(77, 1m, PaymentMethod.Credit, at)));
+            await store.SaveOrderAsync(Sale(77, 50m, PaymentMethod.Cash, at));
+            await store.SaveAdditionalCreditApprovalAsync(new AdditionalCreditApproval(Guid.NewGuid(), 77, 300m, "manager", at, "Restore capacity"));
+            await store.SaveOrderAsync(Sale(77, 100m, PaymentMethod.CafeteriaAccount, at));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.SaveOrderAsync(Sale(77, 1m, PaymentMethod.CafeteriaAccount, at)));
+            await using LocalCafeteriaDbContext db = factory.CreateDbContext();
+            Assert.Equal(3, await db.Orders.CountAsync());
+            Assert.Equal(3, await db.PosTransactionOutbox.CountAsync());
+            Assert.Equal(2, await db.AccountEvents.CountAsync());
+        }
+        finally { SqliteTestDatabase.Delete(file); }
+    }
+
+    [Fact]
+    public async Task Sale_RechecksCurrentEmployeeEligibility()
+    {
+        string file = SqliteTestDatabase.CreatePath("checkout-eligibility-race");
+        try
+        {
+            (LocalDbContextFactory factory, EfCafeteriaPersistenceStore store) = await SetupAsync(file);
+            DateTimeOffset at = new(2026, 9, 28, 12, 0, 0, TimeSpan.Zero);
+            await store.SaveCustomerAsync(new Aegis.Cafeteria.Domain.Customers.Customer(77, "Employee", null, false, 0m));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => store.SaveOrderAsync(Sale(77, 50m, PaymentMethod.Credit, at)));
+            await store.SaveOrderAsync(Sale(77, 50m, PaymentMethod.Cash, at));
+            await using LocalCafeteriaDbContext db = factory.CreateDbContext();
+            Assert.Single(await db.Orders.ToArrayAsync());
+        }
+        finally { SqliteTestDatabase.Delete(file); }
+    }
+
+    private static Order Sale(int customerId, decimal amount, PaymentMethod method, DateTimeOffset at)
+    {
+        Order order = new(Guid.NewGuid(), customerId, at);
+        order.AddItem(new OrderItem(1, "Lunch", amount, 1));
+        order.Submit(at);
+        order.Complete([new OrderPayment(Guid.NewGuid(), method, amount, at)], at, "cashier", "TEST-01");
+        return order;
+    }
+
+    [Fact]
     public async Task SaveStipendAsync_ClosedPeriod_RejectsWithoutLedgerMutation()
     {
         string file = SqliteTestDatabase.CreatePath("closed-stipend");

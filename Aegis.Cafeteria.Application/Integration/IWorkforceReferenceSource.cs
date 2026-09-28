@@ -20,6 +20,7 @@ public sealed record ExternalCustomerSnapshot
     public byte[]? Photo { get; init; }
     public string Department { get; init; } = string.Empty;
     public decimal AdditionalCreditLimit { get; init; }
+    public DateTimeOffset? AdditionalCreditPolicyUpdatedAt { get; init; }
     public string Manager { get; init; } = string.Empty;
     public string EmailAddress { get; init; } = string.Empty;
     public string Extension { get; init; } = string.Empty;

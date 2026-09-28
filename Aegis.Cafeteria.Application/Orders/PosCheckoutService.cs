@@ -98,6 +98,11 @@ public sealed class PosCheckoutService
                 : "This customer is not eligible for Employee Card or credit sales.");
         }
 
+        if (account.FinancialStatus.CreditShortfall > 0m && (request.CafeteriaAccountAmount > 0m || request.CreditAmount > 0m))
+        {
+            throw new InvalidOperationException("This account is over its available credit. This purchase must be paid entirely in cash.");
+        }
+
         if (string.IsNullOrWhiteSpace(request.CashierUserId))
             throw new ArgumentException("Authenticated cashier user ID is required.", nameof(request.CashierUserId));
         if (string.IsNullOrWhiteSpace(request.TerminalId))

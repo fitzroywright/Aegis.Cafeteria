@@ -16,7 +16,8 @@ public static class TenderCustomerPolicy
     {
         ArgumentNullException.ThrowIfNull(account);
 
-        bool allowed = !account.Customer.IsCashCustomer && account.Customer.IsEligibleForCredit;
+        bool allowed = !account.Customer.IsCashCustomer && account.Customer.IsEligibleForCredit
+            && account.FinancialStatus.CreditShortfall == 0m;
 
         return new TenderCustomerContext
         (

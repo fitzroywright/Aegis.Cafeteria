@@ -49,7 +49,10 @@ public sealed class MainForm : Form
     private readonly ICafeteriaPersistenceStore persistenceStore;
     private readonly IServiceProvider services;
     private readonly IDisposable accountChangeSubscription;
-    private readonly System.Windows.Forms.Timer cacheStatusTimer = new() { Interval = 60_000 };
+    private CacheStatusDialog? cacheStatusWindow;
+    private bool readingCacheStatus;
+    private readonly ProgressBar employeeRefreshProgress = new() { Width = 100, Height = 12, Style = ProgressBarStyle.Marquee, Visible = false };
+    private readonly System.Windows.Forms.Timer cacheStatusTimer = new() { Interval = 1_000 };
     private readonly System.Windows.Forms.Timer customerInactivityTimer = new() { Interval = 1_000 };
     private SplitContainer? mainSplit;
     private Control? transactionWorkspace;
@@ -793,6 +796,7 @@ public sealed class MainForm : Form
         left.Controls.Add(this.posStatus);
         left.Controls.Add(this.syncStatus);
         left.Controls.Add(this.cacheStatus);
+        left.Controls.Add(this.employeeRefreshProgress);
         bar.Controls.Add(left, 0, 0);
         bar.Controls.Add(new Label { Text = "Secure identification • Name search", AutoSize = true, ForeColor = Muted, Anchor = AnchorStyles.Right }, 1, 0);
         return bar;
@@ -800,12 +804,29 @@ public sealed class MainForm : Form
 
     private async Task UpdateCacheStatusAsync()
     {
+        if (this.readingCacheStatus || IsDisposed || Disposing) return;
+        this.readingCacheStatus = true;
         try
         {
             var status = await Task.Run(() => this.cacheStatusProvider.GetAsync());
+            if (IsDisposed || Disposing) return;
+            ReferenceRefreshRunStatus? run = this.services.GetService<ReferenceDataRefreshService>()?.BackgroundStatus;
+            this.employeeRefreshProgress.Visible = status.RefreshInProgress || run?.Running == true;
             var age = status.Age(DateTimeOffset.UtcNow);
             var ageMinutes = age?.TotalMinutes;
 
+            if (!status.RefreshInProgress && status.LastError is not null)
+            {
+                this.cacheStatus.Text = $"● Employee refresh failed: {status.LastError}";
+                this.cacheStatus.LinkColor = Red;
+                return;
+            }
+            if (!status.RefreshInProgress && run is not null && run.Message != "Ready to refresh")
+            {
+                this.cacheStatus.Text = $"● {run.Message}";
+                this.cacheStatus.LinkColor = run.Message.StartsWith("Refresh failed") ? Red : run.Running ? Blue : Green;
+                return;
+            }
             if (status.RefreshInProgress)
             {
                 this.cacheStatus.Text = $"● Employee cache: refreshing • {status.RefreshedEmployeeCount:N0} saved";
@@ -838,23 +859,24 @@ public sealed class MainForm : Form
         {
             this.logger.LogWarning(ex, "Could not read employee cache status");
             this.cacheStatus.Text = "● Employee cache: status unavailable";
-            this.cacheStatus.LinkColor = Red;
+            if (!IsDisposed) this.cacheStatus.LinkColor = Red;
         }
+        finally { this.readingCacheStatus = false; }
     }
 
-    private async Task ShowCacheStatusAsync()
+    private Task ShowCacheStatusAsync()
     {
-        var refresh = this.services.GetService<ReferenceDataRefreshService>();
-        using var dialog = new CacheStatusDialog(
-            this.cacheStatusProvider,
-            refresh is null ? null : async () =>
-            {
-                await refresh.RefreshAsync(DateOnly.FromDateTime(DateTime.Today));
-                await LoadProductsAsync();
-                return 0;
-            });
-        dialog.ShowDialog(this);
-        await UpdateCacheStatusAsync();
+        if (this.cacheStatusWindow is null || this.cacheStatusWindow.IsDisposed)
+        {
+            this.cacheStatusWindow = new CacheStatusDialog(this.cacheStatusProvider, this.services.GetService<ReferenceDataRefreshService>());
+            this.cacheStatusWindow.Show(this);
+        }
+        else
+        {
+            this.cacheStatusWindow.BringToFront();
+            this.cacheStatusWindow.Activate();
+        }
+        return Task.CompletedTask;
     }
 
     private static string FormatCacheAge(TimeSpan? age)
@@ -1047,12 +1069,18 @@ public sealed class MainForm : Form
             this.creditLimit.Text = Money(account.FinancialStatus.CreditLimit);
             this.subsidyRemaining.Text = Money(account.FinancialStatus.SubsidyAmountRemaining);
             this.nonSubsidyRemaining.Text = Money(account.FinancialStatus.NonSubsidyAmountRemaining);
-            this.available.Text = Money(account.FinancialStatus.TotalAvailableToSpend);
+            this.available.Text = Money(Math.Max(0m, account.FinancialStatus.TotalAvailableToSpend));
             this.carriedDebt.Text = Money(account.FinancialStatus.CarriedForwardDebt);
             this.currentCreditDebt.Text = Money(account.FinancialStatus.CurrentCreditSaleDebt);
             this.customerLiability.Text = Money(account.FinancialStatus.GrossCustomerLiability);
             this.customerPaymentsValue.Text = Money(account.FinancialStatus.CustomerPayments);
             this.employeeAmountDue.Text = Money(account.FinancialStatus.EmployeeAmountDue);
+            if (account.FinancialStatus.CreditShortfall > 0m)
+            {
+                this.fundingStatus.Text = $"● Credit shortfall {Money(account.FinancialStatus.CreditShortfall)} • Cash purchases only";
+                this.fundingStatus.ForeColor = Red;
+                this.fundingStatus.BackColor = Color.FromArgb(255, 232, 232);
+            }
         }
         this.transactionSource.DataSource = account.Transactions.Select(x => new
         {
@@ -1548,7 +1576,7 @@ public sealed class MainForm : Form
                 BeginInvoke((Action)(() =>
                 {
                     if (this.currentCustomer?.Customer.Id == customerId)
-                        ShowCustomer(refreshed);
+                        ShowCustomer(refreshed with { Identification = currentCustomer?.Identification });
                 }));
             }
             catch (Exception exception)

@@ -13,6 +13,18 @@ public sealed class CustomerCreditPolicyStore
         this.auditTrail = new AuditTrailService(factory);
     }
 
+    public async Task<CustomerCreditPolicyRow?> GetPolicyAsync(int customerId, CancellationToken cancellationToken = default)
+    {
+        await using ServiceDbContext db = await this.factory.CreateDbContextAsync(cancellationToken);
+        return await db.CustomerCreditPolicies.AsNoTracking().SingleOrDefaultAsync(policy => policy.CustomerId == customerId, cancellationToken);
+    }
+
+    public async Task<IReadOnlyDictionary<int, CustomerCreditPolicyRow>> GetAllPoliciesAsync(CancellationToken cancellationToken = default)
+    {
+        await using ServiceDbContext db = await this.factory.CreateDbContextAsync(cancellationToken);
+        return await db.CustomerCreditPolicies.AsNoTracking().ToDictionaryAsync(policy => policy.CustomerId, cancellationToken);
+    }
+
     public async Task<decimal?> GetAdditionalCreditLimitAsync(int customerId, CancellationToken cancellationToken = default)
     {
         await using ServiceDbContext db = await this.factory.CreateDbContextAsync(cancellationToken);
@@ -48,7 +60,8 @@ public sealed class CustomerCreditPolicyStore
 
         row.AdditionalCreditLimit = limit;
         row.UpdatedBy = updatedBy.Trim();
-        row.UpdatedAt = DateTimeOffset.UtcNow;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        row.UpdatedAt = now > row.UpdatedAt ? now : row.UpdatedAt.AddTicks(1);
         await db.SaveChangesAsync(cancellationToken);
 
         try

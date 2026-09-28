@@ -9,6 +9,34 @@ using Microsoft.EntityFrameworkCore;
 public sealed class WorkforceReferenceCacheTests
 {
     [Fact]
+    public async Task DelayedRefresh_CannotOverwriteNewerCreditPolicy_AndVersionSurvivesNewCacheInstance()
+    {
+        string file = SqliteTestDatabase.CreatePath("credit-policy-version");
+        try
+        {
+            LocalDbContextFactory factory = new(DbContextOptionsFactory.CreateLocal(new CafeteriaPersistenceOptions { LocalSqliteConnectionString = $"Data Source={file}" }));
+            await using (LocalCafeteriaDbContext create = factory.CreateDbContext()) await create.Database.EnsureCreatedAsync();
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            EfWorkforceReferenceCache cache = new(factory);
+            await cache.UpsertCustomerBatchAsync([new() { CustomerId = 1, Name = "New", AdditionalCreditLimit = 2000m, AdditionalCreditPolicyUpdatedAt = now }], new HashSet<int>());
+            EfWorkforceReferenceCache restarted = new(factory);
+            await restarted.UpsertCustomerBatchAsync([new() { CustomerId = 1, Name = "Refreshed name", AdditionalCreditLimit = 500m, AdditionalCreditPolicyUpdatedAt = now.AddMinutes(-1) }], new HashSet<int>());
+            await using (LocalCafeteriaDbContext db = factory.CreateDbContext())
+            {
+                var customer = await db.Customers.SingleAsync();
+                Assert.Equal(2000m, customer.AdditionalCreditLimit);
+                Assert.Equal(now, customer.AdditionalCreditPolicyUpdatedAt);
+                Assert.Equal("Refreshed name", customer.Name);
+            }
+            // A genuinely newer policy may lower the ceiling; this is not a max-value rule.
+            await restarted.UpsertCustomerBatchAsync([new() { CustomerId = 1, Name = "New", AdditionalCreditLimit = 1000m, AdditionalCreditPolicyUpdatedAt = now.AddMinutes(1) }], new HashSet<int>());
+            await using LocalCafeteriaDbContext final = factory.CreateDbContext();
+            Assert.Equal(1000m, (await final.Customers.SingleAsync()).AdditionalCreditLimit);
+        }
+        finally { SqliteTestDatabase.Delete(file); }
+    }
+
+    [Fact]
     public async Task Batches_KeepUnseenEmployeesUntilCompletion_AndPreserveFirstIdentifierClaim()
     {
         string file = SqliteTestDatabase.CreatePath("workforce-batches");

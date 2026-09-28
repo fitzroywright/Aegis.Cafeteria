@@ -15,6 +15,7 @@ public sealed class CustomerRow
     public DateOnly? EmploymentStartDate { get; set; }
     public bool IsEligibleForCredit { get; set; } = true;
     public decimal AdditionalCreditLimit { get; set; }
+    public DateTimeOffset? AdditionalCreditPolicyUpdatedAt { get; set; }
     public long Revision { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

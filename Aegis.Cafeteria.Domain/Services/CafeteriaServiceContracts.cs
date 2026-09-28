@@ -30,7 +30,8 @@ public sealed record AdditionalCreditServiceEvent(
     string ApprovedBy,
     DateTimeOffset ApprovedAt,
     string? Reason,
-    decimal AdditionalCreditLimit);
+    decimal AdditionalCreditLimit,
+    DateTimeOffset? CreditPolicyUpdatedAt = null);
 
 public sealed record StipendServiceEvent(
     Guid OperationId,

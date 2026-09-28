@@ -6,6 +6,42 @@ using Microsoft.Extensions.Logging.Abstractions;
 public sealed class BatchedEmployeeRefreshTests
 {
     [Fact]
+    public async Task BackgroundRefresh_ReturnsImmediately_RejectsOverlap_AndOutlivesItsCaller()
+    {
+        TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<CustomerReferenceBatch> release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        FakeSource source = new((cursor, ct) => { entered.SetResult(); return release.Task; });
+        FakeCache cache = new();
+        ReferenceDataRefreshService refresh = new(source, cache, new FakeStatus(), NullLogger<ReferenceDataRefreshService>.Instance);
+        Assert.True(refresh.StartBackgroundRefresh(new DateOnly(2026, 9, 28)));
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        try
+        {
+            Assert.True(refresh.BackgroundStatus.Running);
+            Assert.False(refresh.StartBackgroundRefresh(new DateOnly(2026, 9, 28)));
+        }
+        finally
+        {
+            release.SetResult(new CustomerReferenceBatch([new() { CustomerId = 17 }], null));
+            await refresh.WaitForBackgroundRefreshAsync();
+        }
+        Assert.True(cache.Completed);
+        Assert.False(refresh.BackgroundStatus.Running);
+        Assert.Contains("Refresh complete", refresh.BackgroundStatus.Message);
+    }
+
+    [Fact]
+    public async Task BackgroundRefresh_RecordsFailureWithoutAnUnobservedTaskException()
+    {
+        FakeSource source = new((cursor, ct) => Task.FromException<CustomerReferenceBatch>(new TimeoutException("Test timeout")));
+        ReferenceDataRefreshService refresh = new(source, new FakeCache(), new FakeStatus(), NullLogger<ReferenceDataRefreshService>.Instance);
+        refresh.StartBackgroundRefresh(new DateOnly(2026, 9, 28));
+        await refresh.WaitForBackgroundRefreshAsync();
+        Assert.False(refresh.BackgroundStatus.Running);
+        Assert.Contains("Test timeout", refresh.BackgroundStatus.Message);
+    }
+
+    [Fact]
     public async Task Refresh_SavesEachBatchBeforeFetchingNext_AndFinalizesOnlyAtEnd()
     {
         FakeCache cache = new();

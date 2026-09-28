@@ -33,6 +33,11 @@ public sealed record CustomerAccountSnapshot(
     decimal CurrentCreditSaleDebt = 0m,
     decimal GrossCustomerLiability = 0m)
 {
+    // Retain the signed capacity for diagnostics without changing the ledger or payroll liability.
+    public decimal SignedAvailableCredit => TotalSpendingCapacity - Math.Max(0m,
+        CarriedForwardDebt + PriorPeriodOutstandingSettlements + StipendCardReduction + TotalCharges
+        - Math.Max(0m, CustomerPayments - Math.Min(CustomerPayments, CurrentCreditSaleDebt)));
+    public decimal CreditShortfall => Math.Max(0m, -SignedAvailableCredit);
     public decimal CreditLimit => BaseMonthlyCredit;
     public decimal SubsidyLimit => MonthlySubsidyAllocation > 0m ? MonthlySubsidyAllocation : CompanyContributionUsed + RemainingCompanyContribution;
     public decimal RemainingSubsidyEligibleBaseCredit => Math.Max(0m,
