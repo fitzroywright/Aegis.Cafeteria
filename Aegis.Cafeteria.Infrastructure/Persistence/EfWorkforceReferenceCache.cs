@@ -52,10 +52,14 @@ public sealed class EfWorkforceReferenceCache(IDbContextFactory<LocalCafeteriaDb
             row.Name = employee.Name;
             row.NormalizedName = DomainPersistenceMapper.NormalizeSearchText(employee.Name);
             row.LoginName = employee.LoginName?.Trim() ?? string.Empty;
-            row.Department = employee.Department?.Trim() ?? string.Empty;
-            row.Manager = employee.Manager?.Trim() ?? string.Empty;
-            row.EmailAddress = employee.EmailAddress?.Trim() ?? string.Empty;
-            row.Extension = employee.Extension?.Trim() ?? string.Empty;
+            row.Department = EmployeeMetadataPatch.Apply(
+                (employee.Metadata ?? EmployeeMetadataPatch.FromLegacy(employee)).Department, row.Department);
+            row.Manager = EmployeeMetadataPatch.Apply(
+                (employee.Metadata ?? EmployeeMetadataPatch.FromLegacy(employee)).Manager, row.Manager);
+            row.EmailAddress = EmployeeMetadataPatch.Apply(
+                (employee.Metadata ?? EmployeeMetadataPatch.FromLegacy(employee)).EmailAddress, row.EmailAddress);
+            row.Extension = EmployeeMetadataPatch.Apply(
+                (employee.Metadata ?? EmployeeMetadataPatch.FromLegacy(employee)).Extension, row.Extension);
             if (employee.Photo is not null
                 && !PhotoEquals(row.Photo, employee.Photo))
             {
@@ -233,3 +237,4 @@ public sealed class EfWorkforceReferenceCache(IDbContextFactory<LocalCafeteriaDb
         string Value,
         string NormalizedValue);
 }
+

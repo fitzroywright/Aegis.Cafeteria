@@ -2,7 +2,7 @@ using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Services.Persistence;
 using Aegis.Cafeteria.Infrastructure.Identity;
-using Common.Security.Models;
+using Aegis.Cafeteria.Services.Identity;
 
 namespace Aegis.Cafeteria.Services;
 
@@ -36,7 +36,7 @@ internal static class IntegrationEndpoints
         int? take,
         IWorkforceReferenceSource source,
         CustomerCreditPolicyStore policies,
-        DirectoryProfileCache directoryCache,
+        EmployeeMetadataStore metadataStore,
         CancellationToken ct)
     {
         int batchSize = take ?? 10;
@@ -50,17 +50,13 @@ internal static class IntegrationEndpoints
         }
         CustomerReferenceBatch batch = await pagedSource.GetCustomerBatchAsync(afterCustomerId, batchSize, ct);
         IReadOnlyDictionary<int, CustomerCreditPolicyRow> limits = await policies.GetAllPoliciesAsync(ct);
-        ExternalCustomerSnapshot[] enriched = batch.Customers.Select(customer =>
+        ExternalCustomerSnapshot[] metadataCustomers = await metadataStore.EnrichAsync(batch.Customers, ct);
+        ExternalCustomerSnapshot[] enriched = metadataCustomers.Select(customer =>
         {
-            DirectoryUserProfile? metadata = directoryCache.Get(customer.LoginName);
             return customer with
             {
                   AdditionalCreditLimit = limits.GetValueOrDefault(customer.CustomerId)?.AdditionalCreditLimit ?? 0m
                 , AdditionalCreditPolicyUpdatedAt = limits.GetValueOrDefault(customer.CustomerId)?.UpdatedAt
-                , EmailAddress = metadata?.EmailAddress ?? customer.EmailAddress
-                , Department = metadata?.Department ?? customer.Department
-                , Manager = metadata?.Manager ?? customer.Manager
-                , Extension = metadata?.Extension ?? customer.Extension
             };
         }).ToArray();
         return Results.Ok(batch with { Customers = enriched });
@@ -69,23 +65,19 @@ internal static class IntegrationEndpoints
     private static async Task<IResult> GetCustomersAsync(
         IWorkforceReferenceSource source,
         CustomerCreditPolicyStore policies,
-        DirectoryProfileCache directoryCache,
+        EmployeeMetadataStore metadataStore,
         CancellationToken ct)
     {
         IReadOnlyList<ExternalCustomerSnapshot> customers = await source.GetCustomersAsync(ct);
         IReadOnlyDictionary<int, CustomerCreditPolicyRow> limits = await policies.GetAllPoliciesAsync(ct);
 
-        ExternalCustomerSnapshot[] enriched = customers.Select(customer =>
+        ExternalCustomerSnapshot[] metadataCustomers = await metadataStore.EnrichAsync(customers, ct);
+        ExternalCustomerSnapshot[] enriched = metadataCustomers.Select(customer =>
         {
-            DirectoryUserProfile? metadata = directoryCache.Get(customer.LoginName);
             return customer with
             {
                 AdditionalCreditLimit = limits.GetValueOrDefault(customer.CustomerId)?.AdditionalCreditLimit ?? 0m
                 , AdditionalCreditPolicyUpdatedAt = limits.GetValueOrDefault(customer.CustomerId)?.UpdatedAt
-                , EmailAddress = metadata?.EmailAddress ?? customer.EmailAddress,
-                Department = metadata?.Department ?? customer.Department,
-                Manager = metadata?.Manager ?? customer.Manager,
-                Extension = metadata?.Extension ?? customer.Extension
             };
         }).ToArray();
 
@@ -108,3 +100,4 @@ internal static class IntegrationEndpoints
         return Results.Ok();
     }
 }
+

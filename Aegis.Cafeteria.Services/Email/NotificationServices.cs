@@ -1,11 +1,23 @@
 namespace Aegis.Cafeteria.Services.Email;
 
 using Aegis.Cafeteria.Services.Persistence;
+using Aegis.Cafeteria.Services.Identity;
+using Aegis.Cafeteria.Application.Integration;
 using Microsoft.EntityFrameworkCore;
 using System.Net.Mail;
 using System.Text.Json;
 
-public sealed record CustomerNotificationPreference(int CustomerId, bool PreferenceAsked, bool WeeklySummaryEnabled, string? EmailAddress);
+public sealed record CustomerNotificationPreference
+(
+      int CustomerId
+    , bool PreferenceAsked
+    , bool WeeklySummaryEnabled
+    , string? EmailAddress
+    , bool NeedsEmailReview = false
+    , string? SuggestedEmailAddress = null
+    , string? SuggestedEmailSource = null
+    , string? NotificationEmailSource = null
+);
 public sealed record ManagerReportSettings(bool WeeklySummaryEnabled, string? EmailAddress, DayOfWeek WeeklySummaryDay, int WeeklySummaryHourLocal);
 
 public static class EmailAddressValidator
@@ -29,18 +41,40 @@ public static class EmailAddressValidator
     }
 }
 
-public sealed class NotificationPreferenceStore(IDbContextFactory<ServiceDbContext> factory)
+public sealed class NotificationPreferenceStore(IDbContextFactory<ServiceDbContext> factory, EmployeeMetadataStore? metadataStore = null)
 {
     public async Task<CustomerNotificationPreference> GetCustomerAsync(int customerId, CancellationToken cancellationToken = default)
     {
         await using ServiceDbContext database = await factory.CreateDbContextAsync(cancellationToken);
         CustomerNotificationPreferenceRow? row = await database.CustomerNotificationPreferences.FindAsync([customerId], cancellationToken);
-        return row is null
-            ? new CustomerNotificationPreference(customerId, false, false, null)
-            : new CustomerNotificationPreference(row.CustomerId, row.PreferenceAsked, row.WeeklySummaryEnabled, row.EmailAddress);
+        EmployeeMetadataValue? suggestion = metadataStore is null
+            ? null
+            : (await metadataStore.GetAsync(customerId, cancellationToken)).EmailAddress;
+        CustomerEmailReviewRow? review = await database.CustomerEmailReviews.FindAsync([customerId], cancellationToken);
+        bool needsReview = row?.WeeklySummaryEnabled == true && review?.Source is not null && suggestion is not null
+            && (review.Source != suggestion.Source || !string.Equals(review.AcknowledgedEmail, suggestion.Value.Trim(), StringComparison.OrdinalIgnoreCase));
+        return new CustomerNotificationPreference
+        (
+              customerId
+            , row?.PreferenceAsked ?? false
+            , row?.WeeklySummaryEnabled ?? false
+            , row?.EmailAddress
+            , needsReview
+            , suggestion?.Value.Trim()
+            , suggestion?.Source
+            , review?.Source
+        );
     }
 
-    public async Task<CustomerNotificationPreference> SetCustomerAsync(int customerId, bool enabled, string? emailAddress, CancellationToken cancellationToken = default)
+    public async Task<CustomerNotificationPreference> SetCustomerAsync
+    (
+          int customerId
+        , bool enabled
+        , string? emailAddress
+        , CancellationToken cancellationToken = default
+        , string? suggestedEmailSource = null
+        , string? suggestedEmailAddress = null
+    )
     {
         string? normalizedEmail = enabled ? EmailAddressValidator.Normalize(emailAddress) : null;
         if (enabled && normalizedEmail is null)
@@ -56,12 +90,29 @@ public sealed class NotificationPreferenceStore(IDbContextFactory<ServiceDbConte
             database.CustomerNotificationPreferences.Add(row);
         }
 
+        CustomerEmailReviewRow? review = await database.CustomerEmailReviews.FindAsync([customerId], cancellationToken);
+        if (review is null)
+        {
+            review = new() { CustomerId = customerId };
+            database.CustomerEmailReviews.Add(review);
+        }
+
+        // The POS sends the exact suggestion the employee acknowledged. A concurrent source
+        // change remains pending on the next GET instead of being acknowledged unseen.
+        bool keepsUnchangedAddressWithoutObservation = enabled
+            && string.IsNullOrWhiteSpace(suggestedEmailSource)
+            && string.Equals(row.EmailAddress, normalizedEmail, StringComparison.OrdinalIgnoreCase);
+        if (!keepsUnchangedAddressWithoutObservation)
+        {
+            review.Source = enabled && !string.IsNullOrWhiteSpace(suggestedEmailSource) ? suggestedEmailSource.Trim() : null;
+            review.AcknowledgedEmail = review.Source is null ? null : suggestedEmailAddress?.Trim() ?? string.Empty;
+        }
         row.PreferenceAsked = true;
         row.WeeklySummaryEnabled = enabled;
         row.EmailAddress = normalizedEmail;
         row.UpdatedAt = DateTimeOffset.UtcNow;
         await database.SaveChangesAsync(cancellationToken);
-        return new CustomerNotificationPreference(row.CustomerId, row.PreferenceAsked, row.WeeklySummaryEnabled, row.EmailAddress);
+        return await GetCustomerAsync(customerId, cancellationToken);
     }
 
     public async Task<ManagerReportSettings> GetManagerAsync(CancellationToken cancellationToken = default)
@@ -265,3 +316,4 @@ internal static class DurableEmailPayloadCodec
         return payload ?? throw new InvalidOperationException("Durable email payload could not be decoded.");
     }
 }
+

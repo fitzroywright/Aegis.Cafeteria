@@ -29,7 +29,15 @@ public sealed class DirectoryProfileCache
         ArgumentNullException.ThrowIfNull(records);
 
         Dictionary<string, DirectoryUserProfile> snapshot =
-            new(records, StringComparer.OrdinalIgnoreCase);
+            new(StringComparer.OrdinalIgnoreCase);
+        foreach (KeyValuePair<string, DirectoryUserProfile> entry in records)
+        {
+            string key = NormalizeLoginName(entry.Key);
+            if (key.Length > 0 && !snapshot.TryAdd(key, entry.Value))
+            {
+                throw new InvalidOperationException("Directory profile keys are ambiguous after login normalization.");
+            }
+        }
 
         lock (this.syncRoot)
         {
@@ -60,3 +68,4 @@ public sealed class DirectoryProfileCache
         return loginName.Trim().ToLowerInvariant();
     }
 }
+

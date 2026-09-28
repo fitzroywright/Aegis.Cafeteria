@@ -37,16 +37,17 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
         {
             this.logger.LogWarning(
                 exception,
-                "Could not load weekly email preference for customer {CustomerId}; using the local employee cache",
+                "Could not load weekly email preference for customer {CustomerId}; deferring the prompt until Services is available",
                 account.Customer.Id);
-            preference = new CustomerNotificationPreferenceSnapshot(account.Customer.Id, false, false, null);
+            return;
         }
 
         WeeklySummaryPromptDecision decision = WeeklySummaryPromptPolicy.Evaluate
         (
               account
-            , preference.PreferenceAsked
-            , preference.EmailAddress
+            , preference.PreferenceAsked && !preference.NeedsEmailReview
+            , preference.EmailAddress ?? preference.SuggestedEmailAddress
+            , preference.SuggestedEmailSource is not null
         );
 
         if (!decision.ShouldPrompt)
@@ -62,7 +63,7 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
                 return null;
             }
 
-            WeeklySummaryPreferenceWindow dialog = new(account.Customer.Name, decision.SuggestedEmail);
+            WeeklySummaryPreferenceWindow dialog = new(account.Customer.Name, decision.SuggestedEmail, preference.NeedsEmailReview);
             return await dialog.ShowDialog<WeeklySummaryPreferenceResult?>(owner);
         });
 
@@ -80,7 +81,9 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
                 account.Customer.Id,
                 result.Enabled,
                 result.EmailAddress,
-                cancellationToken);
+                cancellationToken,
+                NotificationEmailChoice.AcknowledgedSource(preference, result.Enabled, result.EmailAddress),
+                preference.SuggestedEmailAddress);
         }
         catch (Exception exception)
         {
@@ -92,3 +95,4 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
         }
     }
 }
+

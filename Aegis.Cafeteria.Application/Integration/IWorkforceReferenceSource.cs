@@ -9,6 +9,7 @@ public interface IWorkforceReferenceSource
 
 public sealed record ExternalCustomerSnapshot
 {
+    public EmployeeMetadataPatch? Metadata { get; init; }
     public int CustomerId { get; init; }
     public string Name { get; init; } = string.Empty;
     public bool IsEligibleForCafeteriaCredit { get; init; }
@@ -51,3 +52,4 @@ public interface IBatchedWorkforceReferenceCache
     Task UpsertCustomerBatchAsync(IReadOnlyCollection<ExternalCustomerSnapshot> customers, IReadOnlySet<int> previouslyRefreshedIds, CancellationToken cancellationToken = default);
     Task CompleteCustomerRefreshAsync(IReadOnlySet<int> customerIds, CancellationToken cancellationToken = default);
 }
+

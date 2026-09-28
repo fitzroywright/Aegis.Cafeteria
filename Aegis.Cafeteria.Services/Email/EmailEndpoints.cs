@@ -1,6 +1,7 @@
 namespace Aegis.Cafeteria.Services.Email;
 
 using Aegis.Cafeteria.Services.Persistence;
+using Aegis.Cafeteria.Services.Identity;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -8,6 +9,8 @@ public sealed record CustomerNotificationPreferenceRequest
 (
       bool WeeklySummaryEnabled
     , string? EmailAddress
+    , string? SuggestedEmailSource = null
+    , string? SuggestedEmailAddress = null
 );
 
 public sealed record ManagerReportSettingsRequest
@@ -40,29 +43,32 @@ public static class EmailEndpoints
               "/api/pos/customers/{customerId:int}/notification-preference"
             , async (
                   int customerId
+                , EmployeeMetadataStore metadataStore
                 , IDbContextFactory<ServiceDbContext> factory
                 , CancellationToken cancellationToken) =>
             {
-                NotificationPreferenceStore store = new(factory);
+                NotificationPreferenceStore store = new(factory, metadataStore);
                 CustomerNotificationPreference preference = await store.GetCustomerAsync(customerId, cancellationToken);
                 return Results.Ok(preference);
             }
-        );
+        ).RequireAuthorization("CafeteriaPos");
 
         app.MapPut
         (
               "/api/pos/customers/{customerId:int}/notification-preference"
-            , async (int customerId, CustomerNotificationPreferenceRequest request, IDbContextFactory<ServiceDbContext> factory, CancellationToken cancellationToken) =>
+            , async (int customerId, CustomerNotificationPreferenceRequest request, EmployeeMetadataStore metadataStore, IDbContextFactory<ServiceDbContext> factory, CancellationToken cancellationToken) =>
             {
                 try
                 {
-                    NotificationPreferenceStore store = new(factory);
+                    NotificationPreferenceStore store = new(factory, metadataStore);
                     CustomerNotificationPreference preference = await store.SetCustomerAsync
                     (
                           customerId
                         , request.WeeklySummaryEnabled
                         , request.EmailAddress
                         , cancellationToken
+                        , request.SuggestedEmailSource
+                        , request.SuggestedEmailAddress
                     );
                     return Results.Ok(preference);
                 }
@@ -71,7 +77,7 @@ public static class EmailEndpoints
                     return Results.BadRequest(new { error = exception.Message });
                 }
             }
-        );
+        ).RequireAuthorization("CafeteriaPos");
 
         app.MapGet
         (
@@ -319,3 +325,4 @@ public static class EmailEndpoints
         ).RequireAuthorization("CafeteriaManagement");
     }
 }
+

@@ -10,23 +10,28 @@ public sealed class WeeklySummaryPreferenceWindow : Window
 {
     private readonly TextBox emailAddress = new() { Width = 330 };
 
-    public WeeklySummaryPreferenceWindow(string customerName, string? suggestedEmailAddress = null)
+    public WeeklySummaryPreferenceWindow(string customerName, string? suggestedEmailAddress = null, bool needsReview = false)
     {
-        Title = "Weekly Cafeteria Summary";
-        Width = 500;
-        Height = 250;
+        Title = needsReview ? "Confirm email address" : "Weekly Cafeteria Summary";
+        Width = 600;
+        Height = 310;
         CanResize = false;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         this.emailAddress.Text = suggestedEmailAddress ?? string.Empty;
 
         TextBlock prompt = new()
         {
-            Text = $"Ask {customerName} if they would like a weekly email summary of their cafeteria transactions.",
+            Text = needsReview
+                ? $"{customerName}'s work email details have changed. Keep the address below, edit it, stop emails, or ask later."
+                : $"Ask {customerName} if they would like a weekly email summary of their cafeteria transactions.",
+            Foreground = needsReview ? Avalonia.Media.Brushes.DarkGoldenrod : Avalonia.Media.Brushes.Black,
             TextWrapping = Avalonia.Media.TextWrapping.Wrap
         };
         TextBlock emailLabel = new() { Text = "Email address" };
-        Button yes = new() { Content = "Enable", Width = 100 };
-        Button no = new() { Content = "No thanks", Width = 100 };
+        Button yes = new() { Content = needsReview ? "Keep / save address" : "Enable", Width = 160 };
+        Button no = new() { Content = needsReview ? "Stop emails" : "No thanks", Width = 100 };
+        Button later = new() { Content = "Ask later", Width = 100 };
+        later.Click += (_, _) => Close();
         yes.Click += (_, _) =>
         {
             try
@@ -44,6 +49,7 @@ public sealed class WeeklySummaryPreferenceWindow : Window
         StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 10 };
         buttons.Children.Add(yes);
         buttons.Children.Add(no);
+        buttons.Children.Add(later);
         StackPanel layout = new() { Margin = new Avalonia.Thickness(24), Spacing = 12 };
         layout.Children.Add(prompt);
         layout.Children.Add(emailLabel);
@@ -52,3 +58,4 @@ public sealed class WeeklySummaryPreferenceWindow : Window
         Content = layout;
     }
 }
+

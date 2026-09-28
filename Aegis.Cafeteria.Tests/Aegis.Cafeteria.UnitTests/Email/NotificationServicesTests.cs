@@ -1,6 +1,9 @@
 namespace Aegis.Cafeteria.UnitTests.Email;
 
 using Aegis.Cafeteria.Services.Email;
+using Aegis.Cafeteria.Services.Identity;
+using Aegis.Cafeteria.Application.Integration;
+using Aegis.Cafeteria.Infrastructure.Services;
 using Aegis.Cafeteria.Services.Persistence;
 
 using Microsoft.Data.Sqlite;
@@ -119,6 +122,130 @@ public sealed class NotificationServicesTests
 
         await using ServiceDbContext context = await database.Factory.CreateDbContextAsync();
         Assert.Equal(1, await context.OutboundEmails.CountAsync());
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("new-work@example.com")]
+    public async Task SourceChange_RequiresReviewWithoutChangingDeliveryAddress(string replacement)
+    {
+        await using TestDatabase database = await TestDatabase.CreateAsync();
+        EmployeeMetadataOptions options = new() { Mode = "None" };
+        EmployeeMetadataStore metadata = new(database.Factory, options, []);
+        NotificationPreferenceStore preferences = new(database.Factory, metadata);
+        await metadata.ApplyAsync(new Dictionary<int, EmployeeMetadataPatch>
+        {
+            [42] = new() { EmailAddress = new("work@example.com", "workforce") }
+        });
+        await preferences.SetCustomerAsync(42, true, "work@example.com", suggestedEmailSource: "workforce", suggestedEmailAddress: "work@example.com");
+        await metadata.ApplyAsync(new Dictionary<int, EmployeeMetadataPatch>
+        {
+            [42] = new() { EmailAddress = new(replacement, "workforce") }
+        });
+
+        // Both the suggestion and acknowledgement survive a Services restart.
+        EmployeeMetadataStore restartedMetadata = new(database.Factory, options, []);
+        NotificationPreferenceStore restarted = new(database.Factory, restartedMetadata);
+        CustomerNotificationPreference review = await restarted.GetCustomerAsync(42);
+        Assert.True(review.NeedsEmailReview);
+        Assert.Equal("work@example.com", review.EmailAddress);
+        Assert.Equal(replacement, review.SuggestedEmailAddress);
+
+        await restarted.SetCustomerAsync(42, true, review.EmailAddress, suggestedEmailSource: review.SuggestedEmailSource, suggestedEmailAddress: review.SuggestedEmailAddress);
+        Assert.False((await restarted.GetCustomerAsync(42)).NeedsEmailReview);
+        Assert.Equal("work@example.com", (await restarted.GetCustomerAsync(42)).EmailAddress);
+    }
+
+    [Fact]
+    public async Task SavingUnchangedAddressWithoutObservation_PreservesSourceAssociation()
+    {
+        await using TestDatabase database = await TestDatabase.CreateAsync();
+        NotificationPreferenceStore preferences = new(database.Factory);
+        await preferences.SetCustomerAsync(42, true, "work@example.com", suggestedEmailSource: "directory", suggestedEmailAddress: "work@example.com");
+        CustomerNotificationPreference saved = await preferences.SetCustomerAsync(42, true, "work@example.com");
+        Assert.Equal("directory", saved.NotificationEmailSource);
+        CustomerNotificationPreference personal = await preferences.SetCustomerAsync(42, true, "personal@example.com");
+        Assert.Null(personal.NotificationEmailSource);
+    }
+
+    [Fact]
+    public async Task MissingAnswer_PreservesSuggestion_AndPersonalChoiceNeverNeedsReview()
+    {
+        await using TestDatabase database = await TestDatabase.CreateAsync();
+        EmployeeMetadataStore metadata = new(database.Factory, new() { Mode = "None" }, []);
+        NotificationPreferenceStore preferences = new(database.Factory, metadata);
+        await metadata.ApplyAsync(new Dictionary<int, EmployeeMetadataPatch>
+        {
+            [42] = new() { EmailAddress = new("work@example.com", "workforce") }
+        });
+        await preferences.SetCustomerAsync(42, true, "personal@example.com");
+        await metadata.ApplyAsync(new Dictionary<int, EmployeeMetadataPatch> { [42] = new() });
+        Assert.Equal("work@example.com", (await preferences.GetCustomerAsync(42)).SuggestedEmailAddress);
+        await metadata.ApplyAsync(new Dictionary<int, EmployeeMetadataPatch>
+        {
+            [42] = new() { EmailAddress = new("", "workforce") }
+        });
+        CustomerNotificationPreference loaded = await preferences.GetCustomerAsync(42);
+        Assert.Equal("personal@example.com", loaded.EmailAddress);
+        Assert.False(loaded.NeedsEmailReview);
+    }
+
+    [Fact]
+    public async Task AcknowledgingOldSuggestion_DoesNotHideConcurrentSourceChange()
+    {
+        await using TestDatabase database = await TestDatabase.CreateAsync();
+        EmployeeMetadataStore metadata = new(database.Factory, new() { Mode = "None" }, []);
+        NotificationPreferenceStore preferences = new(database.Factory, metadata);
+        await metadata.ApplyAsync(new Dictionary<int, EmployeeMetadataPatch>
+        {
+            [42] = new() { EmailAddress = new("new@example.com", "workforce") }
+        });
+        CustomerNotificationPreference saved = await preferences.SetCustomerAsync(42, true, "old@example.com",
+            suggestedEmailSource: "workforce", suggestedEmailAddress: "old@example.com");
+        Assert.True(saved.NeedsEmailReview);
+        await preferences.SetCustomerAsync(42, false, null);
+        Assert.False((await preferences.GetCustomerAsync(42)).NeedsEmailReview);
+    }
+
+    [Fact]
+    public async Task MetadataOwnership_IgnoresOtherSources_AndAllowsIndependentFields()
+    {
+        await using TestDatabase database = await TestDatabase.CreateAsync();
+        EmployeeMetadataOptions options = new() { Mode = "Plugin", Fields = ["EmailAddress"] };
+        EmployeeMetadataStore metadata = new(database.Factory, options, [new TestMetadataProvider()]);
+        await metadata.ApplyAsync(new Dictionary<int, EmployeeMetadataPatch>
+        {
+            [42] = new() { EmailAddress = new("directory@example.com", "directory"), Department = new("ignored", "directory") }
+        });
+        ExternalCustomerSnapshot[] enriched = await metadata.EnrichAsync
+        (
+            [new() { CustomerId = 42, EmailAddress = "ignored@example.com", Department = "Finance" }], default
+        );
+        Assert.Equal("directory@example.com", enriched[0].EmailAddress);
+        Assert.Equal("Finance", enriched[0].Department);
+        Assert.Equal("workforce", enriched[0].Metadata!.Department!.Source);
+    }
+
+    [Theory]
+    [InlineData("work@example.com", false, "directory")]
+    [InlineData("personal@example.com", false, null)]
+    [InlineData("old@example.com", true, "directory")]
+    [InlineData("personal@example.com", true, null)]
+    public void ConfirmingChoice_TracksOnlyAcceptedSuggestionOrKeptReview(string chosen, bool review, string? expected)
+    {
+        CustomerNotificationPreferenceSnapshot preference = new(42, review, review, "old@example.com", review, "work@example.com", "directory");
+        Assert.Equal(expected, NotificationEmailChoice.AcknowledgedSource(preference, true, chosen));
+        Assert.Null(NotificationEmailChoice.AcknowledgedSource(preference, false, chosen));
+    }
+
+    private sealed class TestMetadataProvider : IEmployeeMetadataProvider
+    {
+        public string SourceId => "directory";
+
+        public Task<IReadOnlyDictionary<int, EmployeeMetadataPatch>> GetAsync(IReadOnlyList<ExternalCustomerSnapshot> employees, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyDictionary<int, EmployeeMetadataPatch>>(new Dictionary<int, EmployeeMetadataPatch>());
+        }
     }
 
     [Fact]
@@ -274,3 +401,4 @@ public sealed class NotificationServicesTests
         }
     }
 }
+
