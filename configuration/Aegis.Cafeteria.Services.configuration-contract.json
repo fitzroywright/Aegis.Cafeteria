@@ -103,6 +103,46 @@
       "secretName": "diagnostics/machine/Aegis.Cafeteria.Services",
       "isConfigured": false,
       "sensitive": true
+    },
+    {
+      "id": "email-delivery-tenantid",
+      "displayName": "Microsoft 365 Tenant ID",
+      "kind": "Configuration",
+      "required": true,
+      "conditionalOn": "EmailDelivery:Enabled=true",
+      "purpose": "Configure Common.Messaging Microsoft Graph email delivery. Secret values stay in Common.Secrets.",
+      "configurationKey": "EmailDelivery:TenantId",
+      "isConfigured": false
+    },
+    {
+      "id": "email-delivery-clientid",
+      "displayName": "Microsoft 365 Client ID",
+      "kind": "Configuration",
+      "required": true,
+      "conditionalOn": "EmailDelivery:Enabled=true",
+      "purpose": "Configure Common.Messaging Microsoft Graph email delivery. Secret values stay in Common.Secrets.",
+      "configurationKey": "EmailDelivery:ClientId",
+      "isConfigured": false
+    },
+    {
+      "id": "email-delivery-senderupn",
+      "displayName": "Microsoft 365 Sender Mailbox",
+      "kind": "Configuration",
+      "required": true,
+      "conditionalOn": "EmailDelivery:Enabled=true",
+      "purpose": "Configure Common.Messaging Microsoft Graph email delivery. Secret values stay in Common.Secrets.",
+      "configurationKey": "EmailDelivery:SenderUpn",
+      "isConfigured": false
+    },
+    {
+      "id": "email-delivery-clientsecretname",
+      "displayName": "Microsoft 365 Client Secret Name",
+      "kind": "Configuration",
+      "required": true,
+      "conditionalOn": "EmailDelivery:Enabled=true",
+      "purpose": "Configure Common.Messaging Microsoft Graph email delivery. Secret values stay in Common.Secrets.",
+      "configurationKey": "EmailDelivery:ClientSecretName",
+      "isConfigured": false
     }
   ],
   "diagnostics": {

@@ -26,10 +26,8 @@ internal static class CafeteriaConfigurationCodeDefaults
         "MonthOpening:RunHourLocal" => Number(MonthOpening.RunHourLocal),
 
         "ScheduledEmail:Enabled" => Bool(Email.Enabled),
-        "ScheduledEmail:SmtpHost" => Text(Email.SmtpHost),
-        "ScheduledEmail:SmtpPort" => Number(Email.SmtpPort),
-        "ScheduledEmail:EnableSsl" => Bool(Email.EnableSsl),
-        "ScheduledEmail:FromAddress" => Text(Email.FromAddress),
+        "EmailDelivery:Enabled" => "false",
+        "EmailDelivery:ClientSecretName" => "messaging/msgraph/client-secret",
         "ScheduledEmail:DailySummaryRecipients" => List(Email.DailySummaryRecipients),
         "ScheduledEmail:PayrollRecipients" => List(Email.PayrollRecipients),
 

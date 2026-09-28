@@ -147,7 +147,8 @@ public sealed class OutboundEmailQueue(IDbContextFactory<ServiceDbContext> facto
 
 public sealed class OutboundEmailWorker(
     IDbContextFactory<ServiceDbContext> factory,
-    SmtpEmailSender sender,
+    CommonMessagingEmailSender sender,
+    EmailDeliveryOptions deliveryOptions,
     ILogger<OutboundEmailWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -173,6 +174,10 @@ public sealed class OutboundEmailWorker(
 
     public async Task DeliverPendingAsync(CancellationToken cancellationToken = default)
     {
+        if (!deliveryOptions.Enabled)
+        {
+            return;
+        }
         await using ServiceDbContext database = await factory.CreateDbContextAsync(cancellationToken);
         DateTimeOffset now = DateTimeOffset.UtcNow;
 
@@ -195,7 +200,8 @@ public sealed class OutboundEmailWorker(
             {
                 DurableEmailPayload payload = DurableEmailPayloadCodec.Decode(row.Body);
                 string messageId = await sender.SendAsync(
-                    [row.Recipient],
+                    row.Id,
+                    row.Recipient,
                     row.Subject,
                     payload.Body,
                     payload.Attachments,
@@ -208,9 +214,13 @@ public sealed class OutboundEmailWorker(
                 }
                 else
                 {
-                    row.LastError = "SMTP sender did not return a message identifier.";
+                    row.LastError = "Common.Messaging did not confirm provider acceptance.";
                     row.NextAttemptAt = DateTimeOffset.UtcNow.AddMinutes(Math.Min(60, Math.Max(1, row.AttemptCount * 5)));
                 }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception exception)
             {

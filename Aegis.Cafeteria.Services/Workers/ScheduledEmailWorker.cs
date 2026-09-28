@@ -23,7 +23,6 @@ public sealed class ScheduledEmailWorker : BackgroundService
         ScheduledEmailOptions options,
         CafeteriaEmailReportSource source,
         PayrollDeductionReportSource payrollSource,
-        SmtpEmailSender sender,
         IDbContextFactory<ServiceDbContext> factory,
         ServiceEventStore events,
         ILogger<ScheduledEmailWorker> logger)
@@ -36,7 +35,6 @@ public sealed class ScheduledEmailWorker : BackgroundService
         this.logger = logger;
         this.preferences = new NotificationPreferenceStore(factory);
         this.queue = new OutboundEmailQueue(factory);
-        _ = sender; // Retained in the constructor for binary/source compatibility; delivery belongs to OutboundEmailWorker.
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
