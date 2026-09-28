@@ -1,3 +1,4 @@
+using Aegis.Cafeteria.Domain.Accounts;
 using Aegis.Cafeteria.Domain.Customers;
 using Aegis.Cafeteria.Domain.Orders;
 using Aegis.Cafeteria.Infrastructure.Configuration;
@@ -26,6 +27,7 @@ public sealed class RecentTransactionQueryTests
             await store.SaveCustomerAsync(new Customer(100, "Jane Employee", null, true, 0m));
 
             DateTimeOffset now = DateTimeOffset.Now;
+            await store.SaveMonthlyCreditAllocationAsync(new MonthlyCreditAllocation(100, now.Year, now.Month, 1, true, 1000m, 600m, now));
             Order order = new(Guid.NewGuid(), 100, now.AddMinutes(-2));
             order.AddItem(new OrderItem(Guid.NewGuid(), 10, "Lunch", 750m, 1));
             order.Submit(now.AddMinutes(-1));
