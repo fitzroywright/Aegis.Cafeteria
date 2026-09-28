@@ -1,5 +1,7 @@
 namespace Aegis.Cafeteria.PersistenceTests;
 
+using Aegis.Cafeteria.Domain.Accounts;
+using Aegis.Cafeteria.Domain.Customers;
 using Aegis.Cafeteria.Domain.Identification;
 using Aegis.Cafeteria.Domain.Orders;
 using Aegis.Cafeteria.Infrastructure.Configuration;
@@ -32,12 +34,15 @@ public sealed class IDMethodPersistenceTests
 
             EfCafeteriaPersistenceStore store = new(
                 new LocalPersistenceStore(factory, NullLogger<LocalPersistenceStore>.Instance));
-            Order order = new(Guid.NewGuid(), 42, DateTimeOffset.UtcNow, method, code);
+            DateTimeOffset at = DateTimeOffset.UtcNow;
+            await store.SaveCustomerAsync(new Customer(42, "Test Employee", null, true, 0m));
+            await store.SaveMonthlyCreditAllocationAsync(new MonthlyCreditAllocation(42, at.Year, at.Month, 1, true, 1000m, 600m, at));
+            Order order = new(Guid.NewGuid(), 42, at, method, code);
             order.AddItem(new OrderItem(1, "Lunch", 500m, 1));
-            order.Submit(DateTimeOffset.UtcNow);
+            order.Submit(at);
             order.Complete(
-                [new OrderPayment(Guid.NewGuid(), PaymentMethod.CafeteriaAccount, 500m, DateTimeOffset.UtcNow)],
-                DateTimeOffset.UtcNow,
+                [new OrderPayment(Guid.NewGuid(), PaymentMethod.CafeteriaAccount, 500m, at)],
+                at,
                 "fwright",
                 "POS01",
                 "Fitzroy Wright");
