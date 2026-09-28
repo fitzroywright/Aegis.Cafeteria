@@ -17,8 +17,8 @@ public sealed class EfCustomerReferenceCacheStatus(IDbContextFactory<LocalCafete
     public async Task<CustomerReferenceCacheStatus> GetAsync(CancellationToken cancellationToken = default)
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
-        var identifiers = await db.CustomerIdentifiers.AsNoTracking().ToListAsync(cancellationToken);
-        int employeeCount = await db.Customers.CountAsync(cancellationToken);
+        var identifiers = await db.CustomerIdentifiers.AsNoTracking().Where(identifier => db.Customers.Any(customer => customer.Id == identifier.CustomerId && customer.IsActive && customer.IsEligibleForCredit)).ToListAsync(cancellationToken);
+        int employeeCount = await db.Customers.CountAsync(customer => customer.IsActive && customer.IsEligibleForCredit, cancellationToken);
         var identifierCount = identifiers.Count;
         var cacheUpdatedAtUtc = identifiers.Count == 0
             ? (DateTimeOffset?)null
@@ -84,3 +84,4 @@ public sealed class EfCustomerReferenceCacheStatus(IDbContextFactory<LocalCafete
         }
     }
 }
+

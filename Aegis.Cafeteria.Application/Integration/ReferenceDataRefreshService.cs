@@ -78,10 +78,12 @@ public sealed class ReferenceDataRefreshService(
                     {
                         throw new InvalidOperationException("Services returned an invalid employee continuation cursor.");
                     }
-                    if (batch.Customers.Count > 0)
+                    ExternalCustomerSnapshot[] eligibleCustomers = batch.Customers
+                        .Where(customer => customer.IsActive && customer.IsEligibleForCafeteriaCredit).ToArray();
+                    if (eligibleCustomers.Length > 0)
                     {
-                        await batchedCache.UpsertCustomerBatchAsync(batch.Customers.ToArray(), refreshedIds, cancellationToken);
-                        refreshedIds.UnionWith(batch.Customers.Select(customer => customer.CustomerId));
+                        await batchedCache.UpsertCustomerBatchAsync(eligibleCustomers, refreshedIds, cancellationToken);
+                        refreshedIds.UnionWith(eligibleCustomers.Select(customer => customer.CustomerId));
                         cacheStatus.RefreshProgress(refreshedIds.Count, ++batchCount);
                     }
                     cursor = batch.NextCustomerId;
@@ -91,15 +93,17 @@ public sealed class ReferenceDataRefreshService(
                 logger.LogInformation("Employee refresh complete: {Count} employees in {Batches} batches", refreshedIds.Count, batchCount);
                 return refreshedIds.Count;
             }
-            IReadOnlyList<ExternalCustomerSnapshot> customers = await source.GetCustomersAsync(cancellationToken);
+            IReadOnlyList<ExternalCustomerSnapshot> sourceCustomers = await source.GetCustomersAsync(cancellationToken);
+            ExternalCustomerSnapshot[] customers = sourceCustomers
+                .Where(customer => customer.IsActive && customer.IsEligibleForCafeteriaCredit).ToArray();
             await cache.ReplaceCustomersAsync(customers, cancellationToken);
-            cacheStatus.RefreshSucceeded(customers.Count);
+            cacheStatus.RefreshSucceeded(customers.Length);
             int photoCount = customers.Count(customer => customer.Photo is { Length: > 0 });
             logger.LogInformation(
                 "Workforce customer refresh complete: {CustomerCount} customers; {PhotoCount} photos",
-                customers.Count,
+                customers.Length,
                 photoCount);
-            return customers.Count;
+            return customers.Length;
         }
         catch (Exception ex)
         {
@@ -128,3 +132,4 @@ public sealed class ReferenceDataRefreshService(
 }
 
 public sealed record ReferenceRefreshRunStatus(bool Running, string Message);
+

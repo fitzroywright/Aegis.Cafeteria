@@ -22,7 +22,7 @@ public sealed class BatchedEmployeeRefreshTests
         }
         finally
         {
-            release.SetResult(new CustomerReferenceBatch([new() { CustomerId = 17 }], null));
+            release.SetResult(new CustomerReferenceBatch([new() { IsEligibleForCafeteriaCredit = true, CustomerId = 17 }], null));
             await refresh.WaitForBackgroundRefreshAsync();
         }
         Assert.True(cache.Completed);
@@ -52,12 +52,12 @@ public sealed class BatchedEmployeeRefreshTests
             if (cursor is null)
             {
                 Assert.Empty(cache.Saved);
-                return new CustomerReferenceBatch([new() { CustomerId = 2 }, new() { CustomerId = 9 }], 9);
+                return new CustomerReferenceBatch([new() { IsEligibleForCafeteriaCredit = true, CustomerId = 2 }, new() { IsEligibleForCafeteriaCredit = true, CustomerId = 9 }], 9);
             }
             Assert.Equal(new[] { 2, 9 }, cache.Saved);
             Assert.False(cache.Completed);
             Assert.Equal(9, cursor);
-            return new CustomerReferenceBatch([new() { CustomerId = 27 }], null);
+            return new CustomerReferenceBatch([new() { IsEligibleForCafeteriaCredit = true, CustomerId = 27 }], null);
         });
         ReferenceDataRefreshService refresh = new(source, cache, status, NullLogger<ReferenceDataRefreshService>.Instance);
 
@@ -74,7 +74,7 @@ public sealed class BatchedEmployeeRefreshTests
         FakeCache cache = new();
         FakeStatus status = new();
         FakeSource source = new((cursor, ct) => cursor is null
-            ? Task.FromResult(new CustomerReferenceBatch([new() { CustomerId = 7 }], 7))
+            ? Task.FromResult(new CustomerReferenceBatch([new() { IsEligibleForCafeteriaCredit = true, CustomerId = 7 }], 7))
             : Task.FromException<CustomerReferenceBatch>(new TimeoutException("Batch timed out")));
         ReferenceDataRefreshService refresh = new(source, cache, status, NullLogger<ReferenceDataRefreshService>.Instance);
 
@@ -138,6 +138,20 @@ public sealed class BatchedEmployeeRefreshTests
         Assert.True(cache.Completed);
     }
 
+    [Fact]
+    public async Task Refresh_SkipsIneligiblePages_AndContinuesUsingSourceCursor()
+    {
+        FakeCache cache = new();
+        FakeSource source = new((cursor, ct) => Task.FromResult(cursor is null
+            ? new CustomerReferenceBatch([new() { CustomerId = 1, IsEligibleForCafeteriaCredit = false }, new() { CustomerId = 2, IsActive = false, IsEligibleForCafeteriaCredit = true }], 2)
+            : new CustomerReferenceBatch([new() { CustomerId = 3, IsEligibleForCafeteriaCredit = true }, new() { CustomerId = 4 }], null)));
+        ReferenceDataRefreshService refresh = new(source, cache, new FakeStatus(), NullLogger<ReferenceDataRefreshService>.Instance);
+
+        Assert.Equal(1, await refresh.RefreshCustomersAsync());
+        Assert.Equal(new[] { 3 }, cache.Saved);
+        Assert.Equal(new[] { 3 }, cache.CompletedIds);
+    }
+
     private sealed class FakeSource(Func<int?, CancellationToken, Task<CustomerReferenceBatch>> read) : IWorkforceReferenceSource, IPagedWorkforceReferenceSource
     {
         public Task<CustomerReferenceBatch> GetCustomerBatchAsync(int? afterCustomerId, int take, CancellationToken cancellationToken = default)
@@ -187,3 +201,4 @@ public sealed class BatchedEmployeeRefreshTests
         public void RefreshFailed(Exception exception) => Error = exception;
     }
 }
+
