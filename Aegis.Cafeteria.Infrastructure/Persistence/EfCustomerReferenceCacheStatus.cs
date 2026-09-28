@@ -11,12 +11,14 @@ public sealed class EfCustomerReferenceCacheStatus(IDbContextFactory<LocalCafete
     private DateTimeOffset? lastSuccessUtc;
     private string? lastError;
     private bool refreshInProgress;
+    private int refreshedEmployeeCount;
+    private int completedBatchCount;
 
     public async Task<CustomerReferenceCacheStatus> GetAsync(CancellationToken cancellationToken = default)
     {
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         var identifiers = await db.CustomerIdentifiers.AsNoTracking().ToListAsync(cancellationToken);
-        var employeeCount = identifiers.Select(x => x.CustomerId).Distinct().Count();
+        int employeeCount = await db.Customers.CountAsync(cancellationToken);
         var identifierCount = identifiers.Count;
         var cacheUpdatedAtUtc = identifiers.Count == 0
             ? (DateTimeOffset?)null
@@ -31,7 +33,11 @@ public sealed class EfCustomerReferenceCacheStatus(IDbContextFactory<LocalCafete
                 lastAttemptUtc,
                 lastSuccessUtc,
                 lastError,
-                refreshInProgress);
+                refreshInProgress)
+            {
+                  RefreshedEmployeeCount = refreshedEmployeeCount
+                , CompletedBatchCount = completedBatchCount
+            };
         }
     }
 
@@ -41,6 +47,18 @@ public sealed class EfCustomerReferenceCacheStatus(IDbContextFactory<LocalCafete
         {
             lastAttemptUtc = DateTimeOffset.UtcNow;
             refreshInProgress = true;
+            refreshedEmployeeCount = 0;
+            completedBatchCount = 0;
+            lastError = null;
+        }
+    }
+
+    public void RefreshProgress(int employeeCount, int batchCount)
+    {
+        lock (gate)
+        {
+            refreshedEmployeeCount = employeeCount;
+            completedBatchCount = batchCount;
         }
     }
 

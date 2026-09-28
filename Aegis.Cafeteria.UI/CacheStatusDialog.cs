@@ -10,6 +10,12 @@ internal sealed class CacheStatusDialog : Form
     private readonly TextBox details = new() { Multiline = true, ReadOnly = true, BorderStyle = BorderStyle.None, BackColor = Color.White, Dock = DockStyle.Fill, Font = new Font("Consolas", 10) };
     private readonly Button refreshButton = new() { Text = "Refresh all", Width = 120, Height = 36 };
 
+    private readonly ProgressBar progress = new() { Dock = DockStyle.Fill, Height = 18, Style = ProgressBarStyle.Marquee, Visible = false };
+    private readonly Label progressText = new() { AutoSize = true, Text = "Ready to refresh" };
+    private readonly System.Windows.Forms.Timer progressTimer = new() { Interval = 500 };
+    private bool readingProgress;
+    private bool refreshing;
+
     public CacheStatusDialog(ICustomerReferenceCacheStatus statusProvider, Func<Task<int>>? refresh)
     {
         this.statusProvider = statusProvider;
@@ -22,9 +28,11 @@ internal sealed class CacheStatusDialog : Form
         MaximizeBox = false;
         Font = new Font("Segoe UI", 10);
 
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 4, ColumnCount = 1, Padding = new Padding(20) };
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 6, ColumnCount = 1, Padding = new Padding(20) };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.Controls.Add(this.summary, 0, 0);
@@ -48,10 +56,46 @@ internal sealed class CacheStatusDialog : Form
             buttons.Controls.Add(this.refreshButton);
             this.refreshButton.Click += async (_, _) => await RefreshNowAsync();
         }
-        root.Controls.Add(buttons, 0, 3);
+        root.Controls.Add(this.progress, 0, 3);
+        root.Controls.Add(this.progressText, 0, 4);
+        root.Controls.Add(buttons, 0, 5);
         Controls.Add(root);
         AcceptButton = close;
-        Shown += async (_, _) => await ReloadAsync();
+        Shown += async (_, _) =>
+        {
+            await ReloadAsync();
+            this.progressTimer.Start();
+        };
+        this.progressTimer.Tick += async (_, _) =>
+        {
+            if (this.readingProgress || IsDisposed) return;
+            this.readingProgress = true;
+            try
+            {
+                CustomerReferenceCacheStatus state = await this.statusProvider.GetAsync();
+                if (IsDisposed) return;
+                this.refreshButton.Enabled = !this.refreshing && !state.RefreshInProgress;
+                this.progress.Visible = this.refreshing || state.RefreshInProgress;
+                if (state.RefreshInProgress)
+                {
+                    this.progressText.Text = $"{state.RefreshedEmployeeCount:N0} employees saved • {state.CompletedBatchCount:N0} batches completed";
+                }
+                else if (this.refreshing && state.LastError is null)
+                {
+                    this.progressText.Text = $"{state.RefreshedEmployeeCount:N0} employees saved • finishing reference data...";
+                }
+            }
+            catch (Exception)
+            {
+                // A transient status read must not interrupt the refresh itself.
+            }
+            finally
+            {
+                this.readingProgress = false;
+            }
+        };
+        FormClosing += (_, e) => { if (this.refreshing) e.Cancel = true; };
+        FormClosed += (_, _) => this.progressTimer.Dispose();
     }
 
     private async Task RefreshNowAsync()
@@ -59,16 +103,24 @@ internal sealed class CacheStatusDialog : Form
         if (this.refresh is null) return;
         try
         {
+            this.refreshing = true;
             this.refreshButton.Enabled = false;
+            this.progress.Visible = true;
+            this.progressText.Text = "Requesting the first employee batch...";
             this.summary.Text = "Refreshing employees, holidays and funding policy...";
             await this.refresh();
+            CustomerReferenceCacheStatus state = await this.statusProvider.GetAsync();
+            this.progressText.Text = $"Refresh complete • {state.RefreshedEmployeeCount:N0} employees saved";
         }
         catch (Exception ex)
         {
+            this.progressText.Text = "Refresh failed • completed batches remain saved; retry to finish.";
             MessageBox.Show(this, ex.GetBaseException().Message, "Employee cache refresh failed", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         finally
         {
+            this.refreshing = false;
+            this.progress.Visible = false;
             this.refreshButton.Enabled = true;
             await ReloadAsync();
         }

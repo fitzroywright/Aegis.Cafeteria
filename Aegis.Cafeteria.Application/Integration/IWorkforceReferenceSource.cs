@@ -31,3 +31,22 @@ public interface IWorkforceReferenceCache
     Task ReplaceCustomersAsync(IReadOnlyCollection<ExternalCustomerSnapshot> customers, CancellationToken cancellationToken = default);
     Task ReplaceHolidaysAsync(int year, int month, IReadOnlyCollection<DateOnly> holidays, CancellationToken cancellationToken = default);
 }
+
+/// <summary>Bounded employee reads using the last employee ID as a cursor.</summary>
+public interface IPagedWorkforceReferenceSource
+{
+    int CustomerBatchSize => 10;
+    Task<CustomerReferenceBatch> GetCustomerBatchAsync(int? afterCustomerId, int take, CancellationToken cancellationToken = default);
+}
+
+public sealed record CustomerReferenceBatch
+(
+      IReadOnlyList<ExternalCustomerSnapshot> Customers
+    , int? NextCustomerId
+);
+
+public interface IBatchedWorkforceReferenceCache
+{
+    Task UpsertCustomerBatchAsync(IReadOnlyCollection<ExternalCustomerSnapshot> customers, IReadOnlySet<int> previouslyRefreshedIds, CancellationToken cancellationToken = default);
+    Task CompleteCustomerRefreshAsync(IReadOnlySet<int> customerIds, CancellationToken cancellationToken = default);
+}

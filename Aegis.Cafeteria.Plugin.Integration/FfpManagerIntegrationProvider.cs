@@ -13,6 +13,7 @@ public sealed class FfpManagerIntegrationProvider :
     , IEmployeeFactSource
     , IEmployeeIdScanPublisher
     , IWorkforceReferenceSource
+    , IPagedWorkforceReferenceSource
 {
     private readonly IConfiguration configuration;
     private readonly ICafeteriaPolicyCache policyCache;
@@ -81,11 +82,31 @@ public sealed class FfpManagerIntegrationProvider :
     public async Task<IReadOnlyList<ExternalCustomerSnapshot>> GetCustomersAsync(
         CancellationToken cancellationToken = default)
     {
+        List<ExternalCustomerSnapshot> customers = [];
+        int? cursor = null;
+        do
+        {
+            CustomerReferenceBatch batch = await GetCustomerBatchAsync(cursor, 10, cancellationToken);
+            customers.AddRange(batch.Customers);
+            cursor = batch.NextCustomerId;
+        } while (cursor.HasValue);
+        return customers;
+    }
+
+    public async Task<CustomerReferenceBatch> GetCustomerBatchAsync(
+        int? afterCustomerId,
+        int take,
+        CancellationToken cancellationToken = default)
+    {
+        if (take is < 1 or > 100)
+        {
+            throw new ArgumentOutOfRangeException(nameof(take));
+        }
         string connectionString = ResolveConnectionString();
         List<ExternalCustomerSnapshot> result = [];
 
         const string sql = """
-            SELECT
+            SELECT TOP (@Take)
                   ID
                 , ISNULL(CONVERT(nvarchar(256), Name), '')
                 , NFCID
@@ -98,13 +119,15 @@ public sealed class FfpManagerIntegrationProvider :
                 , Photo
                 , ISNULL(CONVERT(nvarchar(256), LoginName), '')
             FROM dbo.Employees
-            WHERE ID IS NOT NULL
+            WHERE ID IS NOT NULL AND (@AfterId IS NULL OR ID > @AfterId)
             ORDER BY ID;
             """;
 
         await using SqlConnection connection = new(connectionString);
         await connection.OpenAsync(cancellationToken);
         await using SqlCommand command = new(sql, connection);
+        command.Parameters.Add("@Take", System.Data.SqlDbType.Int).Value = take;
+        command.Parameters.Add("@AfterId", System.Data.SqlDbType.Int).Value = (object?)afterCustomerId ?? DBNull.Value;
         await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
 
         while (await reader.ReadAsync(cancellationToken))
@@ -131,7 +154,8 @@ public sealed class FfpManagerIntegrationProvider :
             });
         }
 
-        return result;
+        // A full batch requires one more bounded read, including an empty terminal batch.
+        return new CustomerReferenceBatch(result, result.Count == take ? result[^1].CustomerId : null);
     }
 
     public async Task<IReadOnlyCollection<DateOnly>> GetHolidaysAsync(

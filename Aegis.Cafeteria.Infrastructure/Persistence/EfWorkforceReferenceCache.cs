@@ -6,18 +6,28 @@ using Aegis.Cafeteria.Infrastructure.Persistence;
 using Aegis.Cafeteria.Infrastructure.Persistence.Models;
 using Microsoft.EntityFrameworkCore;
 
-public sealed class EfWorkforceReferenceCache(IDbContextFactory<LocalCafeteriaDbContext> factory) : IWorkforceReferenceCache
+public sealed class EfWorkforceReferenceCache(IDbContextFactory<LocalCafeteriaDbContext> factory) : IWorkforceReferenceCache, IBatchedWorkforceReferenceCache
 {
     public async Task ReplaceCustomersAsync(IReadOnlyCollection<ExternalCustomerSnapshot> employees, CancellationToken cancellationToken = default)
+    {
+        await SaveCustomersAsync(employees, null, cancellationToken);
+    }
+
+    public Task UpsertCustomerBatchAsync(IReadOnlyCollection<ExternalCustomerSnapshot> customers, IReadOnlySet<int> previouslyRefreshedIds, CancellationToken cancellationToken = default)
+        => SaveCustomersAsync(customers, previouslyRefreshedIds, cancellationToken);
+
+    private async Task SaveCustomersAsync(IReadOnlyCollection<ExternalCustomerSnapshot> employees, IReadOnlySet<int>? previouslyRefreshedIds, CancellationToken cancellationToken)
     {
         await using LocalCafeteriaDbContext db = await factory.CreateDbContextAsync(cancellationToken);
         await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction tx = await db.Database.BeginTransactionAsync(cancellationToken);
         DateTimeOffset now = DateTimeOffset.UtcNow;
-        List<CustomerRow> allCustomers = await db.Customers.ToListAsync(cancellationToken);
-        List<CustomerIdentifierRow> existingIdentifiers = await db.CustomerIdentifiers.ToListAsync(cancellationToken);
+        int[] batchIds = employees.Select(employee => employee.CustomerId).ToArray();
+        List<CustomerRow> allCustomers = previouslyRefreshedIds is null
+            ? await db.Customers.ToListAsync(cancellationToken)
+            : await db.Customers.Where(customer => batchIds.Contains(customer.Id)).ToListAsync(cancellationToken);
 
         HashSet<int> sourceIds = employees.Select(employee => employee.CustomerId).ToHashSet();
-        foreach (CustomerRow stale in allCustomers.Where(customer => !sourceIds.Contains(customer.Id)))
+        foreach (CustomerRow stale in allCustomers.Where(customer => previouslyRefreshedIds is null && !sourceIds.Contains(customer.Id)))
         {
             stale.IsActive = false;
             stale.IsEligibleForCredit = false;
@@ -61,6 +71,21 @@ public sealed class EfWorkforceReferenceCache(IDbContextFactory<LocalCafeteriaDb
             AddDesiredIdentifier(desiredIdentifiers, employee.CustomerId, CustomerIdentifierType.Trn, employee.Trn);
         }
 
+        string[] desiredValues = desiredIdentifiers.Values.Select(identifier => identifier.NormalizedValue).Distinct().ToArray();
+        List<CustomerIdentifierRow> existingIdentifiers = previouslyRefreshedIds is null
+            ? await db.CustomerIdentifiers.ToListAsync(cancellationToken)
+            : await db.CustomerIdentifiers.Where(identifier => batchIds.Contains(identifier.CustomerId)
+                || desiredValues.Contains(identifier.NormalizedValue)).ToListAsync(cancellationToken);
+
+        // Earlier batches win duplicate identifier claims, matching the ordered full refresh.
+        if (previouslyRefreshedIds is not null)
+        {
+            foreach (CustomerIdentifierRow existing in existingIdentifiers.Where(identifier => previouslyRefreshedIds.Contains(identifier.CustomerId)))
+            {
+                desiredIdentifiers.Remove(BuildIdentifierClaim((CustomerIdentifierType)existing.Type, existing.NormalizedValue));
+            }
+        }
+
         db.ChangeTracker.DetectChanges();
         foreach (Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<CustomerRow> entry in
                  db.ChangeTracker.Entries<CustomerRow>().Where(entry => entry.State == EntityState.Modified))
@@ -76,6 +101,12 @@ public sealed class EfWorkforceReferenceCache(IDbContextFactory<LocalCafeteriaDb
         foreach (CustomerIdentifierRow existing in existingIdentifiers)
         {
             string claim = BuildIdentifierClaim((CustomerIdentifierType)existing.Type, existing.NormalizedValue);
+            if (previouslyRefreshedIds is not null
+                && !sourceIds.Contains(existing.CustomerId)
+                && !desiredIdentifiers.ContainsKey(claim))
+            {
+                continue;
+            }
             if (!desiredIdentifiers.TryGetValue(claim, out DesiredIdentifier? desired)
                 || desired.CustomerId != existing.CustomerId)
             {
@@ -104,6 +135,25 @@ public sealed class EfWorkforceReferenceCache(IDbContextFactory<LocalCafeteriaDb
         }
 
         await db.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+    }
+
+    public async Task CompleteCustomerRefreshAsync(IReadOnlySet<int> customerIds, CancellationToken cancellationToken = default)
+    {
+        await using LocalCafeteriaDbContext db = await factory.CreateDbContextAsync(cancellationToken);
+        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction tx = await db.Database.BeginTransactionAsync(cancellationToken);
+        int[] cachedIds = await db.Customers.Select(customer => customer.Id).ToArrayAsync(cancellationToken);
+        int[] staleIds = cachedIds.Where(id => !customerIds.Contains(id)).ToArray();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        foreach (int[] chunk in staleIds.Chunk(100))
+        {
+            await db.Customers.Where(customer => chunk.Contains(customer.Id)).ExecuteUpdateAsync(setters => setters
+                .SetProperty(customer => customer.IsActive, false)
+                .SetProperty(customer => customer.IsEligibleForCredit, false)
+                .SetProperty(customer => customer.Revision, now.UtcDateTime.Ticks)
+                .SetProperty(customer => customer.UpdatedAt, now), cancellationToken);
+            await db.CustomerIdentifiers.Where(identifier => chunk.Contains(identifier.CustomerId)).ExecuteDeleteAsync(cancellationToken);
+        }
         await tx.CommitAsync(cancellationToken);
     }
 

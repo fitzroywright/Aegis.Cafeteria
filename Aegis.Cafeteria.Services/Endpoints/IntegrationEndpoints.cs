@@ -15,6 +15,7 @@ internal static class IntegrationEndpoints
 
     private static void MapReferenceAndIntegrationRoutes(WebApplication app)
     {
+        app.MapGet("/api/reference/customers/batch", GetCustomerBatchAsync).RequireAuthorization("CafeteriaPos");
         app.MapGet("/api/reference/customers", GetCustomersAsync).RequireAuthorization("CafeteriaPos");
         app.MapGet("/api/reference/holidays", GetHolidaysAsync).RequireAuthorization("CafeteriaPos");
         app.MapPost("/api/integration/ledger", PublishLedgerEndpointAsync).RequireAuthorization("CafeteriaPos");
@@ -29,6 +30,40 @@ internal static class IntegrationEndpoints
         ServiceEventStore store,
         CancellationToken ct)
         => PublishLedgerAsync(entry, store, ct);
+
+    private static async Task<IResult> GetCustomerBatchAsync(
+        int? afterCustomerId,
+        int? take,
+        IWorkforceReferenceSource source,
+        CustomerCreditPolicyStore policies,
+        DirectoryProfileCache directoryCache,
+        CancellationToken ct)
+    {
+        int batchSize = take ?? 10;
+        if (batchSize is < 1 or > 100)
+        {
+            return Results.BadRequest("Employee batch size must be between 1 and 100.");
+        }
+        if (source is not IPagedWorkforceReferenceSource pagedSource)
+        {
+            return Results.Problem("The integration plugin does not support batched employee refresh.", statusCode: 501);
+        }
+        CustomerReferenceBatch batch = await pagedSource.GetCustomerBatchAsync(afterCustomerId, batchSize, ct);
+        IReadOnlyDictionary<int, decimal> limits = await policies.GetAllAdditionalCreditLimitsAsync(ct);
+        ExternalCustomerSnapshot[] enriched = batch.Customers.Select(customer =>
+        {
+            DirectoryUserProfile? metadata = directoryCache.Get(customer.LoginName);
+            return customer with
+            {
+                  AdditionalCreditLimit = limits.GetValueOrDefault(customer.CustomerId, 0m)
+                , EmailAddress = metadata?.EmailAddress ?? customer.EmailAddress
+                , Department = metadata?.Department ?? customer.Department
+                , Manager = metadata?.Manager ?? customer.Manager
+                , Extension = metadata?.Extension ?? customer.Extension
+            };
+        }).ToArray();
+        return Results.Ok(batch with { Customers = enriched });
+    }
 
     private static async Task<IResult> GetCustomersAsync(
         IWorkforceReferenceSource source,

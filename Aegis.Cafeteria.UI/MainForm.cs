@@ -808,7 +808,7 @@ public sealed class MainForm : Form
 
             if (status.RefreshInProgress)
             {
-                this.cacheStatus.Text = $"● Employee cache: refreshing • {status.EmployeeCount:N0} employees";
+                this.cacheStatus.Text = $"● Employee cache: refreshing • {status.RefreshedEmployeeCount:N0} saved";
                 this.cacheStatus.LinkColor = Blue;
                 return;
             }

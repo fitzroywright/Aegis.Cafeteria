@@ -9,6 +9,39 @@ using Microsoft.EntityFrameworkCore;
 public sealed class WorkforceReferenceCacheTests
 {
     [Fact]
+    public async Task Batches_KeepUnseenEmployeesUntilCompletion_AndPreserveFirstIdentifierClaim()
+    {
+        string file = SqliteTestDatabase.CreatePath("workforce-batches");
+        try
+        {
+            CafeteriaPersistenceOptions options = new() { LocalSqliteConnectionString = $"Data Source={file}" };
+            LocalDbContextFactory factory = new(DbContextOptionsFactory.CreateLocal(options));
+            await using (LocalCafeteriaDbContext create = factory.CreateDbContext()) await create.Database.EnsureCreatedAsync();
+            EfWorkforceReferenceCache cache = new(factory);
+            await cache.ReplaceCustomersAsync
+            (
+                [new() { CustomerId = 1, Name = "Old", Code = "OLD" }, new() { CustomerId = 20, Name = "Cached", Code = "CACHED" }]
+            );
+            await cache.UpsertCustomerBatchAsync([new() { CustomerId = 1, Name = "Updated", Code = "SHARED" }], new HashSet<int>());
+            await using (LocalCafeteriaDbContext db = factory.CreateDbContext())
+            {
+                Assert.True((await db.Customers.SingleAsync(customer => customer.Id == 20)).IsActive);
+                Assert.True(await db.CustomerIdentifiers.AnyAsync(identifier => identifier.CustomerId == 20));
+                Assert.Equal("Updated", (await db.Customers.SingleAsync(customer => customer.Id == 1)).Name);
+            }
+            // Saving the same batch again after an interrupted refresh is safe.
+            await cache.UpsertCustomerBatchAsync([new() { CustomerId = 1, Name = "Updated", Code = "SHARED" }], new HashSet<int>());
+            await cache.UpsertCustomerBatchAsync([new() { CustomerId = 7, Name = "Next", Code = "SHARED" }], new HashSet<int> { 1 });
+            await cache.CompleteCustomerRefreshAsync(new HashSet<int> { 1, 7 });
+            await using LocalCafeteriaDbContext final = factory.CreateDbContext();
+            Assert.False((await final.Customers.SingleAsync(customer => customer.Id == 20)).IsActive);
+            Assert.False(await final.CustomerIdentifiers.AnyAsync(identifier => identifier.CustomerId == 20));
+            Assert.Equal(1, (await final.CustomerIdentifiers.SingleAsync(identifier => identifier.NormalizedValue == "SHARED")).CustomerId);
+        }
+        finally { SqliteTestDatabase.Delete(file); }
+    }
+
+    [Fact]
     public async Task EmployeeRefresh_ReplacesIdentifiersAndEligibility_WithoutLegacyFundingState()
     {
         string file = SqliteTestDatabase.CreatePath("workforce-cache");

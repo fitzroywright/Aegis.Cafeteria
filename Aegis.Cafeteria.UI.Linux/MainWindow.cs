@@ -63,6 +63,10 @@ public sealed class MainWindow : Window
     private readonly Button cashCustomerButton = new() { Content = "Cash Customer", MinWidth = 120 };
     private readonly TextBlock status = new() { Text = "Ready", VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock cacheStatus = new() { Text = "Employee cache: checking...", VerticalAlignment = VerticalAlignment.Center };
+    private readonly ProgressBar employeeRefreshProgress = new() { IsIndeterminate = true, IsVisible = false, Width = 120, Height = 14 };
+    private readonly Avalonia.Threading.DispatcherTimer employeeRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
+    private bool readingEmployeeProgress;
+    private bool refreshingEmployees;
     private readonly Button refreshEmployeesButton = new() { Content = "Refresh reference data", MinWidth = 130 };
 
     private readonly Image photo = new() { Width = 140, Height = 140, Stretch = Avalonia.Media.Stretch.Uniform };
@@ -242,6 +246,14 @@ public sealed class MainWindow : Window
         refundButton.Click += async (_, _) => await RefundSelectedAsync();
         customerPaymentButton.Click += async (_, _) => await RecordCustomerPaymentAsync();
         clearButton.Click += (_, _) => ClearCustomer();
+        employeeRefreshTimer.Tick += async (_, _) =>
+        {
+            if (readingEmployeeProgress) return;
+            readingEmployeeProgress = true;
+            try { await UpdateCacheStatusAsync(); }
+            finally { readingEmployeeProgress = false; }
+        };
+        Closed += (_, _) => employeeRefreshTimer.Stop();
         refreshEmployeesButton.Click += async (_, _) => await RefreshCustomersAsync();
         cacheTimer.Tick += async (_, _) => { await UpdateCacheStatusAsync(); await LoadRecentTransactionsAsync(); await LoadIdleDashboardAsync(); };
     }
@@ -289,6 +301,7 @@ public sealed class MainWindow : Window
         statusItems.Children.Add(operatorStatus);
         statusItems.Children.Add(status);
         statusItems.Children.Add(cacheStatus);
+        statusItems.Children.Add(employeeRefreshProgress);
         statusItems.Children.Add(refreshEmployeesButton);
         statusBar.Child = statusItems;
         Grid.SetRow(statusBar, 4);
@@ -731,6 +744,17 @@ public sealed class MainWindow : Window
         try
         {
             var cache = await employeeCacheStatusProvider.GetAsync();
+            if (cache.RefreshInProgress)
+            {
+                cacheStatus.Text = $"Refreshing employees: {cache.RefreshedEmployeeCount:N0} saved • {cache.CompletedBatchCount:N0} batches";
+                cacheStatus.Foreground = Brushes.DodgerBlue;
+                return;
+            }
+            if (refreshingEmployees)
+            {
+                cacheStatus.Text = $"{cache.RefreshedEmployeeCount:N0} employees saved • finishing reference data...";
+                return;
+            }
             var age = cache.Age(DateTimeOffset.UtcNow);
             if (cache.EmployeeCount == 0) cacheStatus.Text = "Employee cache: EMPTY";
             else if (!age.HasValue) cacheStatus.Text = $"Employee cache: {cache.EmployeeCount:N0} • age unknown";
@@ -761,10 +785,15 @@ public sealed class MainWindow : Window
         if (refresh is null) return;
         try
         {
+            refreshingEmployees = true;
+            employeeRefreshProgress.IsVisible = true;
+            employeeRefreshTimer.Start();
             refreshEmployeesButton.IsEnabled = false;
             cacheStatus.Text = "Reference data: refreshing...";
             await refresh.RefreshAsync(DateOnly.FromDateTime(DateTime.Today));
             await LoadProductsAsync();
+            CustomerReferenceCacheStatus completed = await employeeCacheStatusProvider.GetAsync();
+            status.Text = $"Refresh complete • {completed.RefreshedEmployeeCount:N0} employees saved";
         }
         catch (Exception ex)
         {
@@ -773,6 +802,9 @@ public sealed class MainWindow : Window
         }
         finally
         {
+            refreshingEmployees = false;
+            employeeRefreshTimer.Stop();
+            employeeRefreshProgress.IsVisible = false;
             refreshEmployeesButton.IsEnabled = true;
             await UpdateCacheStatusAsync();
         }
