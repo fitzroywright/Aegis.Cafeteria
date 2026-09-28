@@ -34,6 +34,7 @@ internal static class CafeteriaServicesHost
         RegisterOptions(builder.Services, management, monthOpening, scheduledEmail, externalPublication);
         IntegrationPluginLoader.Register(builder);
         RegisterDiagnosticLevel(builder);
+        builder.Services.AddCafeteriaEmailDelivery(builder.Configuration);
         RegisterIntegrationGateways(builder.Services);
         RegisterApplicationServices(builder.Services, serviceDb);
         ConfigureDevelopmentServices(builder);
@@ -211,7 +212,6 @@ internal static class CafeteriaServicesHost
         services.AddHostedService(sp => sp.GetRequiredService<ExternalPublicationWorker>());
         services.AddSingleton<CafeteriaEmailReportSource>();
         services.AddSingleton<PayrollDeductionReportSource>();
-        services.AddSingleton<SmtpEmailSender>();
         services.AddSingleton<ScheduledEmailWorker>();
         services.AddHostedService(sp => sp.GetRequiredService<ScheduledEmailWorker>());
     }

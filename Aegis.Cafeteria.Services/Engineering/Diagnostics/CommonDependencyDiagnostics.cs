@@ -99,21 +99,26 @@ public sealed class CafeteriaStorageDiagnostic(IConfiguration configuration) : C
     }
 }
 
-public sealed class CafeteriaMessagingDiagnostic(IConfiguration configuration) : CafeteriaDependencyDiagnosticBase
+public sealed class CafeteriaMessagingDiagnostic(
+    Aegis.Cafeteria.Services.Email.EmailDeliveryOptions options,
+    Common.Messaging.IChannelSecretResolver secrets) : CafeteriaDependencyDiagnosticBase
 {
     public override string Name => "Messaging";
     protected override async Task<(DiagnosticStatus, string)> CheckAsync(CancellationToken cancellationToken)
     {
-        bool enabled = configuration.GetValue("ScheduledEmail:Enabled", false);
-        if (!enabled) return (DiagnosticStatus.Warning, "Scheduled email is disabled.");
-        string? host = configuration["ScheduledEmail:SmtpHost"];
-        int port = configuration.GetValue("ScheduledEmail:SmtpPort", 25);
-        if (string.IsNullOrWhiteSpace(host)) return (DiagnosticStatus.Unhealthy, "Scheduled email is enabled but SMTP host is missing.");
-        using TcpClient client = new();
-        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(5));
-        await client.ConnectAsync(host, port, timeout.Token);
-        return (DiagnosticStatus.Healthy, $"SMTP endpoint {host}:{port} is reachable.");
+        string? error = options.ConfigurationError();
+        if (error is not null)
+        {
+            return (options.Enabled ? DiagnosticStatus.Unhealthy : DiagnosticStatus.Warning, error);
+        }
+
+        string? secret = await secrets.GetSecretAsync(options.ClientSecretName, cancellationToken);
+        if (string.IsNullOrWhiteSpace(secret))
+        {
+            return (DiagnosticStatus.Unhealthy, "Microsoft 365 client secret could not be resolved through Common.Secrets.");
+        }
+
+        return (DiagnosticStatus.Unknown, "Common.Messaging Microsoft Graph settings and secret are present. Use Test Email and verify the mailbox to prove delivery.");
     }
 }
 
@@ -155,3 +160,4 @@ public sealed class CafeteriaDependencyDiagnosticHostedService(IServiceScopeFact
         while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 }
+

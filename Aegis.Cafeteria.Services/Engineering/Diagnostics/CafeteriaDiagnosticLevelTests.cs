@@ -343,16 +343,12 @@ public sealed class CafeteriaMessagingDiagnosticLevelTest(
 
     public Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
     {
-        bool messagingEnabled = configuration.GetValue("Messaging:Enabled", false);
-        bool emailEnabled = configuration.GetValue("ScheduledEmail:Enabled", false);
-        if (!messagingEnabled && !emailEnabled)
-            return Task.FromResult(EngineeringDiagnosticPolicy.Warning(TestId, Name, "No outbound messaging channel is enabled."));
-
-        return Task.FromResult(EngineeringDiagnosticPolicy.Passed(
-            TestId,
-            Name,
-            "At least one outbound messaging path is enabled.",
-            $"MessagingEnabled={messagingEnabled}; ScheduledEmailEnabled={emailEnabled}"));
+        EmailDeliveryOptions options = configuration.GetSection("EmailDelivery").Get<EmailDeliveryOptions>() ?? new();
+        string? error = options.ConfigurationError();
+        return Task.FromResult(error is null
+            ? EngineeringDiagnosticPolicy.Passed(TestId, Name,
+                "Common.Messaging Microsoft Graph email settings are present; this check does not prove delivery.")
+            : EngineeringDiagnosticPolicy.Warning(TestId, Name, error));
     }
 }
 
@@ -598,3 +594,4 @@ public sealed class CafeteriaAuditTrailIntegrityDiagnosticLevelTest(
         }
     }
 }
+

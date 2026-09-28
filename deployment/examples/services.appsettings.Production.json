@@ -30,10 +30,6 @@
   },
   "ScheduledEmail": {
     "Enabled": false,
-    "SmtpHost": "",
-    "SmtpPort": 25,
-    "EnableSsl": false,
-    "FromAddress": "cafeteria@ffpja.org",
     "DailySummaryRecipients": [],
     "DailySummaryHourLocal": 17,
     "WeeklyEmployeeDay": "Monday",
@@ -58,5 +54,12 @@
   },
   "Service": {
     "Identity": "cafeteria-services-production"
+  },
+  "EmailDelivery": {
+    "Enabled": false,
+    "TenantId": "",
+    "ClientId": "",
+    "SenderUpn": "",
+    "ClientSecretName": "messaging/msgraph/client-secret"
   }
 }

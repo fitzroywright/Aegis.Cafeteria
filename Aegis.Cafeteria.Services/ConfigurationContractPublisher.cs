@@ -247,10 +247,11 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
         Add(requirements, "month-opening-hour", "MonthOpening:RunHourLocal", "Month Opening Hour", false, false, "Local hour for month-opening worker.", null, "MonthOpening:Enabled=true");
 
         Add(requirements, "email-enabled", "ScheduledEmail:Enabled", "Scheduled Email Enabled", false, false, "Enable scheduled email reports.");
-        Add(requirements, "smtp-host", "ScheduledEmail:SmtpHost", "SMTP Host", false, false, "SMTP server used for scheduled emails.", null, "ScheduledEmail:Enabled=true");
-        Add(requirements, "smtp-port", "ScheduledEmail:SmtpPort", "SMTP Port", false, false, "SMTP server port.", null, "ScheduledEmail:Enabled=true");
-        Add(requirements, "smtp-ssl", "ScheduledEmail:EnableSsl", "SMTP SSL", false, false, "Enable SMTP SSL/TLS.", null, "ScheduledEmail:Enabled=true");
-        Add(requirements, "smtp-from", "ScheduledEmail:FromAddress", "Email From Address", false, false, "Sender address for Cafeteria mail.", null, "ScheduledEmail:Enabled=true");
+        Add(requirements, "email-delivery-enabled", "EmailDelivery:Enabled", "Microsoft 365 Email Delivery", false, false, "Enable delivery of queued mail through Common.Messaging Microsoft Graph.");
+        Add(requirements, "graph-tenant", "EmailDelivery:TenantId", "Microsoft 365 Tenant ID", true, false, "Tenant used by Common.Messaging email delivery.", null, "EmailDelivery:Enabled=true");
+        Add(requirements, "graph-client", "EmailDelivery:ClientId", "Microsoft 365 Client ID", true, false, "Application identity used by Common.Messaging email delivery.", null, "EmailDelivery:Enabled=true");
+        Add(requirements, "graph-sender", "EmailDelivery:SenderUpn", "Microsoft 365 Sender Mailbox", true, false, "Mailbox used for Microsoft Graph sendMail.", null, "EmailDelivery:Enabled=true");
+        Add(requirements, "graph-secret-name", "EmailDelivery:ClientSecretName", "Microsoft 365 Client Secret Name", true, false, "Common.Secrets reference; never enter the secret value here.", null, "EmailDelivery:Enabled=true");
         Add(requirements, "daily-recipients", "ScheduledEmail:DailySummaryRecipients", "Daily Summary Recipients", false, false, "Recipients for daily summary email.", null, "ScheduledEmail:Enabled=true");
         Add(requirements, "payroll-recipients", "ScheduledEmail:PayrollRecipients", "Payroll Recipients", false, false, "Recipients for payroll report email.", null, "ScheduledEmail:Enabled=true && ScheduledEmail:PayrollNotificationEnabled=true");
 
@@ -262,7 +263,7 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
         SecretManagerConfigurationContractRequirements.Add(requirements, configuration);
 
         await AddSecretAsync(requirements, secrets, "openbao-secret-zero", "Secret0", "OpenBao Secret Zero", true, "Bootstrap material used to authenticate to OpenBao. The value is never published.", "bootstrap/OpenBao", directlyProbeable: false, cancellationToken: cancellationToken);
-        await AddSecretAsync(requirements, secrets, "smtp-credential", "ScheduledEmail:SmtpCredential", "SMTP Credential", false, "SMTP credential when authenticated SMTP is used.", "cafeteria/smtp", "ScheduledEmail:Enabled=true", cancellationToken: cancellationToken);
+        await AddSecretAsync(requirements, secrets, "graph-client-secret", "EmailDelivery:ClientSecretName", "Microsoft 365 Client Secret", true, "Application credential resolved through Common.Secrets; its value is never published.", configuration["EmailDelivery:ClientSecretName"] ?? "messaging/msgraph/client-secret", "EmailDelivery:Enabled=true", cancellationToken: cancellationToken);
         return requirements;
     }
 
@@ -366,3 +367,4 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
     private static string? First(params string?[] values) => values.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
     private static string? NullIfBlank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
+
