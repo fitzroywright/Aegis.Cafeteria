@@ -134,7 +134,7 @@ public sealed class CustomerIdentificationTests
     }
 
     [Fact]
-    public async Task EmptySearch_BrowsesEmployeesAlphabetically()
+    public async Task EmptySearch_OnlyBrowsesActiveEligibleEmployees()
     {
         var file=SqliteTestDatabase.CreatePath("cafeteria-browse");
         try
@@ -145,15 +145,25 @@ public sealed class CustomerIdentificationTests
             var store=new EfCafeteriaPersistenceStore(new LocalPersistenceStore(factory, NullLogger<LocalPersistenceStore>.Instance));
             await store.SaveCustomerAsync(new Customer(2,"Zoe King",null,false,0m));
             await store.SaveCustomerAsync(new Customer(1,"Amy Brown",null,true,0m));
+            await store.SaveCustomerAsync(new Customer(3,"Inactive Employee",null,true,0m,false));
             var service=new EfCustomerIdentificationService(factory,new StubAccountQuery());
 
             var result=await service.SearchAsync(string.Empty,50);
 
-            Assert.Equal(2,result.Count);
+            Assert.Single(result);
             Assert.Equal("Amy Brown",result[0].Name);
             Assert.True(result[0].IsEligibleForCredit);
-            Assert.Equal("Zoe King",result[1].Name);
-            Assert.False(result[1].IsEligibleForCredit);
+            Assert.Empty(await service.SearchAsync("Zoe"));
+            Assert.Empty(await service.SearchAsync("Inactive"));
+            Assert.Null(await service.LoadAsync(2));
+            Assert.Null(await service.LoadAsync(3));
+            foreach (CustomerIdentifierType type in new[] { CustomerIdentifierType.NfcTag, CustomerIdentifierType.Code, CustomerIdentifierType.Trn })
+            {
+                await store.SaveCustomerIdentifierAsync(new CustomerIdentifier(Guid.NewGuid(),2,type,"999"));
+                await store.SaveCustomerIdentifierAsync(new CustomerIdentifier(Guid.NewGuid(),3,type,"888"));
+                Assert.Null(await service.IdentifyAsync(type,"999"));
+                Assert.Null(await service.IdentifyAsync(type,"888"));
+            }
         }
         finally { SqliteTestDatabase.Delete(file); }
     }
@@ -173,3 +183,4 @@ public sealed class CustomerIdentificationTests
             => Task.FromResult<IReadOnlyList<CustomerMonthlyTransactionView>>([]);
     }
 }
+

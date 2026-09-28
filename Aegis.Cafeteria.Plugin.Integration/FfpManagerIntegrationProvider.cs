@@ -119,7 +119,10 @@ public sealed class FfpManagerIntegrationProvider :
                 , Photo
                 , ISNULL(CONVERT(nvarchar(256), LoginName), '')
             FROM dbo.Employees
-            WHERE ID IS NOT NULL AND (@AfterId IS NULL OR ID > @AfterId)
+            WHERE ID IS NOT NULL
+              AND IsActive = 1
+              AND EligibleForLunchTicket = 1
+              AND (@AfterId IS NULL OR ID > @AfterId)
             ORDER BY ID;
             """;
 
@@ -549,3 +552,4 @@ public sealed class FfpManagerIntegrationProvider :
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
 }
+

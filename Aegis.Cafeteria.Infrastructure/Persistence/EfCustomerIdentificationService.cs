@@ -25,7 +25,8 @@ public sealed class EfCustomerIdentificationService(IDbContextFactory<LocalCafet
 
         step.Restart();
         int? customerId=await db.CustomerIdentifiers.AsNoTracking()
-            .Where(x=>x.Type==(int)type&&x.NormalizedValue==normalized)
+            .Where(x=>x.Type==(int)type&&x.NormalizedValue==normalized
+                && db.Customers.Any(customer=>customer.Id==x.CustomerId&&customer.IsActive&&customer.IsEligibleForCredit))
             .Select(x=>(int?)x.CustomerId)
             .SingleOrDefaultAsync(cancellationToken);
         logger?.LogInformation("PERF Identify {IdentifierType} identifier lookup in {ElapsedMs} ms; Found={Found}", type, step.ElapsedMilliseconds, customerId.HasValue);
@@ -53,13 +54,12 @@ public sealed class EfCustomerIdentificationService(IDbContextFactory<LocalCafet
         List<int> matchedIds;
         if(rawSearch.Length==0)
         {
-            // Empty search is an explicit directory browse. Show every cached employee and expose
-            // eligibility in the candidate so the cashier can see why a person cannot charge an account.
-            matchedIds=await db.Customers.AsNoTracking().OrderBy(x=>x.NormalizedName).Select(x=>x.Id).Take(maximumResults).ToListAsync(cancellationToken);
+            // Directory browsing uses the same active and eligible roster as name and card lookup.
+            matchedIds=await db.Customers.AsNoTracking().Where(x=>x.IsActive&&x.IsEligibleForCredit).OrderBy(x=>x.NormalizedName).Select(x=>x.Id).Take(maximumResults).ToListAsync(cancellationToken);
         }
         else
         {
-            matchedIds=await db.Customers.AsNoTracking().Where(x=>x.IsEligibleForCredit&&x.NormalizedName.Contains(normalized)).OrderBy(x=>x.NormalizedName).Select(x=>x.Id).Take(maximumResults).ToListAsync(cancellationToken);
+            matchedIds=await db.Customers.AsNoTracking().Where(x=>x.IsActive&&x.IsEligibleForCredit&&x.NormalizedName.Contains(normalized)).OrderBy(x=>x.NormalizedName).Select(x=>x.Id).Take(maximumResults).ToListAsync(cancellationToken);
         }
         if(matchedIds.Count==0)return[];
         List<Models.CustomerRow> customers=await db.Customers.AsNoTracking().Where(x=>matchedIds.Contains(x.Id)).ToListAsync(cancellationToken);
@@ -72,6 +72,12 @@ public sealed class EfCustomerIdentificationService(IDbContextFactory<LocalCafet
     public async Task<CustomerAccountView?> LoadAsync(int customerId,CancellationToken cancellationToken=default)
     {
         Stopwatch total = Stopwatch.StartNew();
+        await using LocalCafeteriaDbContext db=await factory.CreateDbContextAsync(cancellationToken);
+        if (!await db.Customers.AsNoTracking().AnyAsync(customer=>customer.Id==customerId&&customer.IsActive&&customer.IsEligibleForCredit,cancellationToken))
+        {
+            identificationContexts.TryRemove(customerId, out _);
+            return null;
+        }
         CustomerAccountView? account=await accountQuery.GetCurrentSummaryAsync(customerId,cancellationToken);
         logger?.LogInformation("PERF Customer Load summary CustomerId={CustomerId} in {ElapsedMs} ms", customerId, total.ElapsedMilliseconds);
         if(account is null)return null;
@@ -80,3 +86,4 @@ public sealed class EfCustomerIdentificationService(IDbContextFactory<LocalCafet
         return identifiedByName?account with{Identification=context}:account;
     }
 }
+
