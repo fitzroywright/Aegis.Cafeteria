@@ -58,6 +58,7 @@ public sealed class EmployeeEmailPreferencesDialog : Form
         Margin = new Padding(0, 10, 0, 0)
     };
     private readonly Button save = ActionButton("Save", Green, 96);
+    private CustomerNotificationPreferenceSnapshot? loadedPreference;
     private int selectedCustomerId;
 
     public EmployeeEmailPreferencesDialog(
@@ -300,18 +301,29 @@ public sealed class EmployeeEmailPreferencesDialog : Form
             return;
         }
 
+        this.loadedPreference = null;
         this.selectedCustomerId = choice.Customer.CustomerId;
+        int loadingCustomerId = this.selectedCustomerId;
         this.save.Enabled = false;
         this.status.Text = "Loading saved preference...";
 
         try
         {
-            CustomerNotificationPreferenceSnapshot preference = await this.servicesClient.GetNotificationPreferenceAsync(this.selectedCustomerId);
+            CustomerNotificationPreferenceSnapshot preference = await this.servicesClient.GetNotificationPreferenceAsync(loadingCustomerId);
+            if (this.selectedCustomerId != loadingCustomerId)
+            {
+                return;
+            }
+
+            this.loadedPreference = preference;
+            this.status.ForeColor = preference.NeedsEmailReview ? Color.DarkGoldenrod : Muted;
             this.enabled.Checked = preference.WeeklySummaryEnabled;
             this.email.Text = !string.IsNullOrWhiteSpace(preference.EmailAddress)
                 ? preference.EmailAddress
-                : choice.Customer.EmailAddress;
-            this.status.Text = preference.PreferenceAsked
+                : preference.SuggestedEmailSource is not null ? preference.SuggestedEmailAddress : choice.Customer.EmailAddress;
+            this.status.Text = preference.NeedsEmailReview
+                ? "CONFIRM EMAIL ADDRESS: Work email details changed. Ask the employee to keep or change this address, or disable emails. Save records their choice."
+                : preference.PreferenceAsked
                 ? "This employee has already made an email-summary choice. You can change it here."
                 : "No preference has been recorded yet. The cached employee email is shown when available.";
             UpdateEditorState();
@@ -319,11 +331,16 @@ public sealed class EmployeeEmailPreferencesDialog : Form
         }
         catch (Exception exception)
         {
+            if (this.selectedCustomerId != loadingCustomerId)
+            {
+                return;
+            }
+
             this.enabled.Checked = false;
             this.email.Text = choice.Customer.EmailAddress;
             this.status.Text = $"Could not load saved preference: {exception.Message}";
             UpdateEditorState();
-            this.save.Enabled = true;
+            this.save.Enabled = false;
         }
     }
 
@@ -335,12 +352,13 @@ public sealed class EmployeeEmailPreferencesDialog : Form
 
     private async Task SaveAsync()
     {
-        if (this.selectedCustomerId <= 0)
+        if (this.selectedCustomerId <= 0 || this.loadedPreference is null)
         {
             this.status.Text = "Select an employee first.";
             return;
         }
 
+        int savingCustomerId = this.selectedCustomerId;
         string? emailAddress = null;
         if (this.enabled.Checked)
         {
@@ -369,18 +387,31 @@ public sealed class EmployeeEmailPreferencesDialog : Form
             CustomerNotificationPreferenceSnapshot saved = await this.servicesClient.SetNotificationPreferenceAsync(
                 this.selectedCustomerId,
                 this.enabled.Checked,
-                emailAddress);
-            this.status.Text = saved.WeeklySummaryEnabled
+                emailAddress,
+                suggestedEmailSource: NotificationEmailChoice.AcknowledgedSource(this.loadedPreference, this.enabled.Checked, emailAddress),
+                suggestedEmailAddress: this.loadedPreference.SuggestedEmailAddress);
+            if (this.selectedCustomerId != savingCustomerId)
+            {
+                return;
+            }
+
+            this.loadedPreference = saved;
+            this.status.Text = saved.NeedsEmailReview
+                ? "The work email changed again while saving. Confirm the email address after the next sale."
+                : saved.WeeklySummaryEnabled
                 ? $"Weekly summaries enabled for {saved.EmailAddress}."
                 : "Weekly summaries disabled. The employee will not be prompted again automatically.";
         }
         catch (Exception exception)
         {
-            this.status.Text = $"Could not save preference: {exception.Message}";
+            if (this.selectedCustomerId == savingCustomerId)
+            {
+                this.status.Text = $"Could not save preference: {exception.Message}";
+            }
         }
         finally
         {
-            this.save.Enabled = true;
+            this.save.Enabled = this.loadedPreference?.CustomerId == this.selectedCustomerId;
         }
     }
 
@@ -415,3 +446,4 @@ public sealed class EmployeeEmailPreferencesDialog : Form
             : $"{this.Customer.Name} — {this.Customer.Department}";
     }
 }
+

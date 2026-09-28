@@ -10,6 +10,10 @@ public sealed record CustomerNotificationPreferenceSnapshot
     , bool PreferenceAsked
     , bool WeeklySummaryEnabled
     , string? EmailAddress
+    , bool NeedsEmailReview = false
+    , string? SuggestedEmailAddress = null
+    , string? SuggestedEmailSource = null
+    , string? NotificationEmailSource = null
 );
 
 public sealed record MonthOperationResult
@@ -64,6 +68,8 @@ public sealed class CafeteriaServicesClient(HttpClient http)
         , bool weeklySummaryEnabled
         , string? emailAddress
         , CancellationToken cancellationToken = default
+        , string? suggestedEmailSource = null
+        , string? suggestedEmailAddress = null
     )
     {
         using HttpResponseMessage response = await http.PutAsJsonAsync
@@ -73,6 +79,8 @@ public sealed class CafeteriaServicesClient(HttpClient http)
             {
                   WeeklySummaryEnabled = weeklySummaryEnabled
                 , EmailAddress = emailAddress
+                , SuggestedEmailSource = suggestedEmailSource
+                , SuggestedEmailAddress = suggestedEmailAddress
             }
             , cancellationToken
         );
@@ -229,3 +237,4 @@ public sealed class CafeteriaServicesClient(HttpClient http)
     }
 
 }
+

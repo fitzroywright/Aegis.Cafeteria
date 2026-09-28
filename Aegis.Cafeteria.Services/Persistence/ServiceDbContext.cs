@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 
 public sealed class ServiceDbContext(DbContextOptions<ServiceDbContext> options) : DbContext(options)
 {
+    public DbSet<EmployeeMetadataRow> EmployeeMetadata => Set<EmployeeMetadataRow>();
+    public DbSet<CustomerEmailReviewRow> CustomerEmailReviews => Set<CustomerEmailReviewRow>();
     public DbSet<ServiceEventRow> Events => Set<ServiceEventRow>();
     public DbSet<AuditTrailRow> AuditTrail => Set<AuditTrailRow>();
     public DbSet<CustomerCreditPolicyRow> CustomerCreditPolicies => Set<CustomerCreditPolicyRow>();
@@ -17,6 +19,10 @@ public sealed class ServiceDbContext(DbContextOptions<ServiceDbContext> options)
 
     protected override void OnModelCreating(ModelBuilder b)
     {
+        b.Entity<EmployeeMetadataRow>().ToTable("EmployeeMetadata");
+        b.Entity<EmployeeMetadataRow>().HasKey(row => row.CustomerId);
+        b.Entity<CustomerEmailReviewRow>().ToTable("CustomerEmailReviews");
+        b.Entity<CustomerEmailReviewRow>().HasKey(row => row.CustomerId);
         b.Entity<ServiceEventRow>().ToTable("CafeteriaServiceEvents");
         b.Entity<ServiceEventRow>().HasKey(x => x.Sequence);
         b.Entity<ServiceEventRow>().Property(x => x.Sequence).ValueGeneratedOnAdd();
@@ -90,3 +96,4 @@ public sealed class ServiceDbContext(DbContextOptions<ServiceDbContext> options)
         b.Entity<ScheduledDispatchRow>().Property(x => x.DispatchKey).HasMaxLength(256);
     }
 }
+

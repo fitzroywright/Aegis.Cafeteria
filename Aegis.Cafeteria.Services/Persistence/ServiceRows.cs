@@ -60,6 +60,19 @@ public sealed class ScheduledDispatchRow
     public string? MessageId { get; set; }
 }
 
+public sealed class EmployeeMetadataRow
+{
+    public int CustomerId { get; set; }
+    public string PayloadJson { get; set; } = "{}";
+}
+
+public sealed class CustomerEmailReviewRow
+{
+    public int CustomerId { get; set; }
+    public string? Source { get; set; }
+    public string? AcknowledgedEmail { get; set; }
+}
+
 public sealed class CustomerNotificationPreferenceRow
 {
     public int CustomerId { get; set; }
@@ -121,3 +134,4 @@ public sealed class ValidatedPolicyCacheRow
     public string PayloadJson { get; set; } = string.Empty;
     public DateTimeOffset ValidatedAt { get; set; }
 }
+

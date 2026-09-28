@@ -15,11 +15,11 @@ public sealed class WeeklySummaryOptInDialog : Form
         Font = new Font("Segoe UI", 10.5f)
     };
 
-    public WeeklySummaryOptInDialog(string customerName, string? suggestedEmailAddress = null)
+    public WeeklySummaryOptInDialog(string customerName, string? suggestedEmailAddress = null, bool needsReview = false)
     {
-        Text = "Weekly Cafeteria Summary";
-        Width = 560;
-        Height = 350;
+        Text = needsReview ? "Confirm email address" : "Weekly Cafeteria Summary";
+        Width = 680;
+        Height = 410;
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -32,9 +32,11 @@ public sealed class WeeklySummaryOptInDialog : Form
         {
             AutoSize = true,
             MaximumSize = new Size(460, 0),
-            Text = $"Would {customerName} like a weekly email summary of cafeteria transactions?",
+            Text = needsReview
+                ? $"{customerName}'s work email details have changed. Confirm the address for cafeteria emails."
+                : $"Would {customerName} like a weekly email summary of cafeteria transactions?",
             Font = new Font("Segoe UI", 12, FontStyle.Bold),
-            ForeColor = Navy,
+            ForeColor = needsReview ? Color.DarkGoldenrod : Navy,
             Margin = new Padding(0, 0, 0, 8)
         };
 
@@ -42,7 +44,9 @@ public sealed class WeeklySummaryOptInDialog : Form
         {
             AutoSize = true,
             MaximumSize = new Size(460, 0),
-            Text = "Confirm the email address below. Choosing No records the preference and prevents future automatic prompts.",
+            Text = needsReview
+                ? "Keep the address below, edit it to use another address, stop emails, or ask again after a later sale."
+                : "Confirm the email address below. Choosing No records the preference and prevents future automatic prompts.",
             ForeColor = Muted,
             Font = new Font("Segoe UI", 9.5f),
             Margin = new Padding(0, 0, 0, 18)
@@ -58,8 +62,10 @@ public sealed class WeeklySummaryOptInDialog : Form
         };
         this.emailAddress.Text = suggestedEmailAddress ?? string.Empty;
 
-        Button yes = ActionButton("Yes, send summaries", Green, 165);
-        Button no = SecondaryButton("No, don't send", 145);
+        Button yes = ActionButton(needsReview ? "Keep / save address" : "Yes, send summaries", Green, 175);
+        Button no = SecondaryButton(needsReview ? "Stop emails" : "No, don't send", 145);
+        Button later = SecondaryButton("Ask later", 110);
+        later.DialogResult = DialogResult.Cancel;
         no.DialogResult = DialogResult.No;
 
         yes.Click += (_, _) =>
@@ -146,6 +152,7 @@ public sealed class WeeklySummaryOptInDialog : Form
             WrapContents = false,
             Padding = new Padding(0, 18, 0, 0)
         };
+        buttons.Controls.Add(later);
         buttons.Controls.Add(no);
         buttons.Controls.Add(yes);
         content.Controls.Add(buttons, 0, 5);
@@ -154,7 +161,7 @@ public sealed class WeeklySummaryOptInDialog : Form
         Controls.Add(card);
         Controls.Add(header);
         AcceptButton = yes;
-        CancelButton = no;
+        CancelButton = later;
     }
 
     public string EmailAddress => this.emailAddress.Text.Trim();
@@ -185,3 +192,4 @@ public sealed class WeeklySummaryOptInDialog : Form
         Margin = new Padding(8, 0, 0, 0)
     };
 }
+

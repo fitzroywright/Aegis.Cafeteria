@@ -1,4 +1,5 @@
 using Aegis.Cafeteria.Infrastructure.Identity;
+using Aegis.Cafeteria.Services.Identity;
 using Aegis.Cafeteria.Infrastructure.Security;
 using Aegis.Cafeteria.Services;
 using Aegis.Cafeteria.Services.Email;
@@ -55,6 +56,7 @@ public sealed class CafeteriaAuthenticationHostingStartup : IHostingStartup
 
                 // Long-running coordination belongs to the Windows service, not the POS terminal.
                 // The POS keeps only terminal-local cache/outbox transfer required for offline-first operation.
+                EmployeeMetadataRegistration.Register(services, context.Configuration, context.HostingEnvironment.ContentRootPath);
                 services.AddSingleton<DirectoryProfileCache>();
                 services.AddHostedService<EmployeeDirectorySyncWorker>();
                 services.AddSingleton<OutboundEmailWorker>();
@@ -72,3 +74,4 @@ public sealed class CafeteriaAuthenticationHostingStartup : IHostingStartup
         );
     }
 }
+

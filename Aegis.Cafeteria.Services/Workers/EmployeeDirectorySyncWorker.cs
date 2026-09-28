@@ -1,42 +1,53 @@
 namespace Aegis.Cafeteria.Services.Workers;
 
 using Aegis.Cafeteria.Application.Integration;
-using Aegis.Cafeteria.Infrastructure.Identity;
-using Common.Security.Abstractions;
-using Common.Security.Models;
+using Aegis.Cafeteria.Services.Identity;
 
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
-
-public sealed class EmployeeDirectorySyncWorker(
-    IWorkforceReferenceSource workforceSource,
-    DirectoryProfileCache directoryCache,
-    IDirectoryProfileProvider directory,
-    ILogger<EmployeeDirectorySyncWorker> logger) : BackgroundService
+public sealed class EmployeeDirectorySyncWorker
+(
+      IWorkforceReferenceSource workforceSource
+    , EmployeeMetadataStore metadataStore
+    , IEnumerable<IEmployeeMetadataProvider> providers
+    , ILogger<EmployeeDirectorySyncWorker> logger
+) : BackgroundService
 {
-    private static readonly TimeSpan RefreshInterval = TimeSpan.FromMinutes(15);
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        IEmployeeMetadataProvider? provider = providers.SingleOrDefault();
+        if (provider is null)
+        {
+            return;
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(provider.SourceId);
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                IReadOnlyList<ExternalCustomerSnapshot> employees = await workforceSource.GetCustomersAsync(stoppingToken);
-                string[] loginNames = employees
-                    .Select(employee => employee.LoginName)
-                    .Where(loginName => !string.IsNullOrWhiteSpace(loginName))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToArray();
+                if (workforceSource is IPagedWorkforceReferenceSource paged)
+                {
+                    int? cursor = null;
+                    do
+                    {
+                        CustomerReferenceBatch batch = await paged.GetCustomerBatchAsync(cursor, 10, stoppingToken);
+                        await RefreshAsync(batch.Customers, provider, stoppingToken);
+                        if (batch.NextCustomerId is int next && (batch.Customers.Count == 0 || next <= (cursor ?? int.MinValue)))
+                        {
+                            throw new InvalidOperationException("Employee metadata refresh cursor did not advance.");
+                        }
 
-                IReadOnlyDictionary<string, DirectoryUserProfile> records =
-                    await directory.GetByLoginNamesAsync(loginNames, stoppingToken);
-                directoryCache.Replace(records);
-
-                logger.LogInformation(
-                    "Background AD employee metadata sync refreshed {DirectoryCount} of {EmployeeCount} eligible employees",
-                    records.Count,
-                    employees.Count);
+                        cursor = batch.NextCustomerId;
+                    }
+                    while (cursor.HasValue);
+                }
+                else
+                {
+                    IReadOnlyList<ExternalCustomerSnapshot> employees = await workforceSource.GetCustomersAsync(stoppingToken);
+                    foreach (ExternalCustomerSnapshot[] batch in employees.Chunk(10))
+                    {
+                        await RefreshAsync(batch, provider, stoppingToken);
+                    }
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -44,19 +55,29 @@ public sealed class EmployeeDirectorySyncWorker(
             }
             catch (Exception exception)
             {
-                logger.LogWarning(
-                    exception,
-                    "Background AD employee metadata sync failed; existing cached metadata will remain in use");
+                logger.LogWarning(exception, "Employee metadata sync failed; last-known fields remain available");
             }
 
             try
             {
-                await Task.Delay(RefreshInterval, stoppingToken);
+                await Task.Delay(TimeSpan.FromMinutes(15), stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 break;
             }
         }
+    }
+
+    private async Task RefreshAsync(IReadOnlyList<ExternalCustomerSnapshot> employees, IEmployeeMetadataProvider provider, CancellationToken cancellationToken)
+    {
+        IReadOnlyDictionary<int, EmployeeMetadataPatch> updates = await provider.GetAsync(employees, cancellationToken);
+        HashSet<int> requested = employees.Select(employee => employee.CustomerId).ToHashSet();
+        if (updates.Keys.Any(id => !requested.Contains(id)))
+        {
+            throw new InvalidOperationException("Employee metadata provider returned an unrequested employee.");
+        }
+
+        await metadataStore.ApplyAsync(updates, cancellationToken);
     }
 }

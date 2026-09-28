@@ -33,7 +33,16 @@ internal static class CafeteriaServiceDatabase
 
     private static Task EnsureSupplementalSchemaAsync(ServiceDbContext db, CancellationToken cancellationToken) =>
         db.Database.ExecuteSqlRawAsync(
-            @"CREATE TABLE IF NOT EXISTS CustomerNotificationPreferences (
+            @"CREATE TABLE IF NOT EXISTS EmployeeMetadata (
+                  CustomerId INTEGER NOT NULL PRIMARY KEY
+                , PayloadJson TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS CustomerEmailReviews (
+                  CustomerId INTEGER NOT NULL PRIMARY KEY
+                , Source TEXT NULL
+                , AcknowledgedEmail TEXT NULL
+            );
+            CREATE TABLE IF NOT EXISTS CustomerNotificationPreferences (
                   CustomerId INTEGER NOT NULL CONSTRAINT PK_CustomerNotificationPreferences PRIMARY KEY
                 , PreferenceAsked INTEGER NOT NULL
                 , WeeklySummaryEnabled INTEGER NOT NULL
@@ -88,3 +97,4 @@ internal static class CafeteriaServiceDatabase
             );",
             cancellationToken);
 }
+

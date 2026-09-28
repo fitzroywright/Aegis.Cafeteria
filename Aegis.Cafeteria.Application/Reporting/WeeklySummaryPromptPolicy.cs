@@ -13,6 +13,7 @@ public static class WeeklySummaryPromptPolicy
           CustomerAccountView account
         , bool preferenceAsked
         , string? savedEmailAddress
+        , bool authoritativeEmail = false
     )
     {
         ArgumentNullException.ThrowIfNull(account);
@@ -24,10 +25,11 @@ public static class WeeklySummaryPromptPolicy
 
         string? suggested = !string.IsNullOrWhiteSpace(savedEmailAddress)
             ? savedEmailAddress.Trim()
-            : string.IsNullOrWhiteSpace(account.Customer.EmailAddress)
+            : authoritativeEmail || string.IsNullOrWhiteSpace(account.Customer.EmailAddress)
                 ? null
                 : account.Customer.EmailAddress.Trim();
 
         return new WeeklySummaryPromptDecision(true, suggested);
     }
 }
+

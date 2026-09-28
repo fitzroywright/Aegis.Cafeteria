@@ -35,16 +35,17 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
         {
             this.logger.LogWarning(
                 exception,
-                "Could not load weekly email preference for customer {CustomerId}; using the local employee cache",
+                "Could not load weekly email preference for customer {CustomerId}; deferring the prompt until Services is available",
                 account.Customer.Id);
-            preference = new CustomerNotificationPreferenceSnapshot(account.Customer.Id, false, false, null);
+            return;
         }
 
         WeeklySummaryPromptDecision decision = WeeklySummaryPromptPolicy.Evaluate
         (
               account
-            , preference.PreferenceAsked
-            , preference.EmailAddress
+            , preference.PreferenceAsked && !preference.NeedsEmailReview
+            , preference.EmailAddress ?? preference.SuggestedEmailAddress
+            , preference.SuggestedEmailSource is not null
         );
 
         if (!decision.ShouldPrompt)
@@ -52,19 +53,41 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
             return;
         }
 
-        using WeeklySummaryOptInDialog dialog = new(account.Customer.Name, decision.SuggestedEmail);
-        IWin32Window? owner = System.Windows.Forms.Application.OpenForms
-            .Cast<Form>()
-            .FirstOrDefault(form => form is MainForm && form.Visible);
-        DialogResult result = owner is null ? dialog.ShowDialog() : dialog.ShowDialog(owner);
+        Form? owner = System.Windows.Forms.Application.OpenForms.Cast<Form>().FirstOrDefault(form => form is MainForm);
+        if (owner is null || owner.IsDisposed || !owner.IsHandleCreated)
+        {
+            return;
+        }
+
+        TaskCompletionSource<(DialogResult Result, string Email)> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        owner.BeginInvoke(new Action(() =>
+        {
+            try
+            {
+                using WeeklySummaryOptInDialog dialog = new(account.Customer.Name, decision.SuggestedEmail, preference.NeedsEmailReview);
+                DialogResult choice = dialog.ShowDialog(owner);
+                completion.TrySetResult((choice, dialog.EmailAddress));
+            }
+            catch (Exception exception)
+            {
+                completion.TrySetException(exception);
+            }
+        }));
+        (DialogResult result, string email) = await completion.Task.WaitAsync(cancellationToken);
+        if (result != DialogResult.Yes && result != DialogResult.No)
+        {
+            return;
+        }
 
         try
         {
             await this.servicesClient.SetNotificationPreferenceAsync(
                 account.Customer.Id,
                 result == DialogResult.Yes,
-                result == DialogResult.Yes ? dialog.EmailAddress : null,
-                cancellationToken);
+                result == DialogResult.Yes ? email : null,
+                cancellationToken,
+                NotificationEmailChoice.AcknowledgedSource(preference, result == DialogResult.Yes, email),
+                preference.SuggestedEmailAddress);
         }
         catch (Exception exception)
         {
@@ -76,3 +99,4 @@ public sealed class WeeklySummaryPostSaleObserver : IPostSaleObserver
         }
     }
 }
+

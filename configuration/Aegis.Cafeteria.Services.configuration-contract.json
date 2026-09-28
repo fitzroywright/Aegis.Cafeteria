@@ -143,6 +143,36 @@
       "purpose": "Configure Common.Messaging Microsoft Graph email delivery. Secret values stay in Common.Secrets.",
       "configurationKey": "EmailDelivery:ClientSecretName",
       "isConfigured": false
+    },
+    {
+      "id": "employee-metadata-mode",
+      "displayName": "Employee Metadata Provider",
+      "kind": "Configuration",
+      "required": false,
+      "purpose": "Selects employee metadata independently of sign-in: CommonSecurity, None (workforce only), or Plugin. Default CommonSecurity.",
+      "configurationKey": "EmployeeMetadata:Mode",
+      "isConfigured": false,
+      "example": "CommonSecurity"
+    },
+    {
+      "id": "employee-metadata-assembly",
+      "displayName": "Employee Metadata Plugin Assembly",
+      "kind": "Configuration",
+      "required": false,
+      "purpose": "Required only for EmployeeMetadata:Mode=Plugin. Must implement IEmployeeMetadataProvider.",
+      "configurationKey": "EmployeeMetadata:AssemblyPath",
+      "isConfigured": false,
+      "example": "plugins/Organization.EmployeeMetadata.dll"
+    },
+    {
+      "id": "employee-metadata-fields",
+      "displayName": "Employee Metadata Field Ownership",
+      "kind": "Configuration",
+      "required": false,
+      "purpose": "Fields owned by the selected metadata provider; remaining fields belong to the workforce integration.",
+      "configurationKey": "EmployeeMetadata:Fields",
+      "isConfigured": false,
+      "example": "EmailAddress, Department, Manager, Extension"
     }
   ],
   "diagnostics": {

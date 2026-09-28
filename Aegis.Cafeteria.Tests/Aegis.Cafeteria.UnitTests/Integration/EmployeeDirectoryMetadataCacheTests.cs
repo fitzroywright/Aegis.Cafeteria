@@ -6,6 +6,21 @@ using Common.Security.Models;
 public sealed class DirectoryProfileCacheTests
 {
     [Fact]
+    public void Replace_NormalizesProviderKeys_AndRejectsAmbiguousAccounts()
+    {
+        DirectoryProfileCache cache = new();
+        DirectoryUserProfile profile = new("person", "Person", "person@example.com", "", "", "", []);
+        cache.Replace(new Dictionary<string, DirectoryUserProfile> { ["DOMAIN\\person"] = profile });
+        Assert.Same(profile, cache.Get("person"));
+        Assert.Throws<InvalidOperationException>(() => cache.Replace(new Dictionary<string, DirectoryUserProfile>
+        {
+              ["DOMAIN\\person"] = profile
+            , ["OTHER\\person"] = profile
+        }));
+        Assert.Same(profile, cache.Get("person"));
+    }
+
+    [Fact]
     public void Get_EmptyCache_ReturnsNull()
     {
         DirectoryProfileCache cache = new();
@@ -77,3 +92,4 @@ public sealed class DirectoryProfileCacheTests
         Assert.Null(cache.Get(loginName));
     }
 }
+

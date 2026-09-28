@@ -9,6 +9,53 @@ using Microsoft.EntityFrameworkCore;
 public sealed class WorkforceReferenceCacheTests
 {
     [Fact]
+    public async Task MetadataRefresh_PreservesUnknownFields_AndClearsOnlyExplicitBlank()
+    {
+        string file = SqliteTestDatabase.CreatePath("employee-metadata");
+        try
+        {
+            LocalDbContextFactory factory = new(DbContextOptionsFactory.CreateLocal(new CafeteriaPersistenceOptions { LocalSqliteConnectionString = $"Data Source={file}" }));
+            await using (LocalCafeteriaDbContext create = factory.CreateDbContext())
+            {
+                await create.Database.EnsureCreatedAsync();
+            }
+
+            EfWorkforceReferenceCache cache = new(factory);
+            ExternalCustomerSnapshot employee = new()
+            {
+                  CustomerId = 42
+                , Name = "Employee"
+                , EmailAddress = "work@example.com"
+                , Department = "Finance"
+                , Manager = "Manager"
+                , Extension = "123"
+            };
+            await cache.UpsertCustomerBatchAsync([employee], new HashSet<int>());
+            // Old servers cannot distinguish blank from unavailable: preserve legacy blanks.
+            await cache.UpsertCustomerBatchAsync([new() { CustomerId = 42, Name = "Employee" }], new HashSet<int>());
+            await using (LocalCafeteriaDbContext preserved = factory.CreateDbContext())
+            {
+                Assert.Equal("work@example.com", (await preserved.Customers.SingleAsync()).EmailAddress);
+            }
+
+            await cache.UpsertCustomerBatchAsync([employee with
+            {
+                Metadata = new() { EmailAddress = new("", "directory"), Department = new("Operations", "directory") }
+            }], new HashSet<int>());
+            await using LocalCafeteriaDbContext final = factory.CreateDbContext();
+            Aegis.Cafeteria.Infrastructure.Persistence.Models.CustomerRow customer = await final.Customers.SingleAsync();
+            Assert.Equal(string.Empty, customer.EmailAddress);
+            Assert.Equal("Operations", customer.Department);
+            Assert.Equal("Manager", customer.Manager);
+            Assert.Equal("123", customer.Extension);
+        }
+        finally
+        {
+            SqliteTestDatabase.Delete(file);
+        }
+    }
+
+    [Fact]
     public async Task DelayedRefresh_CannotOverwriteNewerCreditPolicy_AndVersionSurvivesNewCacheInstance()
     {
         string file = SqliteTestDatabase.CreatePath("credit-policy-version");
@@ -112,3 +159,4 @@ public sealed class WorkforceReferenceCacheTests
         foreach (string forbidden in new[] { "TicketsAssigned", "TicketsRemaining", "CreditLimit", "AvailableBalance", "MonthlyCreditLimit", "SourceAvailableBalance" }) Assert.DoesNotContain(forbidden, names);
     }
 }
+
