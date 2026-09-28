@@ -182,7 +182,7 @@ public sealed class ManagementEventSyncWorker : BackgroundService
                 AdditionalCreditServiceEvent additionalCredit = JsonSerializer.Deserialize<AdditionalCreditServiceEvent>(envelope.PayloadJson)
                     ?? throw new InvalidOperationException("Invalid Additional Credit event payload.");
 
-                await UpdateAdditionalCreditLimitAsync(additionalCredit.CustomerId, additionalCredit.AdditionalCreditLimit, cancellationToken);
+                await UpdateAdditionalCreditLimitAsync(additionalCredit.CustomerId, additionalCredit.AdditionalCreditLimit, additionalCredit.CreditPolicyUpdatedAt, cancellationToken);
 
                 AdditionalCreditApproval approval = new
                 (
@@ -196,8 +196,13 @@ public sealed class ManagementEventSyncWorker : BackgroundService
 
                 await this.persistence.SaveAdditionalCreditApprovalAsync(approval, cancellationToken);
 
-                _ = await this.accountQuery.GetCurrentAsync(additionalCredit.CustomerId, cancellationToken)
+                Aegis.Cafeteria.Application.Reporting.CustomerAccountView account = await this.accountQuery.GetCurrentAsync(additionalCredit.CustomerId, cancellationToken)
                     ?? throw new InvalidOperationException("Employee is not available in the local Cafeteria cache.");
+                if (account.FinancialStatus.CreditShortfall > 0m)
+                {
+                    this.logger.LogWarning("Employee {CustomerId} has a credit shortfall of {Shortfall} after operation {OperationId}; further credit sales are blocked locally",
+                        additionalCredit.CustomerId, account.FinancialStatus.CreditShortfall, envelope.OperationId);
+                }
 
                 break;
             }
@@ -224,8 +229,13 @@ public sealed class ManagementEventSyncWorker : BackgroundService
 
                 await this.persistence.SaveStipendAsync(stipend, cancellationToken);
 
-                _ = await this.accountQuery.GetCurrentAsync(stipendEvent.CustomerId, cancellationToken)
+                Aegis.Cafeteria.Application.Reporting.CustomerAccountView account = await this.accountQuery.GetCurrentAsync(stipendEvent.CustomerId, cancellationToken)
                     ?? throw new InvalidOperationException("Employee is not available in the local Cafeteria cache.");
+                if (account.FinancialStatus.CreditShortfall > 0m)
+                {
+                    this.logger.LogWarning("Employee {CustomerId} has a credit shortfall of {Shortfall} after operation {OperationId}; further credit sales are blocked locally",
+                        stipendEvent.CustomerId, account.FinancialStatus.CreditShortfall, envelope.OperationId);
+                }
 
                 break;
             }
@@ -391,10 +401,13 @@ public sealed class ManagementEventSyncWorker : BackgroundService
     (
           int customerId
         , decimal limit
+        , DateTimeOffset? policyUpdatedAt
         , CancellationToken cancellationToken
     )
     {
         await using LocalCafeteriaDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
+
+        await using Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction transaction = await database.Database.BeginTransactionAsync(cancellationToken);
 
         CustomerRow customer = await database.Customers.SingleOrDefaultAsync
         (
@@ -403,16 +416,18 @@ public sealed class ManagementEventSyncWorker : BackgroundService
         )
             ?? throw new InvalidOperationException("Employee is not available in the local Cafeteria cache.");
 
-        if (customer.AdditionalCreditLimit == limit)
+        if (!CreditPolicyVersion.ShouldApply(policyUpdatedAt, customer.AdditionalCreditPolicyUpdatedAt))
         {
             return;
         }
 
         customer.AdditionalCreditLimit = limit;
+        customer.AdditionalCreditPolicyUpdatedAt = policyUpdatedAt;
         customer.Revision = DateTimeOffset.UtcNow.UtcDateTime.Ticks;
         customer.UpdatedAt = DateTimeOffset.UtcNow;
 
         await database.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private async Task<bool> IsProcessedAsync

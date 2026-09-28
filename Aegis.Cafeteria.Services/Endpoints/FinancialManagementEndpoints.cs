@@ -35,7 +35,8 @@ internal static class FinancialManagementEndpoints
         if (employee is null) return Results.NotFound("Employee was not found in FFP.");
         if (!employee.IsEligibleForCafeteriaCredit) return Results.BadRequest("Employee is not eligible for cafeteria credit.");
 
-        decimal? limit = await policies.GetAdditionalCreditLimitAsync(request.CustomerId, ct);
+        CustomerCreditPolicyRow? policy = await policies.GetPolicyAsync(request.CustomerId, ct);
+        decimal? limit = policy?.AdditionalCreditLimit;
         if (limit is null) return Results.Problem("No employee-specific Additional Credit Limit has been configured for this employee.", statusCode: 409);
 
         DateTimeOffset at = request.ApprovedAt ?? DateTimeOffset.Now;
@@ -46,7 +47,7 @@ internal static class FinancialManagementEndpoints
         try
         {
             var approval = additionalCredit.Approve(customer, period, existingApprovals, request.Amount, actor, at, request.Reason, request.OperationId);
-            AdditionalCreditServiceEvent payload = new(approval.Id, approval.CustomerId, approval.Amount, approval.ApprovedBy, approval.ApprovedAt, approval.Reason, limit.Value);
+            AdditionalCreditServiceEvent payload = new(approval.Id, approval.CustomerId, approval.Amount, approval.ApprovedBy, approval.ApprovedAt, approval.Reason, limit.Value, policy!.UpdatedAt);
             CafeteriaServiceEventEnvelope serviceEvent = await store.AppendAsync(approval.Id, CafeteriaServiceEventKind.AdditionalCredit, approval.CustomerId, approval.ApprovedAt, payload, ct);
             return Results.Created($"/api/events/{serviceEvent.Sequence}", serviceEvent);
         }

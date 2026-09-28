@@ -61,7 +61,8 @@ public sealed record CustomerFinancialStatusView(
     decimal CustomerResponsibility,
     decimal EmployeeAmountDue,
     decimal TotalRefunds,
-    decimal CurrentCreditSaleDebt = 0m)
+    decimal CurrentCreditSaleDebt = 0m,
+    decimal CreditShortfall = 0m)
 {
     public decimal TotalCreditLimit => CreditLimit + AdditionalCreditApproved + PriorPeriodRefundCredits;
 }

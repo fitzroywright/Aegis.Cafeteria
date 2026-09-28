@@ -63,6 +63,9 @@ public sealed class MainWindow : Window
     private readonly Button cashCustomerButton = new() { Content = "Cash Customer", MinWidth = 120 };
     private readonly TextBlock status = new() { Text = "Ready", VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock cacheStatus = new() { Text = "Employee cache: checking...", VerticalAlignment = VerticalAlignment.Center };
+    private readonly ProgressBar employeeRefreshProgress = new() { IsIndeterminate = true, IsVisible = false, Width = 120, Height = 14 };
+    private readonly Avalonia.Threading.DispatcherTimer employeeRefreshTimer = new() { Interval = TimeSpan.FromMilliseconds(500) };
+    private bool readingEmployeeProgress;
     private readonly Button refreshEmployeesButton = new() { Content = "Refresh reference data", MinWidth = 130 };
 
     private readonly Image photo = new() { Width = 140, Height = 140, Stretch = Avalonia.Media.Stretch.Uniform };
@@ -242,6 +245,15 @@ public sealed class MainWindow : Window
         refundButton.Click += async (_, _) => await RefundSelectedAsync();
         customerPaymentButton.Click += async (_, _) => await RecordCustomerPaymentAsync();
         clearButton.Click += (_, _) => ClearCustomer();
+        employeeRefreshTimer.Tick += async (_, _) =>
+        {
+            if (readingEmployeeProgress) return;
+            readingEmployeeProgress = true;
+            try { await UpdateCacheStatusAsync(); }
+            finally { readingEmployeeProgress = false; }
+        };
+        Opened += (_, _) => employeeRefreshTimer.Start();
+        Closed += (_, _) => employeeRefreshTimer.Stop();
         refreshEmployeesButton.Click += async (_, _) => await RefreshCustomersAsync();
         cacheTimer.Tick += async (_, _) => { await UpdateCacheStatusAsync(); await LoadRecentTransactionsAsync(); await LoadIdleDashboardAsync(); };
     }
@@ -289,6 +301,7 @@ public sealed class MainWindow : Window
         statusItems.Children.Add(operatorStatus);
         statusItems.Children.Add(status);
         statusItems.Children.Add(cacheStatus);
+        statusItems.Children.Add(employeeRefreshProgress);
         statusItems.Children.Add(refreshEmployeesButton);
         statusBar.Child = statusItems;
         Grid.SetRow(statusBar, 4);
@@ -730,7 +743,33 @@ public sealed class MainWindow : Window
     {
         try
         {
-            var cache = await employeeCacheStatusProvider.GetAsync();
+            var cache = await Task.Run(() => employeeCacheStatusProvider.GetAsync());
+            ReferenceRefreshRunStatus? run = services.GetService<ReferenceDataRefreshService>()?.BackgroundStatus;
+            employeeRefreshProgress.IsVisible = cache.RefreshInProgress || run?.Running == true;
+            refreshEmployeesButton.IsEnabled = !employeeRefreshProgress.IsVisible;
+            if (cache.RefreshInProgress)
+            {
+                cacheStatus.Text = $"Refreshing employees: {cache.RefreshedEmployeeCount:N0} saved • {cache.CompletedBatchCount:N0} batches";
+                cacheStatus.Foreground = Brushes.DodgerBlue;
+                return;
+            }
+            if (cache.LastError is not null)
+            {
+                cacheStatus.Text = $"Employee refresh failed: {cache.LastError}";
+                cacheStatus.Foreground = Brushes.Red;
+                return;
+            }
+            if (run?.Running == true)
+            {
+                cacheStatus.Text = run.Message;
+                return;
+            }
+            if (run is not null && run.Message != "Ready to refresh")
+            {
+                cacheStatus.Text = run.Message;
+                cacheStatus.Foreground = run.Message.StartsWith("Refresh failed") ? Brushes.Red : Brushes.Green;
+                return;
+            }
             var age = cache.Age(DateTimeOffset.UtcNow);
             if (cache.EmployeeCount == 0) cacheStatus.Text = "Employee cache: EMPTY";
             else if (!age.HasValue) cacheStatus.Text = $"Employee cache: {cache.EmployeeCount:N0} • age unknown";
@@ -755,27 +794,16 @@ public sealed class MainWindow : Window
         }
     }
 
-    private async Task RefreshCustomersAsync()
+    private Task RefreshCustomersAsync()
     {
-        var refresh = services.GetService<ReferenceDataRefreshService>();
-        if (refresh is null) return;
-        try
+        ReferenceDataRefreshService? refresh = services.GetService<ReferenceDataRefreshService>();
+        if (refresh is not null)
         {
+            refresh.StartBackgroundRefresh(DateOnly.FromDateTime(DateTime.Today));
+            cacheStatus.Text = "Starting background refresh...";
             refreshEmployeesButton.IsEnabled = false;
-            cacheStatus.Text = "Reference data: refreshing...";
-            await refresh.RefreshAsync(DateOnly.FromDateTime(DateTime.Today));
-            await LoadProductsAsync();
         }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Reference data refresh failed");
-            status.Text = $"Reference refresh failed: {ex.GetBaseException().Message}";
-        }
-        finally
-        {
-            refreshEmployeesButton.IsEnabled = true;
-            await UpdateCacheStatusAsync();
-        }
+        return Task.CompletedTask;
     }
 
     private async Task SearchNamesAsync()
@@ -918,11 +946,20 @@ public sealed class MainWindow : Window
             creditLimit.Text = Money(account.FinancialStatus.CreditLimit);
             subsidyRemaining.Text = Money(account.FinancialStatus.SubsidyAmountRemaining);
             nonSubsidyRemaining.Text = Money(account.FinancialStatus.NonSubsidyAmountRemaining);
-            available.Text = Money(account.FinancialStatus.TotalAvailableToSpend);
+            available.Text = Money(Math.Max(0m, account.FinancialStatus.TotalAvailableToSpend));
             carriedDebt.Text = Money(account.FinancialStatus.CarriedForwardDebt);
             customerLiability.Text = Money(account.FinancialStatus.GrossCustomerLiability);
             customerPaymentsValue.Text = Money(account.FinancialStatus.CustomerPayments);
             employeeAmountDue.Text = Money(account.FinancialStatus.EmployeeAmountDue);
+            if (account.FinancialStatus.CreditShortfall > 0m)
+            {
+                fundingStatus.Text = $"Credit shortfall {Money(account.FinancialStatus.CreditShortfall)} • Cash purchases only";
+                fundingStatus.Foreground = Brushes.Red;
+            }
+            else
+            {
+                fundingStatus.Foreground = Brushes.Green;
+            }
         }
         transactions.ItemsSource = account.Transactions.Select(x => new TransactionRow(x)).ToArray();
         SetPhoto(account.Customer.Photo);
@@ -1082,7 +1119,7 @@ public sealed class MainWindow : Window
             try
             {
                 var refreshed = await identification.LoadAsync(customerId);
-                if (refreshed is not null) ShowCustomer(refreshed);
+                if (refreshed is not null) ShowCustomer(refreshed with { Identification = currentCustomer?.Identification });
             }
             catch (Exception ex)
             {
