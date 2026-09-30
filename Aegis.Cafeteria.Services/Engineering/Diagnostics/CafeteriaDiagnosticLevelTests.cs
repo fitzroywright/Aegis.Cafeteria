@@ -333,22 +333,51 @@ public sealed class CafeteriaLedgerDiagnosticLevelTest(
 }
 
 public sealed class CafeteriaMessagingDiagnosticLevelTest(
-    IConfiguration configuration) : IDiagnosticLevelLocalTest
+    IConfiguration configuration,
+    IEnumerable<Common.Messaging.IExternalMessageChannel> channels) : IDiagnosticLevelLocalTest
 {
     public string TestId => CafeteriaDiagnosticIds.Messaging;
-    public string Name => "Messaging configuration";
+    public string Name => "Common.Messaging provider verification";
     public string Owner => CafeteriaDiagnosticModules.Services;
-    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level4Analysis;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level3Verification;
     public bool IsDestructive => false;
 
-    public Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
     {
         EmailDeliveryOptions options = configuration.GetSection("EmailDelivery").Get<EmailDeliveryOptions>() ?? new();
         string? error = options.ConfigurationError();
-        return Task.FromResult(error is null
-            ? EngineeringDiagnosticPolicy.Passed(TestId, Name,
-                "Common.Messaging Microsoft Graph email settings are present; this check does not prove delivery.")
-            : EngineeringDiagnosticPolicy.Warning(TestId, Name, error));
+        if (error is not null)
+        {
+            return options.Enabled
+                ? EngineeringDiagnosticPolicy.Failed(TestId, Name, error)
+                : EngineeringDiagnosticPolicy.Warning(TestId, Name, error);
+        }
+
+        Common.Messaging.IExternalMessageChannelDiagnostic? diagnostic = channels
+            .OfType<Common.Messaging.IExternalMessageChannelDiagnostic>()
+            .FirstOrDefault(channel => channel.Channel == Common.Messaging.MessageChannel.MsEmail);
+
+        if (diagnostic is null)
+        {
+            return EngineeringDiagnosticPolicy.Failed(
+                TestId,
+                Name,
+                "Microsoft Graph email is configured but the Common.Messaging channel does not expose live provider verification.");
+        }
+
+        Common.Messaging.MessagingProviderHealth result = await diagnostic.VerifyAsync(cancellationToken).ConfigureAwait(false);
+        string evidence = $"Provider={result.Provider}; Configured={result.Configured}; Reachable={result.Reachable}; State={result.State}; LatencyMs={result.Latency?.TotalMilliseconds:F0}; Reason={result.Reason ?? "none"}";
+        return result.Configured && result.Reachable
+            ? EngineeringDiagnosticPolicy.Passed(
+                TestId,
+                Name,
+                "Common.Messaging authenticated successfully and the configured Microsoft Graph sender mailbox is accessible.",
+                evidence)
+            : EngineeringDiagnosticPolicy.Failed(
+                TestId,
+                Name,
+                "Common.Messaging Microsoft Graph provider verification failed.",
+                evidence);
     }
 }
 
