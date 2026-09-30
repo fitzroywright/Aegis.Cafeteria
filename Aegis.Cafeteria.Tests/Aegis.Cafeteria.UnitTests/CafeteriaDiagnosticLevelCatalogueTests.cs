@@ -68,7 +68,7 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
 
     [Theory]
     [InlineData(EngineeringDiagnosticLevel.Level5Scan, 6)]
-    [InlineData(EngineeringDiagnosticLevel.Level4Analysis, 15)]
+    [InlineData(EngineeringDiagnosticLevel.Level4Analysis, 14)]
     [InlineData(EngineeringDiagnosticLevel.Level3Verification, 16)]
     [InlineData(EngineeringDiagnosticLevel.Level2Repair, 17)]
     [InlineData(EngineeringDiagnosticLevel.Level1CriticalIntervention, 18)]
