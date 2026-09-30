@@ -73,7 +73,7 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
     [InlineData(EngineeringDiagnosticLevel.Level3Verification, 16)]
     [InlineData(EngineeringDiagnosticLevel.Level2Repair, 17)]
     [InlineData(EngineeringDiagnosticLevel.Level1CriticalIntervention, 18)]
-    public void Starfleet_levels_are_cumulative(EngineeringDiagnosticLevel requested, int expectedCafeteriaTests)
+    public void Diagnostic_levels_are_cumulative(EngineeringDiagnosticLevel requested, int expectedCafeteriaTests)
     {
         IDiagnosticLevelLocalTest[] selected = Catalogue()
             .Where(x => (int)x.Level >= (int)requested)
