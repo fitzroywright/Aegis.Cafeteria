@@ -365,7 +365,7 @@ public sealed class CafeteriaMessagingDiagnosticLevelTest(
                 "Microsoft Graph email is configured but the Common.Messaging channel does not expose live provider verification.");
         }
 
-        Common.Messaging.MessagingProviderHealth result = await diagnostic.VerifyAsync(cancellationToken).ConfigureAwait(false);
+        Common.Messaging.MessagingProviderHealth result = await diagnostic.VerifyProviderAsync(cancellationToken).ConfigureAwait(false);
         string evidence = $"Provider={result.Provider}; Configured={result.Configured}; Reachable={result.Reachable}; State={result.State}; LatencyMs={result.Latency?.TotalMilliseconds:F0}; Reason={result.Reason ?? "none"}";
         return result.Configured && result.Reachable
             ? EngineeringDiagnosticPolicy.Passed(
