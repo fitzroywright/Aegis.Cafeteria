@@ -18,7 +18,7 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
         new CafeteriaSecretsCredentialDiagnosticLevelTest(null!, null!),
         new CafeteriaPublicationQueueDiagnosticLevelTest(null!),
         new CafeteriaLedgerDiagnosticLevelTest(null!),
-        new CafeteriaMessagingDiagnosticLevelTest(null!),
+        new CafeteriaMessagingDiagnosticLevelTest(null!, null!),
         new CafeteriaFundingPolicyDiagnosticLevelTest(null!),
         new CafeteriaCustomerLookupDiagnosticLevelTest(null!),
         new CafeteriaRecoveryReadinessDiagnosticLevelTest(null!),
