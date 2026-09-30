@@ -1,6 +1,7 @@
 using Aegis.Cafeteria.Services.Engineering.Diagnostics;
 using Common.Diagnostics;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Aegis.Cafeteria.UnitTests;
 
@@ -158,8 +159,11 @@ public sealed class CafeteriaDiagnosticLevelCatalogueTests
     {
         var store = new CapturingRunStore();
         var test = new BlockingDiagnosticTest();
+        using ServiceProvider serviceProvider = new ServiceCollection()
+            .AddSingleton<IDiagnosticLevelLocalTest>(test)
+            .BuildServiceProvider();
         var service = new DiagnosticLevelExecutionService(
-            [test],
+            serviceProvider.GetRequiredService<IServiceScopeFactory>(),
             store,
             new DiagnosticLevelExecutionOptions
             {
