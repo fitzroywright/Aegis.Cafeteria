@@ -4,6 +4,9 @@ using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Services.Email;
+using Aegis.Cafeteria.Services.Messaging;
+using Common.Messaging.Channels.WhatsApp;
+using Common.Messaging.Hosting;
 using Aegis.Cafeteria.Services.Persistence;
 using Aegis.Cafeteria.Services.Reporting;
 using Aegis.Cafeteria.Services.Realtime;
@@ -35,11 +38,34 @@ internal static class CafeteriaServicesHost
         IntegrationPluginLoader.Register(builder);
         RegisterDiagnosticLevel(builder);
         builder.Services.AddCafeteriaEmailDelivery(builder.Configuration);
+        RegisterWhatsAppDelivery(builder);
         RegisterIntegrationGateways(builder.Services);
         RegisterApplicationServices(builder.Services, serviceDb);
         ConfigureDevelopmentServices(builder);
         ConfigureAuthentication(builder, management);
         RegisterWorkers(builder.Services);
+    }
+
+    private static void RegisterWhatsAppDelivery(WebApplicationBuilder builder)
+    {
+        CafeteriaWhatsAppOptions options =
+            builder.Configuration.GetSection("Messaging:WhatsApp").Get<CafeteriaWhatsAppOptions>()
+            ?? new CafeteriaWhatsAppOptions();
+
+        builder.Services.AddCommonMessagingSecrets();
+        builder.Services.AddSingleton(options);
+        builder.Services.AddSingleton<IExternalMessageChannel>(provider =>
+            new WhatsAppMessageChannel(
+                new HttpClient(),
+                new WhatsAppMessageOptions
+                {
+                    Enabled = options.Enabled,
+                    GraphApiVersion = options.GraphApiVersion,
+                    PhoneNumberId = options.PhoneNumberId,
+                    AccessTokenSecretName = options.AccessTokenSecretName
+                },
+                provider.GetRequiredService<IChannelSecretResolver>()));
+        builder.Services.AddSingleton<CafeteriaWhatsAppSender>();
     }
 
     private static void RegisterDiagnosticLevel(WebApplicationBuilder builder)
