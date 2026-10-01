@@ -14,6 +14,7 @@ using Aegis.Cafeteria.Services.Workers;
 using Aegis.Cafeteria.Services.Engineering.Diagnostics;
 using Aegis.Engineering.Diagnostics;
 using Common.Diagnostics;
+using Common.Messaging;
 using Common.Registration;
 using Common.Secrets;
 using Microsoft.AspNetCore.Authentication.Negotiate;
