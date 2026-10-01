@@ -34,6 +34,7 @@ internal static class CafeteriaDiagnosticIds
     internal const string WorkforceSource = "CAFETERIA.SERVICES.WORKFORCE-SOURCE";
     internal const string HolidaySource = "CAFETERIA.SERVICES.HOLIDAY-SOURCE";
     internal const string SecretsCredential = "CAFETERIA.SERVICES.SECRETS.CREDENTIAL";
+    internal const string RequiredSecrets = "CAFETERIA.SERVICES.SECRETS.REQUIRED";
     internal const string PublicationQueue = "CAFETERIA.SERVICES.PUBLICATION-QUEUE";
     internal const string CafeteriaLedger = "CAFETERIA.SERVICES.CAFETERIA-LEDGER";
     internal const string Messaging = "CAFETERIA.SERVICES.MESSAGING";
@@ -264,6 +265,77 @@ public sealed class CafeteriaSecretsCredentialDiagnosticLevelTest(
         {
             return EngineeringDiagnosticPolicy.Failed(TestId, Name, "DiagnosticLevel request credential could not be resolved.", exception.GetType().Name);
         }
+    }
+}
+
+public sealed class CafeteriaRequiredSecretsDiagnosticLevelTest(
+    ISecretProvider secrets,
+    IConfiguration configuration) : IDiagnosticLevelLocalTest
+{
+    public string TestId => CafeteriaDiagnosticIds.RequiredSecrets;
+    public string Name => "Required secret availability";
+    public string Owner => CafeteriaDiagnosticModules.Services;
+    public EngineeringDiagnosticLevel Level => EngineeringDiagnosticLevel.Level5Scan;
+    public bool IsDestructive => false;
+
+    public async Task<EngineeringDiagnosticCheckResult> RunAsync(CancellationToken cancellationToken)
+    {
+        var required = new List<(string Label, string SecretName)>();
+
+        string? diagnosticCredentialName =
+            configuration["Aegis:Diagnostics:RequestCredentialSecretName"]?.Trim();
+        if (!string.IsNullOrWhiteSpace(diagnosticCredentialName))
+        {
+            required.Add(("Diagnostics request credential", diagnosticCredentialName));
+        }
+
+        EmailDeliveryOptions email =
+            configuration.GetSection("EmailDelivery").Get<EmailDeliveryOptions>() ?? new();
+        if (email.Enabled)
+        {
+            required.Add((
+                "Common.Messaging Microsoft Graph client secret",
+                string.IsNullOrWhiteSpace(email.ClientSecretName)
+                    ? "messaging/msgraph/client-secret"
+                    : email.ClientSecretName.Trim()));
+        }
+
+        if (required.Count == 0)
+        {
+            return EngineeringDiagnosticPolicy.Warning(
+                TestId,
+                Name,
+                "No Common.Secrets-backed credentials are currently required by the configured Cafeteria Services features.");
+        }
+
+        var missing = new List<string>();
+        foreach ((string label, string secretName) in required)
+        {
+            try
+            {
+                string? value = await secrets.GetAsync(secretName, cancellationToken);
+                if (string.IsNullOrWhiteSpace(value))
+                {
+                    missing.Add(label);
+                }
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            {
+                missing.Add($"{label}:resolve-{exception.GetType().Name}");
+            }
+        }
+
+        return missing.Count == 0
+            ? EngineeringDiagnosticPolicy.Passed(
+                TestId,
+                Name,
+                "All currently required Cafeteria Services secrets resolve through Common.Secrets.",
+                $"Checked={required.Count}; SecretValuesExposed=false")
+            : EngineeringDiagnosticPolicy.Failed(
+                TestId,
+                Name,
+                "One or more currently required Cafeteria Services secrets cannot be resolved through Common.Secrets.",
+                $"MissingOrUnreadable={string.Join(",", missing)}; Checked={required.Count}; SecretValuesExposed=false");
     }
 }
 
