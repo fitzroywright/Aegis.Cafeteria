@@ -102,6 +102,7 @@ internal static class CafeteriaServicesHost
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaWorkforceSourceDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaHolidaySourceDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaSecretsCredentialDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaRequiredSecretsDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaPublicationQueueDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaLedgerDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaMessagingDiagnosticLevelTest>();
