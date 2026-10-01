@@ -61,5 +61,13 @@
     "ClientId": "",
     "SenderUpn": "",
     "ClientSecretName": "messaging/msgraph/client-secret"
+  },
+  "Messaging": {
+    "WhatsApp": {
+      "Enabled": false,
+      "GraphApiVersion": "v23.0",
+      "PhoneNumberId": "",
+      "AccessTokenSecretName": "messaging/whatsapp/access-token"
+    }
   }
 }
