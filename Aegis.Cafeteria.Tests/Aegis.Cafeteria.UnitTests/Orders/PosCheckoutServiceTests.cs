@@ -59,6 +59,61 @@ public sealed class PosCheckoutServiceTests
     }
 
     [Fact]
+    public async Task CompleteAsync_AllowsEmployeeCreditWhenAllocationHasNoAvailableBalance()
+    {
+        FakeStore store = new();
+        PosCheckoutService service = new(store);
+        CustomerAccountView view = View(available: 0m);
+
+        Order order = await service.CompleteAsync(new PosCheckoutRequest(
+            view,
+            [new PosOrderLine(1, "Lunch", 1_000m, 1)],
+            CafeteriaAccountAmount: 0m,
+            CashAmount: 0m,
+            CreditAmount: 1_000m,
+            CashierUserId: "fwright",
+            TerminalId: "CAFETERIA-POS"));
+
+        Assert.Equal(0m, order.CafeteriaAccountPaid);
+        Assert.Equal(0m, order.CashPaid);
+        Assert.Equal(1_000m, order.CreditPaid);
+        Assert.Same(order, store.SavedOrder);
+    }
+
+    [Fact]
+    public async Task CompleteAsync_CreditShortfallBlocksEmployeeCardButNotEmployeeCredit()
+    {
+        FakeStore store = new();
+        PosCheckoutService service = new(store);
+        CustomerAccountView view = View(available: 0m) with
+        {
+            FinancialStatus = View(available: 0m).FinancialStatus with { CreditShortfall = 250m }
+        };
+
+        Order creditOrder = await service.CompleteAsync(new PosCheckoutRequest(
+            view,
+            [new PosOrderLine(1, "Lunch", 1_000m, 1)],
+            CafeteriaAccountAmount: 0m,
+            CashAmount: 0m,
+            CreditAmount: 1_000m,
+            CashierUserId: "fwright",
+            TerminalId: "CAFETERIA-POS"));
+
+        Assert.Equal(1_000m, creditOrder.CreditPaid);
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CompleteAsync(new PosCheckoutRequest(
+            view,
+            [new PosOrderLine(1, "Lunch", 1_000m, 1)],
+            CafeteriaAccountAmount: 1m,
+            CashAmount: 999m,
+            CreditAmount: 0m,
+            CashierUserId: "fwright",
+            TerminalId: "CAFETERIA-POS")));
+
+        Assert.Contains("Employee Card", exception.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task CompleteAsync_RejectsCreditSaleForCashCustomer()
     {
         PosCheckoutService service = new(new FakeStore());
