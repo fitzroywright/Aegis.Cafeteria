@@ -1,6 +1,7 @@
 namespace Aegis.Cafeteria.UnitTests.Orders;
 
 using Aegis.Cafeteria.Application.Orders;
+using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Reporting;
 
 public sealed class TenderCustomerPolicyTests
