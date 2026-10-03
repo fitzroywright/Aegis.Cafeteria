@@ -40,6 +40,7 @@ internal static class CafeteriaServicesHost
         RegisterDiagnosticLevel(builder);
         builder.Services.AddCafeteriaEmailDelivery(builder.Configuration);
         RegisterWhatsAppDelivery(builder);
+        builder.Services.AddCommonMessagingDiagnostics();
         RegisterIntegrationGateways(builder.Services);
         RegisterApplicationServices(builder.Services, serviceDb);
         ConfigureDevelopmentServices(builder);
