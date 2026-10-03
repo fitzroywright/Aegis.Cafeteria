@@ -16,15 +16,16 @@ public static class TenderCustomerPolicy
     {
         ArgumentNullException.ThrowIfNull(account);
 
-        bool allowed = !account.Customer.IsCashCustomer && account.Customer.IsEligibleForCredit
+        bool employeeTenderAllowed = !account.Customer.IsCashCustomer && account.Customer.IsEligibleForCredit;
+        bool cafeteriaAccountAllowed = employeeTenderAllowed
             && account.FinancialStatus.CreditShortfall == 0m;
 
         return new TenderCustomerContext
         (
-              CafeteriaAccountAllowed: allowed
-            , CreditSalesAllowed: allowed
-            , AvailableToSpend: allowed ? Math.Max(0m, account.FinancialStatus.TotalAvailableToSpend) : 0m
-            , SubsidyRemaining: allowed ? Math.Max(0m, account.FinancialStatus.SubsidyAmountRemaining) : 0m
+              CafeteriaAccountAllowed: cafeteriaAccountAllowed
+            , CreditSalesAllowed: employeeTenderAllowed
+            , AvailableToSpend: cafeteriaAccountAllowed ? Math.Max(0m, account.FinancialStatus.TotalAvailableToSpend) : 0m
+            , SubsidyRemaining: cafeteriaAccountAllowed ? Math.Max(0m, account.FinancialStatus.SubsidyAmountRemaining) : 0m
         );
     }
 }
