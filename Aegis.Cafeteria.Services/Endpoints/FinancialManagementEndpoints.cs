@@ -58,8 +58,8 @@ internal static class FinancialManagementEndpoints
 
     private static async Task<IResult> ProcessStipendAsync(StipendRequest request, HttpContext http, ServiceEventStore store, IWorkforceReferenceSource workforce, StipendAccountSnapshotFactory accountFactory, StipendService stipendService, CancellationToken ct)
     {
-        if (request.CustomerId <= 0 || request.CashAmount <= 0m || request.CardReductionAmount < 0m)
-            return Results.BadRequest("Employee and valid cash/card-reduction amounts are required.");
+        if (request.CustomerId <= 0 || request.CashAmount <= 0m)
+            return Results.BadRequest("Employee and a positive stipend deduction amount are required.");
 
         if (request.OperationId is Guid requestedId)
         {
@@ -87,8 +87,6 @@ internal static class FinancialManagementEndpoints
             CustomerAccountSnapshot account = await accountFactory.BuildAsync(request.CustomerId, fundingYear, fundingMonth, ct);
             Customer customer = new(employee.CustomerId, employee.Name, employee.Photo, true, 0m);
             Stipend stipend = stipendService.Process(customer, account, request.CashAmount, request.PaymentMode, actor, processedAt, request.ExpenseReportReference, request.Notes, fundingYear, fundingMonth);
-            if (request.CardReductionAmount != stipend.CardReduction)
-                return Results.BadRequest($"Card reduction must be {stipend.CardReduction:N2} for the employee's selected funding-period subsidy and cafeteria balance.");
 
             Guid operationId = request.OperationId.GetValueOrDefault(Guid.NewGuid());
             StipendServiceEvent payload = new(operationId, request.CustomerId, stipend.CashAmount, stipend.CardReduction, stipend.PaymentMode, actor, stipend.ProcessedAt, stipend.ExpenseReportReference, stipend.Notes, stipend.FundingYear, stipend.FundingMonth);
