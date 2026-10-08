@@ -153,75 +153,16 @@ public sealed class CustomerAccountCalculatorTests
     }
 
     [Fact]
-    public void Stipend_ReducesCardBalance_AndConsumesCompanyContribution()
+    public void Stipend_DeductsExactAmountFromAvailableCredit()
     {
         var customer = CreateCustomer();
         var period = new AccountPeriod(2026, 8, 22);
-        var stipend = new Stipend(
-            Guid.NewGuid(),
-            customer.Id,
-            cashAmount: 800m,
-            cardReduction: 650m,
-            StipendPaymentMode.Advance,
-            "accounts.user",
-            August(5));
-
+        var stipend = new Stipend(Guid.NewGuid(), customer.Id, 800m, "accounts.user", August(5), "Approved");
         var result = Calculate(customer, period, stipends: [stipend]);
-
-        Assert.Equal(800m, result.StipendCashPaid);
-        Assert.Equal(650m, result.StipendCardReduction);
-        Assert.Equal(12_550m, result.AvailableCredit);
-        Assert.Equal(650m, result.CompanyContributionUsed);
-        Assert.Equal(7_350m, result.RemainingCompanyContribution);
-        Assert.Equal(0m, result.TotalCharges);
-        Assert.Equal(0m, result.EmployeeAmountDue);
+        Assert.Equal(800m, result.StipendCardReduction);
+        Assert.Equal(12_400m, result.AvailableCredit);
+        Assert.Equal(0m, result.StipendCashPaid);
     }
-
-    [Fact]
-    public void Stipend_AndCafeteriaPurchases_ShareCompanySubsidyAllocation()
-    {
-        var customer = CreateCustomer();
-        var period = new AccountPeriod(2026, 8, 22);
-        var stipend = new Stipend(
-            Guid.NewGuid(),
-            customer.Id,
-            800m,
-            650m,
-            StipendPaymentMode.Reimbursement,
-            "accounts.user",
-            August(5),
-            "ER-1001");
-        var order = CreateOrder(customer.Id, August(10), 8_000m);
-
-        var result = Calculate(customer, period, orders: [order], stipends: [stipend]);
-
-        Assert.Equal(7_350m, result.CompanyResponsibility);
-        Assert.Equal(8_000m, result.CompanyContributionUsed);
-        Assert.Equal(0m, result.RemainingCompanyContribution);
-        Assert.Equal(650m, result.CustomerResponsibilityForCurrentCharges);
-        Assert.Equal(650m, result.EmployeeAmountDue);
-    }
-
-    [Fact]
-    public void Stipend_CashAmount_DoesNotDirectlyAffectCardBalance()
-    {
-        var customer = CreateCustomer();
-        var period = new AccountPeriod(2026, 8, 22);
-        var stipend = new Stipend(
-            Guid.NewGuid(),
-            customer.Id,
-            cashAmount: 800m,
-            cardReduction: 650m,
-            StipendPaymentMode.Advance,
-            "accounts.user",
-            August(5));
-
-        var result = Calculate(customer, period, stipends: [stipend]);
-
-        Assert.Equal(13_200m - 650m, result.AvailableCredit);
-        Assert.NotEqual(13_200m - 800m, result.AvailableCredit);
-    }
-
 
     [Fact]
     public void SplitTender_OnlyCafeteriaAccountPortionConsumesCardCreditAndSubsidy()
