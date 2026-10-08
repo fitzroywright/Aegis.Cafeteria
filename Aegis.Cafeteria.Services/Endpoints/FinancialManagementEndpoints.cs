@@ -86,10 +86,10 @@ internal static class FinancialManagementEndpoints
         {
             CustomerAccountSnapshot account = await accountFactory.BuildAsync(request.CustomerId, fundingYear, fundingMonth, ct);
             Customer customer = new(employee.CustomerId, employee.Name, employee.Photo, true, 0m);
-            Stipend stipend = stipendService.Process(customer, account, request.Amount, StipendPaymentMode.Advance, actor, processedAt, null, request.Reason, fundingYear, fundingMonth);
+            Stipend stipend = stipendService.Process(customer, account, request.Amount, actor, processedAt, request.Reason, request.OperationId);
 
             Guid operationId = request.OperationId;
-            StipendServiceEvent payload = new(operationId, request.CustomerId, stipend.CashAmount, stipend.CardReduction, stipend.PaymentMode, actor, stipend.ProcessedAt, stipend.ExpenseReportReference, stipend.Notes, stipend.FundingYear, stipend.FundingMonth);
+            StipendServiceEvent payload = new(operationId, request.CustomerId, stipend.Amount, actor, stipend.ProcessedAt, stipend.Reason);
             CafeteriaServiceEventEnvelope serviceEvent = await store.AppendAsync(operationId, CafeteriaServiceEventKind.Stipend, request.CustomerId, processedAt, payload, ct);
             return Results.Created($"/api/events/{serviceEvent.Sequence}", serviceEvent);
         }
