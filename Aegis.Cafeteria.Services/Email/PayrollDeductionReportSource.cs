@@ -199,7 +199,7 @@ public sealed class PayrollDeductionReportSource
     {
         ArgumentNullException.ThrowIfNull(report);
         StringBuilder text = new();
-        text.AppendLine("Employee ID,Employee Code,Employee Name,Department,Monthly Credit Limit,Subsidy Allocation,Cafeteria Purchases,Cafeteria Refunds,Stipend Card Reduction,Company Responsibility,Employee Responsibility,Customer Payments,Employee Amount Due");
+        text.AppendLine("Employee ID,Employee Code,Employee Name,Department,Monthly Credit Limit,Subsidy Allocation,Cafeteria Purchases,Cafeteria Refunds,Stipend Deduction,Company Responsibility,Employee Responsibility,Customer Payments,Employee Amount Due");
 
         foreach (PayrollDeductionDetailRow row in report.Details)
         {

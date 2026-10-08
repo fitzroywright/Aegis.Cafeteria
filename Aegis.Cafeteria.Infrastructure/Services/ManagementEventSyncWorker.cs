@@ -212,20 +212,9 @@ public sealed class ManagementEventSyncWorker : BackgroundService
                 StipendServiceEvent stipendEvent = JsonSerializer.Deserialize<StipendServiceEvent>(envelope.PayloadJson)
                     ?? throw new InvalidOperationException("Invalid Stipend event payload.");
 
-                Stipend stipend = new
-                (
-                      stipendEvent.OperationId
-                    , stipendEvent.CustomerId
-                    , stipendEvent.CashAmount
-                    , stipendEvent.CardReductionAmount
-                    , stipendEvent.PaymentMode
-                    , stipendEvent.ProcessedBy
-                    , stipendEvent.ProcessedAt
-                    , stipendEvent.ExpenseReportReference
-                    , stipendEvent.Notes
-                    , stipendEvent.FundingYear
-                    , stipendEvent.FundingMonth
-                );
+                Stipend stipend = new(
+                    stipendEvent.OperationId, stipendEvent.CustomerId, stipendEvent.Amount,
+                    stipendEvent.ProcessedBy, stipendEvent.ProcessedAt, stipendEvent.Reason);
 
                 await this.persistence.SaveStipendAsync(stipend, cancellationToken);
 

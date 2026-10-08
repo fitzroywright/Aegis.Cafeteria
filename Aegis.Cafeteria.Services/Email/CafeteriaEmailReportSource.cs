@@ -133,7 +133,7 @@ public sealed class CafeteriaEmailReportSource(
             ExternalLedgerEntryKind.Refund => "Cafeteria Refund",
             ExternalLedgerEntryKind.CustomerPayment => "Customer Payment",
             ExternalLedgerEntryKind.AdditionalCredit => "Additional Credit",
-            ExternalLedgerEntryKind.StipendCardReduction => "Stipend Card Reduction",
+            ExternalLedgerEntryKind.StipendCardReduction => "Stipend Deduction",
             ExternalLedgerEntryKind.Adjustment => "Adjustment",
             _ => kind.ToString()
         };

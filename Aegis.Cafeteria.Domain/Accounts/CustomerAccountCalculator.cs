@@ -45,11 +45,9 @@ public sealed class CustomerAccountCalculator
         Stipend[] periodStipends = stipends
             .Where(x => x.CustomerId == customer.Id && period.Contains(x.ProcessedAt))
             .ToArray();
-        decimal stipendCashPaid = periodStipends.Sum(x => x.CashAmount);
-        decimal stipendCardReduction = periodStipends.Sum(x => x.CardReduction);
+        decimal stipendCashPaid = 0m;
+        decimal stipendCardReduction = periodStipends.Sum(x => x.Amount);
 
-        if (stipendCardReduction > subsidyLimit)
-            throw new InvalidOperationException("Stipend card reductions cannot exceed the period subsidy allocation.");
 
         decimal baseCreditAvailableForCurrentPurchases = Math.Max(0m, baseMonthlyCredit - settlementAmount - stipendCardReduction - carriedDebt);
         decimal remainingCompanyContribution = Math.Max(0m, subsidyLimit - stipendCardReduction);
