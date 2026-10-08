@@ -48,7 +48,7 @@ public sealed class EfCafeteriaPersistenceStore(LocalPersistenceStore store) : I
     public Task SaveCarriedForwardDebtAsync(CarriedForwardDebt x,CancellationToken ct=default) => SaveEvent(x.Id,"CarriedForwardDebt",x.CustomerId,x.AppliedYear,x.AppliedMonth,x.Amount,x.RecordedAt,x,ct);
     public Task SavePriorPeriodOutstandingSettlementAsync(PriorPeriodOutstandingSettlement x,CancellationToken ct=default) => SaveEvent(x.Id,"PriorPeriodOutstandingSettlement",x.CustomerId,x.SettlementYear,x.SettlementMonth,x.Amount,x.ApprovedAt,x,ct);
     public Task SavePriorPeriodRefundCreditAsync(PriorPeriodRefundCredit x,CancellationToken ct=default) => SaveEvent(x.Id,"PriorPeriodRefundCredit",x.CustomerId,x.AppliedYear,x.AppliedMonth,x.CafeteriaAccountAmount,x.RecordedAt,x,ct);
-    public Task SaveStipendAsync(Stipend x,CancellationToken ct=default) => SaveEvent(x.Id,"Stipend",x.CustomerId,x.ProcessedAt.Year,x.ProcessedAt.Month,x.CardReduction,x.ProcessedAt,x,ct);
+    public Task SaveStipendAsync(Stipend x,CancellationToken ct=default) => SaveEvent(x.Id,"Stipend",x.CustomerId,x.ProcessedAt.Year,x.ProcessedAt.Month,x.Amount,x.ProcessedAt,x,ct);
 
     public async Task<MonthlyCreditAllocation?> GetAsync(int customerId, int year, int month, CancellationToken ct=default)
     {
