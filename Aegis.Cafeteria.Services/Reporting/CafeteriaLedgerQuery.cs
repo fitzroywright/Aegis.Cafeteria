@@ -136,7 +136,7 @@ public sealed class CafeteriaLedgerQuery(
             ?? throw new InvalidOperationException(
                 $"Invalid Stipend payload for operation {row.OperationId}.");
 
-        if (value.CardReductionAmount <= 0m)
+        if (value.Amount <= 0m)
             return null;
 
         return new CafeteriaLedgerLine(
@@ -144,8 +144,8 @@ public sealed class CafeteriaLedgerQuery(
             value.CustomerId,
             ExternalLedgerEntryKind.StipendCardReduction,
             value.ProcessedAt,
-            value.CardReductionAmount,
-            "Stipend Card Reduction",
+            value.Amount,
+            string.IsNullOrWhiteSpace(value.Reason) ? "Stipend Deduction" : "Stipend Deduction - " + value.Reason,
             value.ProcessedBy);
     }
 
