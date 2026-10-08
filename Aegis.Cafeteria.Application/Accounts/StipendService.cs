@@ -33,8 +33,12 @@ public sealed class StipendService
         if (cashAmount <= 0)
             throw new ArgumentOutOfRangeException(nameof(cashAmount));
 
-        decimal cardReduction = Math.Min(cashAmount, account.RemainingCompanyContribution);
-        cardReduction = Math.Min(cardReduction, account.AvailableCredit);
+        // A stipend is an exact debit against available cafeteria credit, never a cash reimbursement.
+        // Reject the entire operation if it would overdraw the employee account.
+        if (cashAmount > account.AvailableCredit)
+            throw new InvalidOperationException("Insufficient available cafeteria credit for the requested stipend deduction.");
+
+        decimal cardReduction = cashAmount;
 
         return new Stipend(
             Guid.NewGuid(),
