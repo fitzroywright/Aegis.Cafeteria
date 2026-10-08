@@ -14,6 +14,7 @@ internal sealed record StipendDebitRequest(int CustomerId, decimal Amount, strin
 
 internal static class FinancialManagementEndpoints
 {
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, SemaphoreSlim> StipendLocks = new();
     internal static void Map(WebApplication app)
     {
         app.MapPost("/api/management/additional-credit", ApproveAdditionalCreditAsync).RequireAuthorization("CafeteriaManagement");
@@ -64,8 +65,7 @@ internal static class FinancialManagementEndpoints
             return Results.BadRequest("Employee and a positive stipend deduction amount are required.");
 
         if (request.OperationId == Guid.Empty) return Results.BadRequest("OperationId is required.");
-        CafeteriaServiceEventEnvelope? existing = await store.GetByOperationAsync(request.OperationId, ct);
-        if (existing is not null) return Results.Ok(existing);
+
 
         ExternalCustomerSnapshot? employee = (await workforce.GetCustomersAsync(ct)).SingleOrDefault(candidate => candidate.CustomerId == request.CustomerId);
         if (employee is null) return Results.NotFound("Employee was not found in FFP.");
@@ -76,7 +76,13 @@ internal static class FinancialManagementEndpoints
         int fundingYear = processedAt.Year;
         int fundingMonth = processedAt.Month;
 
+        SemaphoreSlim employeeLock = StipendLocks.GetOrAdd(request.CustomerId, _ => new SemaphoreSlim(1, 1));
+        await employeeLock.WaitAsync(ct);
         try
+        {
+            CafeteriaServiceEventEnvelope? existing = await store.GetByOperationAsync(request.OperationId, ct);
+            if (existing is not null) return Results.Ok(existing);
+            try
         {
             CustomerAccountSnapshot account = await accountFactory.BuildAsync(request.CustomerId, fundingYear, fundingMonth, ct);
             Customer customer = new(employee.CustomerId, employee.Name, employee.Photo, true, 0m);
@@ -87,9 +93,14 @@ internal static class FinancialManagementEndpoints
             CafeteriaServiceEventEnvelope serviceEvent = await store.AppendAsync(operationId, CafeteriaServiceEventKind.Stipend, request.CustomerId, processedAt, payload, ct);
             return Results.Created($"/api/events/{serviceEvent.Sequence}", serviceEvent);
         }
-        catch (UnauthorizedAccessException) { return Results.Forbid(); }
+            catch (UnauthorizedAccessException) { return Results.Forbid(); }
         catch (InvalidOperationException exception) { return Results.Conflict(new { error = exception.Message }); }
         catch (ArgumentException exception) { return Results.BadRequest(exception.Message); }
+        }
+        finally
+        {
+            employeeLock.Release();
+        }
     }
 
     private static async Task<IResult> GetFundingPolicyAsync(
