@@ -10,8 +10,6 @@ using Aegis.Cafeteria.Services.Workers;
 
 namespace Aegis.Cafeteria.Services;
 
-internal sealed record StipendDebitRequest(int CustomerId, decimal Amount, string? Reason, Guid OperationId);
-
 internal static class FinancialManagementEndpoints
 {
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, SemaphoreSlim> StipendLocks = new();
