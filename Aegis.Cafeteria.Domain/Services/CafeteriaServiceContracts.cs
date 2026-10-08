@@ -36,15 +36,10 @@ public sealed record AdditionalCreditServiceEvent(
 public sealed record StipendServiceEvent(
     Guid OperationId,
     int CustomerId,
-    decimal CashAmount,
-    decimal CardReductionAmount,
-    StipendPaymentMode PaymentMode,
+    decimal Amount,
     string ProcessedBy,
     DateTimeOffset ProcessedAt,
-    string? ExpenseReportReference,
-    string? Notes,
-    int? FundingYear = null,
-    int? FundingMonth = null);
+    string? Reason);
 
 public sealed record MonthlyAllocationServiceEvent(
     Guid OperationId,
