@@ -38,7 +38,7 @@ public sealed class CustomerAccountStatementService
         entries.AddRange(settlements.Where(x => x.CustomerId == customer.Id && x.SettlementYear == period.Year && x.SettlementMonth == period.Month)
             .Select(x => new CustomerAccountStatementEntry(x.ApprovedAt, "Prior Period Settlement", x.Reason, x.Amount, x.Id)));
         entries.AddRange(stipends.Where(x => x.CustomerId == customer.Id && period.Contains(x.ProcessedAt))
-            .Select(x => new CustomerAccountStatementEntry(x.ProcessedAt, "Stipend", $"{x.PaymentMode} stipend; cash {x.CashAmount:C}", x.CardReduction, x.Id)));
+            .Select(x => new CustomerAccountStatementEntry(x.ProcessedAt, "Stipend", x.Reason ?? "Cafeteria stipend deduction", x.Amount, x.Id)));
         entries.AddRange(priorPeriodRefundCredits.Where(x => x.CustomerId == customer.Id && x.AppliedYear == period.Year && x.AppliedMonth == period.Month)
             .Select(x => new CustomerAccountStatementEntry(x.RecordedAt, "Prior Period Refund Credit", x.Reason, -x.CafeteriaAccountAmount, x.Id)));
 
