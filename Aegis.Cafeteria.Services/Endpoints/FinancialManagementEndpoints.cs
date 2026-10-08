@@ -10,6 +10,8 @@ using Aegis.Cafeteria.Services.Workers;
 
 namespace Aegis.Cafeteria.Services;
 
+internal sealed record StipendDebitRequest(int CustomerId, decimal Amount, string? Reason, Guid OperationId);
+
 internal static class FinancialManagementEndpoints
 {
     internal static void Map(WebApplication app)
@@ -56,39 +58,31 @@ internal static class FinancialManagementEndpoints
         catch (ArgumentException exception) { return Results.BadRequest(exception.Message); }
     }
 
-    private static async Task<IResult> ProcessStipendAsync(StipendRequest request, HttpContext http, ServiceEventStore store, IWorkforceReferenceSource workforce, StipendAccountSnapshotFactory accountFactory, StipendService stipendService, CancellationToken ct)
+    private static async Task<IResult> ProcessStipendAsync(StipendDebitRequest request, HttpContext http, ServiceEventStore store, IWorkforceReferenceSource workforce, StipendAccountSnapshotFactory accountFactory, StipendService stipendService, CancellationToken ct)
     {
-        if (request.CustomerId <= 0 || request.CashAmount <= 0m)
+        if (request.CustomerId <= 0 || request.Amount <= 0m)
             return Results.BadRequest("Employee and a positive stipend deduction amount are required.");
 
-        if (request.OperationId is Guid requestedId)
-        {
-            CafeteriaServiceEventEnvelope? existing = await store.GetByOperationAsync(requestedId, ct);
-            if (existing is not null) return Results.Ok(existing);
-        }
+        if (request.OperationId == Guid.Empty) return Results.BadRequest("OperationId is required.");
+        CafeteriaServiceEventEnvelope? existing = await store.GetByOperationAsync(request.OperationId, ct);
+        if (existing is not null) return Results.Ok(existing);
 
         ExternalCustomerSnapshot? employee = (await workforce.GetCustomersAsync(ct)).SingleOrDefault(candidate => candidate.CustomerId == request.CustomerId);
         if (employee is null) return Results.NotFound("Employee was not found in FFP.");
         if (!employee.IsEligibleForCafeteriaCredit) return Results.BadRequest("Employee is not eligible for cafeteria credit.");
 
         string actor = CafeteriaActor.Require(http);
-        DateTimeOffset processedAt = request.ProcessedAt ?? DateTimeOffset.Now;
-        int fundingYear = request.FundingYear ?? processedAt.Year;
-        int fundingMonth = request.FundingMonth ?? processedAt.Month;
-        if (fundingYear < 2000 || fundingYear > 9999 || fundingMonth is < 1 or > 12)
-            return Results.BadRequest("A valid stipend funding year and month are required.");
-
-        DateOnly processingMonth = new(processedAt.Year, processedAt.Month, 1);
-        DateOnly fundingPeriod = new(fundingYear, fundingMonth, 1);
-        if (fundingPeriod > processingMonth) return Results.BadRequest("A stipend cannot be charged to a future funding period.");
+        DateTimeOffset processedAt = DateTimeOffset.Now;
+        int fundingYear = processedAt.Year;
+        int fundingMonth = processedAt.Month;
 
         try
         {
             CustomerAccountSnapshot account = await accountFactory.BuildAsync(request.CustomerId, fundingYear, fundingMonth, ct);
             Customer customer = new(employee.CustomerId, employee.Name, employee.Photo, true, 0m);
-            Stipend stipend = stipendService.Process(customer, account, request.CashAmount, request.PaymentMode, actor, processedAt, request.ExpenseReportReference, request.Notes, fundingYear, fundingMonth);
+            Stipend stipend = stipendService.Process(customer, account, request.CashAmount, StipendPaymentMode.Advance, actor, processedAt, null, request.Reason, fundingYear, fundingMonth);
 
-            Guid operationId = request.OperationId.GetValueOrDefault(Guid.NewGuid());
+            Guid operationId = request.OperationId;
             StipendServiceEvent payload = new(operationId, request.CustomerId, stipend.CashAmount, stipend.CardReduction, stipend.PaymentMode, actor, stipend.ProcessedAt, stipend.ExpenseReportReference, stipend.Notes, stipend.FundingYear, stipend.FundingMonth);
             CafeteriaServiceEventEnvelope serviceEvent = await store.AppendAsync(operationId, CafeteriaServiceEventKind.Stipend, request.CustomerId, processedAt, payload, ct);
             return Results.Created($"/api/events/{serviceEvent.Sequence}", serviceEvent);
