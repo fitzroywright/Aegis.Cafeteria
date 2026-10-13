@@ -24,6 +24,19 @@ namespace Aegis.Cafeteria.Services;
 
 internal static class CafeteriaServicesHost
 {
+    internal static void ConfigureAcceptance(WebApplicationBuilder builder)
+    {
+        RegisterOptions(builder.Services, new ManagementApiOptions { AuthorizedGroups = ["Cafeteria Acceptance"] },
+            new MonthOpeningOptions { Enabled = false }, new ScheduledEmailOptions { Enabled = false }, new ExternalPublicationOptions());
+        IntegrationPluginLoader.Register(builder);
+        RegisterIntegrationGateways(builder.Services);
+        RegisterApplicationServices(builder.Services, CafeteriaServiceDatabase.ResolveConnectionString(builder.Configuration));
+        RegisterWorkers(builder.Services);
+        // Acceptance drives actual workers explicitly. No scheduler or outbound transport starts.
+        foreach (var descriptor in builder.Services.Where(x => x.ServiceType == typeof(IHostedService)).ToArray())
+            builder.Services.Remove(descriptor);
+    }
+
     internal static void Configure(WebApplicationBuilder builder)
     {
         builder.Host.UseWindowsService(options => options.ServiceName = "Aegis.Cafeteria.Services");
@@ -141,6 +154,7 @@ internal static class CafeteriaServicesHost
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaOutboundEmailQueueDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaReportDeliveryConfigurationDiagnosticLevelTest>();
         builder.Services.AddSingleton<IDiagnosticLevelLocalTest, CafeteriaAuditTrailIntegrityDiagnosticLevelTest>();
+        builder.Services.AddSingleton<IDiagnosticLevelLocalTest, Aegis.Cafeteria.Services.Acceptance.CafeteriaAcceptanceHistoryDiagnostic>();
     }
 
     private static void RegisterOptions
@@ -245,3 +259,4 @@ internal static class CafeteriaServicesHost
         services.AddHostedService(sp => sp.GetRequiredService<ScheduledEmailWorker>());
     }
 }
+

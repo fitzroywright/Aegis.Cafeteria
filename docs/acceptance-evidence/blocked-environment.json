@@ -1,0 +1,435 @@
+{
+  "diagnostic": {
+    "runId": "77848ac6-8bda-436e-b8e2-cfa54f1de718",
+    "level": "Level1CriticalIntervention",
+    "application": "Aegis.Cafeteria.Services",
+    "environment": "Acceptance",
+    "requestedBy": "root",
+    "reason": "Explicit isolated acceptance execution",
+    "startedAt": "2026-10-13T14:59:11.863228+00:00",
+    "completedAt": "2026-10-13T14:59:11.9938328+00:00",
+    "status": "Failed",
+    "checks": [
+      {
+        "checkId": "CAF-01",
+        "name": "FFP00 policy retrieval and interpretation",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622412+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-02",
+        "name": "Employee fields and eligibility",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622538+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-03",
+        "name": "Holidays and working days",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622539+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-04",
+        "name": "Automatic credit limit",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622540+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-05",
+        "name": "FFP00 subsidy limit",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622541+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-06",
+        "name": "FFP credit and balance synchronization",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622541+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-07",
+        "name": "ID scan publication",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622542+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-08",
+        "name": "Services stipend deduction",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622543+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-09",
+        "name": "Services additional credit",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622543+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-10",
+        "name": "Monthly opening and initialization",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622544+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-11",
+        "name": "Closing and rollover",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622544+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-12",
+        "name": "Unused positive credit expiration",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622545+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-13",
+        "name": "Outstanding debt carry-forward",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622545+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-14",
+        "name": "Refunds, voids and prior-period credits",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622546+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-15",
+        "name": "Payroll calculation and integration",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622546+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-16",
+        "name": "Mid-month employee and eligibility changes",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622547+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-17",
+        "name": "Cafeteria / FFP reconciliation",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622547+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-18",
+        "name": "Idempotency and duplicate prevention",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622548+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-19",
+        "name": "Interrupted publication and recovery",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622549+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      },
+      {
+        "checkId": "CAF-20",
+        "name": "Complete financial workflow and manager bridge",
+        "status": "InterventionRequired",
+        "summary": "Dedicated acceptance SQL credentials are unavailable.",
+        "evidence": "State=Blocked; At=2026-10-13T14:59:11.9622549+00:00; Suite=1; Application=1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7; Schema=Local=74; Service=EF model",
+        "expected": "Deterministic scenario passes",
+        "actual": "Unavailable",
+        "code": "Blocked"
+      }
+    ],
+    "resolvedAt": null,
+    "resolvedBy": null,
+    "resolution": null,
+    "correlationId": null,
+    "targetType": "ControlPlane",
+    "targetId": null,
+    "applicationId": null,
+    "instanceId": null,
+    "requestedAtUtc": null,
+    "runState": "Completed",
+    "currentStage": "Completed",
+    "progressPercent": 100
+  },
+  "suiteVersion": "1",
+  "applicationVersion": "1.0.0+80b786ee80d599b92b389d04d0a7dae57e038c40; SHA256=DAE71C3ABF90126878D57F1C81CF39944D992A0723D2F7AF9352975013E25CB7",
+  "schemaVersion": "Local=74; Service=EF model",
+  "isolationVerified": false,
+  "proofs": [
+    {
+      "id": "CAF-01",
+      "name": "FFP00 policy retrieval and interpretation",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622412+00:00"
+    },
+    {
+      "id": "CAF-02",
+      "name": "Employee fields and eligibility",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622538+00:00"
+    },
+    {
+      "id": "CAF-03",
+      "name": "Holidays and working days",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622539+00:00"
+    },
+    {
+      "id": "CAF-04",
+      "name": "Automatic credit limit",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.962254+00:00"
+    },
+    {
+      "id": "CAF-05",
+      "name": "FFP00 subsidy limit",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622541+00:00"
+    },
+    {
+      "id": "CAF-06",
+      "name": "FFP credit and balance synchronization",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622541+00:00"
+    },
+    {
+      "id": "CAF-07",
+      "name": "ID scan publication",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622542+00:00"
+    },
+    {
+      "id": "CAF-08",
+      "name": "Services stipend deduction",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622543+00:00"
+    },
+    {
+      "id": "CAF-09",
+      "name": "Services additional credit",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622543+00:00"
+    },
+    {
+      "id": "CAF-10",
+      "name": "Monthly opening and initialization",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622544+00:00"
+    },
+    {
+      "id": "CAF-11",
+      "name": "Closing and rollover",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622544+00:00"
+    },
+    {
+      "id": "CAF-12",
+      "name": "Unused positive credit expiration",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622545+00:00"
+    },
+    {
+      "id": "CAF-13",
+      "name": "Outstanding debt carry-forward",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622545+00:00"
+    },
+    {
+      "id": "CAF-14",
+      "name": "Refunds, voids and prior-period credits",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622546+00:00"
+    },
+    {
+      "id": "CAF-15",
+      "name": "Payroll calculation and integration",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622546+00:00"
+    },
+    {
+      "id": "CAF-16",
+      "name": "Mid-month employee and eligibility changes",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622547+00:00"
+    },
+    {
+      "id": "CAF-17",
+      "name": "Cafeteria / FFP reconciliation",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622547+00:00"
+    },
+    {
+      "id": "CAF-18",
+      "name": "Idempotency and duplicate prevention",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622548+00:00"
+    },
+    {
+      "id": "CAF-19",
+      "name": "Interrupted publication and recovery",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622549+00:00"
+    },
+    {
+      "id": "CAF-20",
+      "name": "Complete financial workflow and manager bridge",
+      "state": "Blocked",
+      "expected": "Deterministic scenario passes",
+      "actual": "Unavailable",
+      "detail": "Dedicated acceptance SQL credentials are unavailable.",
+      "atUtc": "2026-10-13T14:59:11.9622549+00:00"
+    }
+  ],
+  "selectedProofIds": [
+    "CAF-01",
+    "CAF-02",
+    "CAF-03",
+    "CAF-04",
+    "CAF-05",
+    "CAF-06",
+    "CAF-07",
+    "CAF-08",
+    "CAF-09",
+    "CAF-10",
+    "CAF-11",
+    "CAF-12",
+    "CAF-13",
+    "CAF-14",
+    "CAF-15",
+    "CAF-16",
+    "CAF-17",
+    "CAF-18",
+    "CAF-19",
+    "CAF-20"
+  ]
+}

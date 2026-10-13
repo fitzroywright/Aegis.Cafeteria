@@ -1,0 +1,21 @@
+{
+  "rootDirectory": "/var/lib/aegis/cafeteria-acceptance",
+  "sqlConnectionEnvironmentVariable": "CAFETERIA_ACCEPTANCE_FFP",
+  "expectedServer": "JMDB01",
+  "expectedSqlLogin": "cafeteria_acceptance",
+  "productionInventoryVerifiedBy": "",
+  "productionInventoryVerifiedAtUtc": null,
+  "productionSqlitePaths": [],
+  "integrationPluginPath": "/opt/aegis/cafeteria-services/plugins/Aegis.Cafeteria.Plugin.Integration.dll",
+  "integrationPluginSha256": "",
+  "fixtureEmployeeIds": [],
+  "fixtureCodePrefix": "CAF-ACCEPT-",
+  "year": 2026,
+  "month": 9,
+  "level": 1,
+  "expectedPrice": 0,
+  "expectedCost": 0,
+  "expectedHolidays": [],
+  "expectedWorkingDays": 0,
+  "expectedWindowsIdentity": ""
+}
