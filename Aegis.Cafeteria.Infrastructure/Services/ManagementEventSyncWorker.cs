@@ -177,6 +177,14 @@ public sealed class ManagementEventSyncWorker : BackgroundService
     {
         switch (envelope.Kind)
         {
+            case CafeteriaServiceEventKind.PosTransaction:
+            {
+                // The service feed acknowledges POS-originated transactions.
+                // Sales already belong to the originating terminal's local ledger;
+                // acknowledge this envelope without posting a second local sale.
+                break;
+            }
+
             case CafeteriaServiceEventKind.AdditionalCredit:
             {
                 AdditionalCreditServiceEvent additionalCredit = JsonSerializer.Deserialize<AdditionalCreditServiceEvent>(envelope.PayloadJson)
