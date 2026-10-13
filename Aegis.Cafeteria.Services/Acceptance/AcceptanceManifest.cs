@@ -6,6 +6,7 @@ public sealed class AcceptanceManifest
     public string SqlConnectionEnvironmentVariable { get; set; } = "CAFETERIA_ACCEPTANCE_FFP";
     public string ExpectedServer { get; set; } = "";
     public string ExpectedSqlLogin { get; set; } = "";
+    public string ExpectedWindowsIdentity { get; set; } = "";
     public string ProductionInventoryVerifiedBy { get; set; } = "";
     public DateTimeOffset? ProductionInventoryVerifiedAtUtc { get; set; }
     public string[] ProductionSqlitePaths { get; set; } = [];
@@ -23,3 +24,4 @@ public sealed class AcceptanceManifest
 }
 
 public sealed class AcceptanceBlockedException(string message) : Exception(message);
+
