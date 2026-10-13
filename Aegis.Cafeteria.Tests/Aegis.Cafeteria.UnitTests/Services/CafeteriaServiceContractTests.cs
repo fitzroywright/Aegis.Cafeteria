@@ -19,14 +19,14 @@ public sealed class CafeteriaServiceContractTests
     }
 
     [Fact]
-    public void StipendEvent_RoundTripsWithoutLosingSeparateCashAndCardReduction()
+    public void StipendEvent_RoundTripsDeductionAmountAndReason()
     {
         var id=Guid.NewGuid();
-        var x=new StipendServiceEvent(id,101,800m,650m,StipendPaymentMode.Advance,"Manager",DateTimeOffset.UtcNow,"EXP-1","Off-site meal");
+        var x=new StipendServiceEvent(id,101,650m,"Manager",DateTimeOffset.UtcNow,"Off-site meal");
         var json=JsonSerializer.Serialize(x);
         var y=JsonSerializer.Deserialize<StipendServiceEvent>(json)!;
-        Assert.Equal(800m,y.CashAmount);
-        Assert.Equal(650m,y.CardReductionAmount);
+        Assert.Equal(650m,y.Amount);
+        Assert.Equal("Off-site meal",y.Reason);
         Assert.Equal(id,y.OperationId);
     }
     [Fact]
