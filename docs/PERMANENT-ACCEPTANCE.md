@@ -13,25 +13,30 @@ or mock FFP provider contributes to integration evidence.
    SQLite store and the runtime/POS SQLite store, including any configured production
    terminal paths. Record the engineer and verification timestamp in the manifest.
    Repository defaults are not sufficient proof of deployed configuration.
-2. Have the DBA provision a dedicated SQL login restricted to the existing **FFP**
-   test database. It must have no access to **FFPJM**, no administrative/control/alter
-   privileges, and enough metadata visibility to verify dependency isolation.
+2. Use either an explicitly pinned SQL login or a Windows Trusted Connection identity.
+   For Windows, set `expectedWindowsIdentity` to the exact DOMAIN\user returned by
+   `ORIGINAL_LOGIN()` and leave `expectedSqlLogin` empty. For SQL authentication, set
+   `expectedSqlLogin` and leave `expectedWindowsIdentity` empty. The selected identity
+   must have no access to **FFPJM**, no administrative/control/alter privileges, and
+   enough metadata visibility to verify dependency isolation.
    Acceptance needs SELECT on Employees, Holidays, LunchItems and EmployeeIDScans;
-   INSERT on EmployeeIDScans; and narrowly authorized UPDATE of dedicated employee
-   eligibility fixtures. Use row restrictions where supported. Do not grant production
-   permissions or reuse a production service identity.
-3. Provision at least two dedicated employee rows with codes starting `CAF-ACCEPT-`.
+   INSERT on EmployeeIDScans; and narrowly authorized UPDATE of the explicitly selected
+   employee eligibility fixtures. Authentication choice does not bypass these checks.
+3. Explicitly select at least two employee fixture IDs in the **FFP test database**.
    They must be active, eligible and employed before the selected completed month.
-   Record their explicit IDs. No existing ordinary employee is converted into a fixture.
-   The runner never deletes FFP data or rewrites the shared FFP00/holiday reference data.
+   The default `fixtureCodePrefix: "CAF-ACCEPT-"` also checks dedicated fixture codes.
+   If existing test employee IDs are expressly designated for acceptance, use an empty
+   `fixtureCodePrefix` to rely on the explicit ID allowlist without renaming their codes.
+   Missing IDs still block the run. The runner never deletes FFP data or rewrites the
+   shared FFP00/holiday reference data.
 4. Copy `configuration/acceptance.manifest.example.json` outside source control.
    Fill in the verified production inventory, fixture IDs, selected completed month,
    independently checked FFP00 Price/Cost, expected holidays and expected working days.
    Choose a fixture month/rates with nonzero employee-funded capacity for debt proofs.
    Pin the reviewed integration plugin binary using `integrationPluginSha256`.
    For Level 1 use `level: 1`; Level 2 uses `level: 2` and cannot qualify full integration.
-5. Inject the dedicated connection through `CAFETERIA_ACCEPTANCE_FFP`. Its Initial
-   Catalog must be FFP, its server/login must match the manifest, and `Enlist=false`
+5. Inject the acceptance connection through `CAFETERIA_ACCEPTANCE_FFP`. Its Initial
+   Catalog must be FFP, its server and actual login identity must match the manifest, and `Enlist=false`
    is required. Do not save passwords in manifests, reports, Git or command logs.
 
 The current fail-closed verifier rejects executable indirect paths on the provider
@@ -40,6 +45,28 @@ policies and unresolved/cross-database dependencies. If the test database depend
 on a trigger, the run is **blocked**, not silently allowed. A reviewed, bounded
 dependency verifier would be required to support such a database without weakening
 the isolation rule. Do not disable shared test-database behavior just to get a pass.
+
+## Local Windows configuration for Fitzroy
+
+Copy `configuration/acceptance.manifest.fwright.example.json` outside source control.
+It pins JMDB01 / FFP, Windows identity `fftpj\fwright`, employee IDs 61 and 62,
+September 2026, Level 1 and clean per-run databases under
+`D:\sqlite\cafeteria-acceptance`. Existing service/app configuration remains the
+source of the production database inventory; record its effective paths rather than
+changing the normal database configuration. Fill in the verified production Services/POS SQLite paths,
+verification name/time, local plugin path and SHA256, FFP00 Price/Cost and independently
+verified September holidays/working days. FFP00 was confirmed unchanged over that period.
+The example is intentionally incomplete until those host-specific values are recorded.
+
+From PowerShell running under the confirmed Windows identity:
+
+```powershell
+$env:CAFETERIA_ACCEPTANCE_FFP = 'Server=JMDB01;Database=FFP;Trusted_Connection=True;Enlist=false;Encrypt=True'
+```
+
+Use the SQL server's configured TLS policy and trusted certificate. No SQL password is
+needed. Server-side `ORIGINAL_LOGIN()` must match the pinned identity; production access,
+privilege, dependency and database-path checks still run before financial writes.
 
 ## Execute
 
@@ -135,7 +162,7 @@ No acceptance or diagnostic result disables a legacy function.
 
 ## Current limitations to resolve before qualification
 
-- The deployed production inventory and dedicated FFP test login are not available
+- The deployed production inventory and local FFP test connection are not available
   in this implementation environment. Real FFP integration proofs have not executed.
 - Indirect SQL dependency verification is deliberately conservative; enabled triggers
   block acceptance until a reviewed safe dependency path is supported.
@@ -147,3 +174,4 @@ No acceptance or diagnostic result disables a legacy function.
 - Service financial actions are invoked directly with an isolated engineering
   principal. Windows FFP Manager UI interaction and live AD authentication remain
   deployment/user acceptance checks, not claims established by these scenarios.
+
