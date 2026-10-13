@@ -53,7 +53,9 @@ internal static class CafeteriaServicesHost
         RegisterDiagnosticLevel(builder);
         builder.Services.AddCafeteriaEmailDelivery(builder.Configuration);
         RegisterWhatsAppDelivery(builder);
-        builder.Services.AddCommonMessagingDiagnostics();
+        // Cafeteria owns its outbound queue and calls Common.Messaging channels directly.
+        // Common.Messaging queue diagnostics require its separate queued-delivery stack.
+        // The Cafeteria messaging and outbound-email diagnostics are registered above.
         RegisterIntegrationGateways(builder.Services);
         RegisterApplicationServices(builder.Services, serviceDb);
         ConfigureDevelopmentServices(builder);
