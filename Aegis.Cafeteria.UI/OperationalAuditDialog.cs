@@ -17,8 +17,20 @@ internal sealed class OperationalAuditDialog : Form
         , ReadOnly = true
         , AllowUserToAddRows = false
         , AllowUserToDeleteRows = false
+        , SelectionMode = DataGridViewSelectionMode.FullRowSelect
+        , MultiSelect = false
         , AutoGenerateColumns = true
         , AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells
+    };
+    private readonly TextBox calculationDetails = new()
+    {
+          Dock = DockStyle.Fill
+        , Multiline = true
+        , ReadOnly = true
+        , ScrollBars = ScrollBars.Both
+        , WordWrap = false
+        , Font = new Font("Consolas", 10)
+        , Text = "Select an audit record to view its details."
     };
     private readonly Button load = new() { Text = "Load Audit", Width = 110, Height = 38 };
     private readonly Button integrity = new() { Text = "Verify Integrity", Width = 120, Height = 38 };
@@ -37,6 +49,9 @@ internal sealed class OperationalAuditDialog : Form
         this.result.SelectedIndex = 0;
         this.load.Click += async (_, _) => await LoadAsync();
         this.integrity.Click += async (_, _) => await VerifyIntegrityAsync();
+        this.grid.SelectionChanged += (_, _) =>
+            this.calculationDetails.Text = AuditCalculationDetails.Format(
+                this.grid.CurrentRow?.DataBoundItem as AuditTrailSnapshot);
         Shown += async (_, _) => await LoadAsync();
 
         Controls.Add(BuildLayout());
@@ -48,12 +63,13 @@ internal sealed class OperationalAuditDialog : Form
         {
               Dock = DockStyle.Fill
             , Padding = new Padding(20)
-            , RowCount = 4
+            , RowCount = 5
             , ColumnCount = 1
         };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 260));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         root.Controls.Add(new Label
@@ -80,6 +96,10 @@ internal sealed class OperationalAuditDialog : Form
         root.Controls.Add(filters);
 
         root.Controls.Add(this.grid);
+
+        GroupBox detailGroup = new() { Text = "Calculation Details", Dock = DockStyle.Fill };
+        detailGroup.Controls.Add(this.calculationDetails);
+        root.Controls.Add(detailGroup);
 
         FlowLayoutPanel footer = new()
         {

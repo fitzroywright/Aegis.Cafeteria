@@ -15,6 +15,13 @@ internal sealed class OperationalAuditWindow : Window
     private readonly TextBox take = new() { Width = 70, Text = "100" };
     private readonly TextBlock status = new() { TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly DataGrid grid = new() { IsReadOnly = true, AutoGenerateColumns = true };
+    private readonly TextBox calculationDetails = new()
+    {
+          IsReadOnly = true
+        , AcceptsReturn = true
+        , TextWrapping = Avalonia.Media.TextWrapping.Wrap
+        , Text = "Select an audit record to view its details."
+    };
     private readonly Button load = new() { Content = "Load Audit", MinWidth = 105 };
     private readonly Button integrity = new() { Content = "Verify Integrity", MinWidth = 115 };
 
@@ -33,6 +40,14 @@ internal sealed class OperationalAuditWindow : Window
         this.result.SelectedIndex = 0;
         this.load.Click += async (_, _) => await LoadAsync();
         this.integrity.Click += async (_, _) => await VerifyIntegrityAsync();
+        this.grid.SelectionChanged += (_, _) =>
+            this.calculationDetails.Text = AuditCalculationDetails.Format(this.grid.SelectedItem as AuditTrailSnapshot);
+        this.grid.AutoGeneratingColumn += (_, args) =>
+        {
+            if (args.PropertyName is nameof(AuditTrailSnapshot.BeforeJson)
+                or nameof(AuditTrailSnapshot.AfterJson) or nameof(AuditTrailSnapshot.OperationId))
+                args.Cancel = true;
+        };
         Opened += async (_, _) => await LoadAsync();
 
         Content = BuildLayout();
@@ -44,6 +59,7 @@ internal sealed class OperationalAuditWindow : Window
         root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
         root.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
+        root.RowDefinitions.Add(new RowDefinition(new GridLength(260)));
         root.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
 
         root.Children.Add(new TextBlock
@@ -72,6 +88,15 @@ internal sealed class OperationalAuditWindow : Window
         Grid.SetRow(this.grid, 2);
         root.Children.Add(this.grid);
 
+        Grid detailPanel = new();
+        detailPanel.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+        detailPanel.RowDefinitions.Add(new RowDefinition(new GridLength(1, GridUnitType.Star)));
+        detailPanel.Children.Add(new TextBlock { Text = "Calculation Details", FontWeight = Avalonia.Media.FontWeight.Bold });
+        Grid.SetRow(this.calculationDetails, 1);
+        detailPanel.Children.Add(this.calculationDetails);
+        Grid.SetRow(detailPanel, 3);
+        root.Children.Add(detailPanel);
+
         StackPanel footer = new()
         {
               Orientation = Orientation.Horizontal
@@ -82,7 +107,7 @@ internal sealed class OperationalAuditWindow : Window
         Button close = new() { Content = "Close", MinWidth = 90 };
         close.Click += (_, _) => Close();
         footer.Children.Add(close);
-        Grid.SetRow(footer, 3);
+        Grid.SetRow(footer, 4);
         root.Children.Add(footer);
 
         return root;

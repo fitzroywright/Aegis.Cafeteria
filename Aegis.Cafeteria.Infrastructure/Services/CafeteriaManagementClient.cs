@@ -53,7 +53,17 @@ public sealed record AuditTrailSnapshot
     , bool Succeeded
     , int? StatusCode
     , string? Detail
-);
+)
+{
+    [System.ComponentModel.Browsable(false)]
+    public string? BeforeJson { get; init; }
+
+    [System.ComponentModel.Browsable(false)]
+    public string? AfterJson { get; init; }
+
+    [System.ComponentModel.Browsable(false)]
+    public Guid? OperationId { get; init; }
+}
 
 public sealed record AuditIntegritySnapshot
 (
