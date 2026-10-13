@@ -16,5 +16,6 @@
   "expectedPrice": 0,
   "expectedCost": 0,
   "expectedHolidays": [],
-  "expectedWorkingDays": 0
+  "expectedWorkingDays": 0,
+  "expectedWindowsIdentity": ""
 }
