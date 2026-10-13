@@ -27,11 +27,21 @@ public static class AcceptanceDatabaseSafety
         if (string.IsNullOrWhiteSpace(manifest.ExpectedServer) ||
             !string.Equals(sql.DataSource, manifest.ExpectedServer, StringComparison.OrdinalIgnoreCase))
             throw new AcceptanceBlockedException("SQL server does not match the explicit acceptance server.");
-        if (sql.IntegratedSecurity || sql.Authentication != SqlAuthenticationMethod.NotSpecified
+        if (sql.IntegratedSecurity)
+        {
+            string[] identity = manifest.ExpectedWindowsIdentity.Split('\\');
+            if (identity.Length != 2 || identity.Any(string.IsNullOrWhiteSpace)
+                || !string.IsNullOrWhiteSpace(manifest.ExpectedSqlLogin)
+                || !string.IsNullOrEmpty(sql.UserID) || !string.IsNullOrEmpty(sql.Password)
+                || sql.Authentication != SqlAuthenticationMethod.NotSpecified)
+                throw new AcceptanceBlockedException("Trusted Connection requires one explicitly identified DOMAIN\\user and no SQL credentials.");
+        }
+        else if (sql.Authentication != SqlAuthenticationMethod.NotSpecified
+            || !string.IsNullOrWhiteSpace(manifest.ExpectedWindowsIdentity)
             || string.IsNullOrWhiteSpace(sql.Password)
             || string.IsNullOrWhiteSpace(manifest.ExpectedSqlLogin)
             || !string.Equals(sql.UserID, manifest.ExpectedSqlLogin, StringComparison.Ordinal))
-            throw new AcceptanceBlockedException("A dedicated, explicitly identified SQL login is required; ambient authentication is forbidden.");
+            throw new AcceptanceBlockedException("An explicitly identified SQL login or Trusted Connection identity is required.");
         if (!string.IsNullOrEmpty(sql.AttachDBFilename) || !string.IsNullOrEmpty(sql.FailoverPartner)
             || sql.Enlist)
             throw new AcceptanceBlockedException("Attach, failover and ambient transaction dependencies are forbidden. Set Enlist=false.");
@@ -56,8 +66,8 @@ public static class AcceptanceDatabaseSafety
         }
         if (manifest.FixtureEmployeeIds.Length < 2 || manifest.FixtureEmployeeIds.Any(id => id <= 0)
             || manifest.FixtureEmployeeIds.Distinct().Count() != manifest.FixtureEmployeeIds.Length
-            || !manifest.FixtureCodePrefix.StartsWith("CAF-ACCEPT-", StringComparison.Ordinal))
-            throw new AcceptanceBlockedException("At least two unique dedicated acceptance employees with CAF-ACCEPT- codes are required.");
+            || (!string.IsNullOrEmpty(manifest.FixtureCodePrefix) && !manifest.FixtureCodePrefix.StartsWith("CAF-ACCEPT-", StringComparison.Ordinal)))
+            throw new AcceptanceBlockedException("At least two unique explicit acceptance employee IDs and an optional CAF-ACCEPT- code prefix are required.");
         if (manifest.Year < 2000 || manifest.Month is < 1 or > 12 || manifest.ExpectedWorkingDays <= 0
             || manifest.ExpectedPrice <= 0 || manifest.ExpectedCost < 0)
             throw new AcceptanceBlockedException("A deterministic completed-month policy fixture is required.");
@@ -87,6 +97,9 @@ public static class AcceptanceDatabaseSafety
 
     public static async Task VerifyServerAsync(string connectionString, AcceptanceManifest manifest, CancellationToken ct)
     {
+        var sql = new SqlConnectionStringBuilder(connectionString);
+        string expectedIdentity = sql.IntegratedSecurity ? manifest.ExpectedWindowsIdentity : manifest.ExpectedSqlLogin;
+        var identityComparison = sql.IntegratedSecurity ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         await using SqlConnection connection = new(connectionString);
         await connection.OpenAsync(ct);
         await using SqlCommand check = new("""
@@ -101,7 +114,7 @@ public static class AcceptanceDatabaseSafety
             """, connection);
         await using (SqlDataReader r = await check.ExecuteReaderAsync(ct))
         {
-            if (!await r.ReadAsync(ct) || r.GetString(0) != "FFP" || r.GetString(1) != manifest.ExpectedSqlLogin
+            if (!await r.ReadAsync(ct) || r.GetString(0) != "FFP" || !string.Equals(r.GetString(1), expectedIdentity, identityComparison)
                 || Enumerable.Range(2, 7).Any(i => r.IsDBNull(i) || Convert.ToInt32(r.GetValue(i)) != 0)
                 || r.IsDBNull(9) || Convert.ToInt32(r.GetValue(9)) != 1 || Convert.ToInt32(r.GetValue(10)) != 0)
                 throw new AcceptanceBlockedException("SQL identity, production-access denial, least privilege or dependency visibility cannot be verified.");
@@ -132,9 +145,12 @@ public static class AcceptanceDatabaseSafety
         {
             await using SqlCommand fixture = new("SELECT Code FROM dbo.Employees WHERE ID=@id", connection);
             fixture.Parameters.AddWithValue("@id", id);
-            string? code = Convert.ToString(await fixture.ExecuteScalarAsync(ct));
-            if (code is null || !code.StartsWith(manifest.FixtureCodePrefix, StringComparison.Ordinal))
+            object? fixtureCode = await fixture.ExecuteScalarAsync(ct);
+            string? code = Convert.ToString(fixtureCode);
+            if (fixtureCode is null or DBNull || (!string.IsNullOrEmpty(manifest.FixtureCodePrefix)
+                && (code is null || !code.StartsWith(manifest.FixtureCodePrefix, StringComparison.Ordinal))))
                 throw new AcceptanceBlockedException("An employee fixture is missing or belongs to unrelated FFP test data.");
         }
     }
 }
+
