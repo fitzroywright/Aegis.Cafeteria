@@ -25,6 +25,55 @@ public sealed class AcceptanceSafetyTests
         FixtureEmployeeIds = [991, 992], Year = 2001, Month = 1, ExpectedPrice = 100, ExpectedCost = 60, ExpectedWorkingDays = 22
     };
     private const string SafeSql = "Server=AcceptanceSql;Database=FFP;User Id=cafeteria_acceptance;Password=unit-test-only;Enlist=false";
+    private const string TrustedSql = "Server=AcceptanceSql;Database=FFP;Trusted_Connection=True;Enlist=false";
+
+    [Fact]
+    public void Trusted_connection_accepts_an_explicit_windows_identity_without_a_password()
+    {
+        var m = Manifest(Path.GetTempPath());
+        m.ExpectedSqlLogin = "";
+        m.ExpectedWindowsIdentity = @"fftpj\fwright";
+        var sql = new SqlConnectionStringBuilder(AcceptanceDatabaseSafety.Validate(m, TrustedSql));
+        Assert.True(sql.IntegratedSecurity);
+        Assert.Empty(sql.Password);
+        Assert.False(sql.Enlist);
+        Assert.False(sql.Pooling);
+        Assert.Equal("FFP", sql.InitialCatalog);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("fwright")]
+    [InlineData(@"fftpj\")]
+    [InlineData(@"\fwright")]
+    public void Trusted_connection_requires_a_pinned_domain_identity(string identity)
+    {
+        var m = Manifest(Path.GetTempPath()); m.ExpectedSqlLogin = ""; m.ExpectedWindowsIdentity = identity;
+        Assert.Throws<AcceptanceBlockedException>(() => AcceptanceDatabaseSafety.Validate(m, TrustedSql));
+    }
+
+    [Fact]
+    public void Trusted_connection_cannot_mix_sql_credentials_or_change_the_database()
+    {
+        var m = Manifest(Path.GetTempPath()); m.ExpectedSqlLogin = ""; m.ExpectedWindowsIdentity = @"fftpj\fwright";
+        foreach (var sql in new[] {
+            new SqlConnectionStringBuilder(TrustedSql) { InitialCatalog = "FFPJM" },
+            new SqlConnectionStringBuilder(TrustedSql) { DataSource = "OtherSql" },
+            new SqlConnectionStringBuilder(TrustedSql) { UserID = "other", Password = "test" },
+            new SqlConnectionStringBuilder(SafeSql) })
+            Assert.Throws<AcceptanceBlockedException>(() => AcceptanceDatabaseSafety.Validate(m, sql.ConnectionString));
+        m.ExpectedSqlLogin = "cafeteria_acceptance";
+        Assert.Throws<AcceptanceBlockedException>(() => AcceptanceDatabaseSafety.Validate(m, TrustedSql));
+    }
+
+    [Fact]
+    public void Explicitly_selected_test_employees_do_not_require_a_code_rename()
+    {
+        var m = Manifest(Path.GetTempPath()); m.FixtureEmployeeIds = [61, 62]; m.FixtureCodePrefix = "";
+        AcceptanceDatabaseSafety.Validate(m, SafeSql);
+        m.FixtureEmployeeIds = [61, 61];
+        Assert.Throws<AcceptanceBlockedException>(() => AcceptanceDatabaseSafety.Validate(m, SafeSql));
+    }
 
     [Theory]
     [InlineData("FFPJM")]
@@ -106,3 +155,4 @@ public sealed class AcceptanceSafetyTests
         finally { Directory.Delete(directory, true); }
     }
 }
+
