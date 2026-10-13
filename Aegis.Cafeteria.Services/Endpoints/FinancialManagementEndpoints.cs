@@ -23,7 +23,7 @@ internal static class FinancialManagementEndpoints
         app.MapPost("/api/management/payroll-report/send", SendPayrollReportAsync).RequireAuthorization("CafeteriaManagement");
     }
 
-    private static async Task<IResult> ApproveAdditionalCreditAsync(AdditionalCreditRequest request, HttpContext http, ServiceEventStore store, CustomerCreditPolicyStore policies, IWorkforceReferenceSource workforce, AdditionalCreditService additionalCredit, CancellationToken ct)
+    internal static async Task<IResult> ApproveAdditionalCreditAsync(AdditionalCreditRequest request, HttpContext http, ServiceEventStore store, CustomerCreditPolicyStore policies, IWorkforceReferenceSource workforce, AdditionalCreditService additionalCredit, CancellationToken ct)
     {
         if (request.CustomerId <= 0 || request.Amount <= 0m) return Results.BadRequest("Employee and a positive amount are required.");
         if (request.OperationId is Guid requestedId)
@@ -57,7 +57,7 @@ internal static class FinancialManagementEndpoints
         catch (ArgumentException exception) { return Results.BadRequest(exception.Message); }
     }
 
-    private static async Task<IResult> ProcessStipendAsync(StipendDebitRequest request, HttpContext http, ServiceEventStore store, IWorkforceReferenceSource workforce, StipendAccountSnapshotFactory accountFactory, StipendService stipendService, CancellationToken ct)
+    internal static async Task<IResult> ProcessStipendAsync(StipendDebitRequest request, HttpContext http, ServiceEventStore store, IWorkforceReferenceSource workforce, StipendAccountSnapshotFactory accountFactory, StipendService stipendService, CancellationToken ct)
     {
         if (request.CustomerId <= 0 || request.Amount <= 0m)
             return Results.BadRequest("Employee and a positive stipend deduction amount are required.");
@@ -142,3 +142,4 @@ internal static class FinancialManagementEndpoints
         return Results.Ok(new { report.Year, report.Month, report.EmployeesWithAmountDue, report.TotalEmployeeAmountDue, Forced = force ?? false });
     }
 }
+

@@ -2,6 +2,12 @@ using Common.Diagnostics;
 using Common.Registration;
 using Aegis.Cafeteria.Services;
 
+if (args.Length > 0 && args[0] == "--cafeteria-acceptance")
+{
+    Environment.ExitCode = await Aegis.Cafeteria.Services.Acceptance.CafeteriaAcceptanceCommand.RunAsync(args);
+    return;
+}
+
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 CafeteriaServicesHost.Configure(builder);
 string operationsLogInstanceId = builder.Configuration["Service:Identity"]?.Trim() ?? Environment.MachineName;
@@ -27,3 +33,4 @@ MonthOpeningEndpoints.Map(app);
 IntegrationEndpoints.Map(app);
 
 await app.RunAsync();
+
