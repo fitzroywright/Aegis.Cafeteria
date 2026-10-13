@@ -1,0 +1,24 @@
+{
+  "rootDirectory": "D:\\sqlite\\cafeteria-acceptance",
+  "sqlConnectionEnvironmentVariable": "CAFETERIA_ACCEPTANCE_FFP",
+  "expectedServer": "JMDB01",
+  "expectedSqlLogin": "",
+  "productionInventoryVerifiedBy": "",
+  "productionInventoryVerifiedAtUtc": null,
+  "productionSqlitePaths": [],
+  "integrationPluginPath": "",
+  "integrationPluginSha256": "",
+  "fixtureEmployeeIds": [
+    61,
+    62
+  ],
+  "fixtureCodePrefix": "",
+  "year": 2026,
+  "month": 9,
+  "level": 1,
+  "expectedPrice": 0,
+  "expectedCost": 0,
+  "expectedHolidays": [],
+  "expectedWorkingDays": 0,
+  "expectedWindowsIdentity": "fftpj\\fwright"
+}
