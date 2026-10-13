@@ -230,7 +230,7 @@ internal static class CafeteriaServicesHost
             {
                 policy.RequireAuthenticatedUser();
                 policy.RequireAssertion(context =>
-                    context.User.IsInRole("CafeteriaManager")
+                    CafeteriaRoleResolver.HasRole(context.User, CafeteriaRoles.Manager, CafeteriaRoles.Administrator)
                     || management.AuthorizedGroups.Length == 0
                     || management.AuthorizedGroups.Any(context.User.IsInRole));
             });
@@ -238,7 +238,7 @@ internal static class CafeteriaServicesHost
             {
                 policy.RequireAuthenticatedUser();
                 policy.RequireAssertion(context =>
-                    context.User.IsInRole("CafeteriaManager")
+                    CafeteriaRoleResolver.HasRole(context.User, CafeteriaRoles.Manager, CafeteriaRoles.Administrator)
                     || management.AuthorizedGroups.Length == 0
                     || management.AuthorizedGroups.Any(context.User.IsInRole));
             });
