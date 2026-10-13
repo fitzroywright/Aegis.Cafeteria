@@ -270,28 +270,27 @@ public sealed class ExternalPublicationWorker(
             value.ApprovedBy);
     }
 
-    private static CafeteriaOutboundTransaction? BuildStipend(
+    private static CafeteriaOutboundTransaction BuildStipend(
         CafeteriaServiceEventEnvelope envelope)
     {
         StipendServiceEvent value = JsonSerializer.Deserialize<StipendServiceEvent>(
             envelope.PayloadJson)
             ?? throw new InvalidOperationException("Invalid Stipend service event payload.");
 
-        if (value.CardReductionAmount <= 0m)
-            return null;
+        if (value.Amount <= 0m)
+            throw new InvalidOperationException("Stipend deduction amount must be positive.");
 
-        string description =
-            $"Stipend {value.PaymentMode} - Cash: {value.CashAmount:N2}; Cafeteria Reduction: {value.CardReductionAmount:N2}"
-            + (string.IsNullOrWhiteSpace(value.Notes)
+        string description = $"Stipend deduction {value.Amount:N2}"
+            + (string.IsNullOrWhiteSpace(value.Reason)
                 ? string.Empty
-                : $" - {value.Notes}");
+                : $" - {value.Reason}");
 
         return new CafeteriaOutboundTransaction(
             value.OperationId,
             value.CustomerId,
             "StipendCardReduction",
             value.ProcessedAt,
-            value.CardReductionAmount,
+            value.Amount,
             description,
             "Management",
             value.ProcessedBy);
