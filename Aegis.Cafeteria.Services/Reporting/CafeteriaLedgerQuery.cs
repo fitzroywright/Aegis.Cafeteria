@@ -35,19 +35,21 @@ public sealed class CafeteriaLedgerQuery(
             , (int)CafeteriaServiceEventKind.MonthlyAllocationRecalculation
         ];
 
-        List<ServiceEventRow> rows = await database.Events
+        // SQLite cannot translate DateTimeOffset range comparisons. Stream
+        // supported events in sequence order and compare instants in .NET.
+        IAsyncEnumerable<ServiceEventRow> rows = database.Events
             .AsNoTracking()
-            .Where(row =>
-                   row.OccurredAt >= from
-                && row.OccurredAt < to
-                && supportedKinds.Contains(row.Kind))
+            .Where(row => supportedKinds.Contains(row.Kind))
             .OrderBy(row => row.Sequence)
-            .ToListAsync(cancellationToken);
+            .AsAsyncEnumerable();
 
         List<CafeteriaLedgerLine> result = [];
 
-        foreach (ServiceEventRow row in rows)
+        await foreach (ServiceEventRow row in rows.WithCancellation(cancellationToken))
         {
+            if (row.OccurredAt < from || row.OccurredAt >= to)
+                continue;
+
             CafeteriaLedgerLine? line = ToLedgerLine(row);
             if (line is not null)
                 result.Add(line);
