@@ -16,7 +16,7 @@ public sealed class CreditShortfallTests
         order.AddItem(new OrderItem(1, "Lunch", 600m, 1));
         order.Submit(at);
         order.Complete([new OrderPayment(Guid.NewGuid(), PaymentMethod.CafeteriaAccount, 600m, at)], at, "cashier", "TEST");
-        Stipend stipend = new(Guid.NewGuid(), 77, 600m, 600m, StipendPaymentMode.Advance, "manager", at);
+        Stipend stipend = new(Guid.NewGuid(), 77, 600m, "manager", at);
         CustomerAccountCalculator calculator = new();
         CustomerAccountSnapshot snapshot = calculator.Calculate(customer, new AccountPeriod(2026, 9, 1), allocation, [order], [], [], [], [], [stipend]);
         Assert.Equal(-200m, snapshot.SignedAvailableCredit);

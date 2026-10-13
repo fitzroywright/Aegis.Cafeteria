@@ -31,7 +31,7 @@ public sealed class LoggingCafeteriaPersistenceStore(ICafeteriaPersistenceStore 
     public async Task SavePriorPeriodRefundCreditAsync(PriorPeriodRefundCredit x,CancellationToken ct=default)
     { await inner.SavePriorPeriodRefundCreditAsync(x,ct); logger.LogInformation("Prior-period refund credit {CreditId} for customer {CustomerId}: {Amount}; source order {OrderId}",x.Id,x.CustomerId,x.CafeteriaAccountAmount,x.SourceOrderId); }
     public async Task SaveStipendAsync(Stipend x,CancellationToken ct=default)
-    { await inner.SaveStipendAsync(x,ct); logger.LogInformation("Off-site stipend {StipendId} for customer {CustomerId}; mode {Mode}; cash {CashAmount}; card reduction {CardReduction}; processed by {ProcessedBy}",x.Id,x.CustomerId,x.PaymentMode,x.CashAmount,x.CardReduction,x.ProcessedByUserId); }
+    { await inner.SaveStipendAsync(x,ct); logger.LogInformation("Stipend {StipendId} for customer {CustomerId}; deduction amount {Amount}; processed by {ProcessedBy}",x.Id,x.CustomerId,x.Amount,x.ProcessedByUserId); }
     public async Task SaveAccountPeriodCloseAsync(AccountPeriodClose x,CancellationToken ct=default)
     { await inner.SaveAccountPeriodCloseAsync(x,ct); logger.LogInformation("Account period closed for customer {CustomerId}, {Year}-{Month}; employee amount due {Amount}; closed by {ClosedBy}; close {CloseId}",x.CustomerId,x.Period.Year,x.Period.Month,x.EmployeeAmountDue,x.ClosedBy,x.Id); }
 }
