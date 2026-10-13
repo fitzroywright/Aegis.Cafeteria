@@ -20,7 +20,7 @@ public sealed class FinancialPostingServiceTests
             DateTimeOffset at = new(2026, 9, 28, 12, 0, 0, TimeSpan.Zero);
             await store.SaveCustomerAsync(new Aegis.Cafeteria.Domain.Customers.Customer(77, "Employee", null, true, 0m));
             await store.SaveMonthlyCreditAllocationAsync(new MonthlyCreditAllocation(77, 2026, 9, 1, true, 1000m, 600m, at));
-            await store.SaveStipendAsync(new Stipend(Guid.NewGuid(), 77, 600m, 600m, StipendPaymentMode.Advance, "manager", at));
+            await store.SaveStipendAsync(new Stipend(Guid.NewGuid(), 77, 600m, "manager", at));
             InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(() => store.SaveOrderAsync(Sale(77, 600m, PaymentMethod.CafeteriaAccount, at)));
             Assert.Contains("Available credit changed", error.Message);
             await using (LocalCafeteriaDbContext rejected = factory.CreateDbContext())
@@ -46,7 +46,7 @@ public sealed class FinancialPostingServiceTests
             await store.SaveCustomerAsync(new Aegis.Cafeteria.Domain.Customers.Customer(77, "Employee", null, true, 300m));
             await store.SaveMonthlyCreditAllocationAsync(new MonthlyCreditAllocation(77, 2026, 9, 1, true, 1000m, 600m, at));
             await store.SaveOrderAsync(Sale(77, 600m, PaymentMethod.CafeteriaAccount, at));
-            await store.SaveStipendAsync(new Stipend(Guid.NewGuid(), 77, 600m, 600m, StipendPaymentMode.Advance, "manager", at));
+            await store.SaveStipendAsync(new Stipend(Guid.NewGuid(), 77, 600m, "manager", at));
             await Assert.ThrowsAsync<InvalidOperationException>(() => store.SaveOrderAsync(Sale(77, 1m, PaymentMethod.CafeteriaAccount, at)));
             await Assert.ThrowsAsync<InvalidOperationException>(() => store.SaveOrderAsync(Sale(77, 1m, PaymentMethod.Credit, at)));
             await store.SaveOrderAsync(Sale(77, 50m, PaymentMethod.Cash, at));
@@ -100,8 +100,6 @@ public sealed class FinancialPostingServiceTests
                 Guid.NewGuid(),
                 41,
                 500m,
-                500m,
-                StipendPaymentMode.Advance,
                 "manager",
                 new DateTimeOffset(2026, 8, 31, 12, 0, 0, TimeSpan.Zero));
 
@@ -130,9 +128,7 @@ public sealed class FinancialPostingServiceTests
             Stipend stipend = new(
                 Guid.NewGuid(),
                 42,
-                500m,
                 300m,
-                StipendPaymentMode.Reimbursement,
                 "manager",
                 new DateTimeOffset(2026, 9, 5, 12, 0, 0, TimeSpan.Zero));
 
