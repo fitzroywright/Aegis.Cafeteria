@@ -1,3 +1,4 @@
+using Common.Diagnostics;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Aegis.Cafeteria.Infrastructure.Configuration;
@@ -92,6 +93,7 @@ public sealed class CafeteriaPosOperationsPublisher(
                     request.Headers.TryAddWithoutValidation("X-Aegis-Application-Id", identity.ApplicationId);
                     request.Headers.TryAddWithoutValidation("X-Aegis-Instance-Id", identity.InstanceId);
                     request.Headers.TryAddWithoutValidation("X-Aegis-Installation-Id", identity.InstallationId);
+                    ApplicationRuntimeSession.Apply(request);
                     request.Headers.TryAddWithoutValidation("X-Aegis-Correlation-Id", Guid.NewGuid().ToString("N"));
 
                     using HttpResponseMessage response = await client.SendAsync(request, stoppingToken);

@@ -74,6 +74,7 @@ public sealed class CafeteriaOperationsFlowPublisher(
                     request.Headers.TryAddWithoutValidation("X-Aegis-Application-Id", identity.ApplicationId);
                     request.Headers.TryAddWithoutValidation("X-Aegis-Instance-Id", identity.InstanceId);
                     request.Headers.TryAddWithoutValidation("X-Aegis-Installation-Id", identity.InstallationId);
+                    ApplicationRuntimeSession.Apply(request);
                     return Task.CompletedTask;
                 });
             await new LifecycleTelemetry(lifecycleSink).EmitAsync(
@@ -122,6 +123,7 @@ public sealed class CafeteriaOperationsFlowPublisher(
             request.Headers.TryAddWithoutValidation("X-Aegis-Application-Id", identity.ApplicationId);
             request.Headers.TryAddWithoutValidation("X-Aegis-Instance-Id", identity.InstanceId);
             request.Headers.TryAddWithoutValidation("X-Aegis-Installation-Id", identity.InstallationId);
+            ApplicationRuntimeSession.Apply(request);
             request.Headers.TryAddWithoutValidation("X-Aegis-Correlation-Id", item.OperationId.ToString("N"));
 
             using HttpResponseMessage response = await client.SendAsync(request, cancellationToken);
