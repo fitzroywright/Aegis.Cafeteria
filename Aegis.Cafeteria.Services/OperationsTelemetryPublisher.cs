@@ -251,7 +251,7 @@ public sealed class OperationsTelemetryPublisher(
         var sink = new HttpLifecycleEventSink(
             client,
             new HttpLifecycleEventSinkOptions(
-                new Uri(operationsUrl.TrimEnd('/') + "/api/operations/lifecycle/events")),
+                new Uri(operationsUrl.TrimEnd('/') + "/api/operations/activity/observe")),
             (request, item, _) =>
             {
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", identity.Credential);

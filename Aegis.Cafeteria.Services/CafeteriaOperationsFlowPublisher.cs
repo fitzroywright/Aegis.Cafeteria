@@ -67,7 +67,7 @@ public sealed class CafeteriaOperationsFlowPublisher(
             using HttpClient lifecycleClient = new() { Timeout = TimeSpan.FromSeconds(5) };
             var lifecycleSink = new HttpLifecycleEventSink(
                 lifecycleClient,
-                new HttpLifecycleEventSinkOptions(new Uri(operationsUrl.TrimEnd('/') + "/api/operations/lifecycle/events")),
+                new HttpLifecycleEventSinkOptions(new Uri(operationsUrl.TrimEnd('/') + "/api/operations/activity/observe")),
                 (request, lifecycleEvent, _) =>
                 {
                     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", identity.Credential);
