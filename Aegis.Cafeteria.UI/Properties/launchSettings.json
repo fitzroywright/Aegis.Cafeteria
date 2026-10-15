@@ -7,7 +7,7 @@
         "DOTNET_ENVIRONMENT": "Development",
         "Persistence__TerminalId": "LAPTOP-WINDOWS-TEST",
         "CafeteriaServices__Enabled": "true",
-        "CafeteriaServices__BaseUrl": "http://localhost:5088",
+        "CafeteriaServices__BaseUrl": "http://10.10.0.207:5088",
         "Aegis__Configuration__Url": "https://config.ffpja.org",
         "Aegis__Diagnostics__Url": "https://diagnostics.ffpja.org",
         "Aegis__Operations__Url": "https://operations.ffpja.org"
