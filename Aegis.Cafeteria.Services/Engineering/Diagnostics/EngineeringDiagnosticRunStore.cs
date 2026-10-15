@@ -13,7 +13,13 @@ public sealed class EngineeringDiagnosticRunStore
 
     public EngineeringDiagnosticRunStore(IHostEnvironment environment)
     {
-        string directory = Path.Combine(environment.ContentRootPath, "diagnostics");
+        // systemd StateDirectory is writable even when ProtectSystem=strict is enabled.
+        // Keep Windows/developer behavior unchanged when no service state directory exists.
+        string? stateDirectory = Environment.GetEnvironmentVariable("STATE_DIRECTORY");
+        string root = OperatingSystem.IsLinux() && !string.IsNullOrWhiteSpace(stateDirectory)
+            ? stateDirectory.Split(':', StringSplitOptions.RemoveEmptyEntries)[0]
+            : environment.ContentRootPath;
+        string directory = Path.Combine(root, "diagnostics");
         Directory.CreateDirectory(directory);
         this.path = Path.Combine(directory, "diagnostic-runs.json");
     }
