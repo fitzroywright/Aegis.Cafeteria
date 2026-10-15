@@ -90,12 +90,13 @@ public sealed class OperationsTelemetryPublisher(
                     request.Headers.TryAddWithoutValidation("X-Aegis-Application-Id", identity.ApplicationId);
                     request.Headers.TryAddWithoutValidation("X-Aegis-Instance-Id", identity.InstanceId);
                     request.Headers.TryAddWithoutValidation("X-Aegis-Installation-Id", identity.InstallationId);
+                    ApplicationRuntimeSession.Apply(request);
                     request.Headers.TryAddWithoutValidation("X-Aegis-Correlation-Id", Guid.NewGuid().ToString("N"));
 
                     using HttpResponseMessage response = await client.SendAsync(request, stoppingToken);
                     if (!response.IsSuccessStatusCode)
                     {
-                        logger.LogDebug(
+                        logger.LogWarning(
                             "Operations heartbeat returned HTTP {StatusCode}; application remains operational.",
                             (int)response.StatusCode);
                     }
@@ -170,6 +171,7 @@ public sealed class OperationsTelemetryPublisher(
         request.Headers.TryAddWithoutValidation("X-Aegis-Application-Id", identity.ApplicationId);
         request.Headers.TryAddWithoutValidation("X-Aegis-Instance-Id", identity.InstanceId);
         request.Headers.TryAddWithoutValidation("X-Aegis-Installation-Id", identity.InstallationId);
+        ApplicationRuntimeSession.Apply(request);
         request.Headers.TryAddWithoutValidation("X-Aegis-Correlation-Id", Guid.NewGuid().ToString("N"));
 
         using HttpResponseMessage response = await client.SendAsync(request, ct);
@@ -221,6 +223,7 @@ public sealed class OperationsTelemetryPublisher(
             request.Headers.TryAddWithoutValidation("X-Aegis-Application-Id", identity.ApplicationId);
             request.Headers.TryAddWithoutValidation("X-Aegis-Instance-Id", identity.InstanceId);
             request.Headers.TryAddWithoutValidation("X-Aegis-Installation-Id", identity.InstallationId);
+            ApplicationRuntimeSession.Apply(request);
             request.Headers.TryAddWithoutValidation("X-Aegis-Correlation-Id", run.RunId.ToString("N"));
 
             using HttpResponseMessage response = await client.SendAsync(request, ct);
@@ -255,6 +258,7 @@ public sealed class OperationsTelemetryPublisher(
                 request.Headers.TryAddWithoutValidation("X-Aegis-Application-Id", identity.ApplicationId);
                 request.Headers.TryAddWithoutValidation("X-Aegis-Instance-Id", identity.InstanceId);
                 request.Headers.TryAddWithoutValidation("X-Aegis-Installation-Id", identity.InstallationId);
+                ApplicationRuntimeSession.Apply(request);
                 return Task.CompletedTask;
             });
 
