@@ -204,6 +204,7 @@ public sealed class ConfigurationContractPublisher(IConfiguration configuration,
                 request.Headers.TryAddWithoutValidation(
                     "X-Aegis-Installation-Id",
                     identity.InstallationId);
+                ApplicationRuntimeSession.Apply(request);
             });
     }
 
