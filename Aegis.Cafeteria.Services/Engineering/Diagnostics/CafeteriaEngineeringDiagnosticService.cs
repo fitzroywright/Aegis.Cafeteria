@@ -13,6 +13,7 @@ public sealed class CafeteriaEngineeringDiagnosticService
     private readonly IWorkforceReferenceSource workforce;
     private readonly EngineeringDiagnosticRunStore runStore;
     private readonly IHostEnvironment environment;
+    private readonly ILogger<CafeteriaEngineeringDiagnosticService> logger;
 
     public CafeteriaEngineeringDiagnosticService
     (
@@ -20,12 +21,14 @@ public sealed class CafeteriaEngineeringDiagnosticService
         , IWorkforceReferenceSource workforce
         , EngineeringDiagnosticRunStore runStore
         , IHostEnvironment environment
+        , ILogger<CafeteriaEngineeringDiagnosticService> logger
     )
     {
         this.databaseFactory = databaseFactory;
         this.workforce = workforce;
         this.runStore = runStore;
         this.environment = environment;
+        this.logger = logger;
     }
 
     public async Task<EngineeringDiagnosticRun> RunAsync
@@ -105,7 +108,15 @@ public sealed class CafeteriaEngineeringDiagnosticService
             , checks
         );
 
-        await this.runStore.SaveAsync(run, cancellationToken);
+        try
+        {
+            await this.runStore.SaveAsync(run, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            this.logger.LogError(ex, "Diagnostic run {RunId} completed with status {Status}, but diagnostic history persistence failed.", run.RunId, run.Status);
+            // Preserve current diagnostic evidence for telemetry even if history storage is unavailable.
+        }
         return run;
     }
 
