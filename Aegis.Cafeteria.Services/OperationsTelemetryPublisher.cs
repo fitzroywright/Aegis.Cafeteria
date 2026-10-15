@@ -57,7 +57,7 @@ public sealed class OperationsTelemetryPublisher(
                     }
                     catch (Exception ex) when (ex is not OperationCanceledException)
                     {
-                        logger.LogDebug(ex, "Cafeteria diagnostic publication could not collect current evidence.");
+                        logger.LogWarning(ex, "Cafeteria diagnostic publication could not collect current evidence for {ApplicationId}.", ApplicationId);
                     }
 
                     string operationalState = diagnosticRun is null
@@ -132,7 +132,7 @@ public sealed class OperationsTelemetryPublisher(
             }
             catch (Exception ex)
             {
-                logger.LogDebug(ex, "Operations telemetry heartbeat failed; application remains operational.");
+                logger.LogWarning(ex, "Operations telemetry heartbeat failed for {ApplicationId}; application remains operational.", ApplicationId);
             }
 
             try { await Task.Delay(Interval, stoppingToken); }
