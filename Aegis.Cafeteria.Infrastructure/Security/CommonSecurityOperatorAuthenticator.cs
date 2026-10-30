@@ -6,116 +6,52 @@ using Aegis.Cafeteria.Infrastructure.Persistence;
 using Common.Security.Abstractions;
 using Common.Security.Authorization;
 using Common.Security.Models;
+using Common.Security.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
-/// <summary>
-/// Authenticates cafeteria operators through the configured Common.Security provider.
-/// The provider proves identity and returns claims/group membership; the Cafeteria
-/// database owns application roles and permissions used to decide manager authority.
-/// </summary>
-public sealed class CommonSecurityOperatorAuthenticator : IOperatorAuthenticator
+public sealed class CommonSecurityOperatorAuthenticator(
+    IAuthenticator authenticator,
+    IDbContextFactory<LocalCafeteriaDbContext> localFactory,
+    OperatorSecurityOptions options,
+    IAccountStore accounts,
+    ILogger<CommonSecurityOperatorAuthenticator> logger) : IOperatorAuthenticator
 {
-    private readonly IAuthenticator authenticator;
-    private readonly ILogger<CommonSecurityOperatorAuthenticator> logger;
-    private readonly CafeteriaAuthorizationStore? authorizationStore;
-
-
-    public CommonSecurityOperatorAuthenticator(
-        IAuthenticator authenticator,
-        ILogger<CommonSecurityOperatorAuthenticator> logger)
-    {
-        this.authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
-        this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
-
-    public CommonSecurityOperatorAuthenticator(
-        IAuthenticator authenticator,
-        IDbContextFactory<LocalCafeteriaDbContext> localFactory,
-        OperatorSecurityOptions options,
-        ILogger<CommonSecurityOperatorAuthenticator> logger)
-    {
-        this.authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
-        this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        authorizationStore = new CafeteriaAuthorizationStore(
-            localFactory ?? throw new ArgumentNullException(nameof(localFactory)),
-            options ?? throw new ArgumentNullException(nameof(options)));
-    }
-
-    public async Task<OperatorIdentity?> AuthenticateAsync(
-        string loginName,
-        string password,
-        CancellationToken cancellationToken = default)
+    public async Task<OperatorIdentity?> AuthenticateAsync(string loginName, string password, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (string.IsNullOrWhiteSpace(loginName) || string.IsNullOrWhiteSpace(password)) return null;
+        AuthenticationResult result;
+        try {result=authenticator.Authenticate(loginName,password);}
+        catch(Exception exception) {logger.LogWarning(exception,"Operator provider authentication failed");return null;}
+        return result.IsAuthenticated ? await AuthorizeVerifiedIdentityAsync(result.Identity!,cancellationToken) : null;
+    }
 
-        if (string.IsNullOrWhiteSpace(loginName) || string.IsNullOrWhiteSpace(password))
-            return null;
-
+    public async Task<OperatorIdentity?> AuthorizeVerifiedIdentityAsync(VerifiedIdentity identity,CancellationToken cancellationToken=default)
+    {
         try
         {
-            AuthenticationResult result = authenticator.Authenticate(loginName, password);
-
-            if (!result.IsAuthenticated || result.UserInfo is null)
+            SecurityAccount account = new AccountProvisioningService(accounts).Provision(identity, AccountPopulation.Operator).Account;
+            if (account.Status != SecurityAccountStatus.Active)
+            {
+                logger.LogInformation("Cafeteria operator account {AccountId} is Pending Access or disabled", account.Id);
                 return null;
-
-            string userId = Normalize(loginName);
-            string displayName = string.IsNullOrWhiteSpace(result.UserInfo.DisplayName)
-                ? userId
-                : result.UserInfo.DisplayName.Trim();
-
-            bool isManager;
-            if (authorizationStore is not null)
-            {
-                await authorizationStore.EnsureDefaultOperatorRoleAsync(userId, cancellationToken);
-                PermissionAuthorizer authorizer = new(authorizationStore);
-                AuthorizationDecision decision = await authorizer.AuthorizeAsync(
-                    AuthorizationSubject.Create(userId, result.GroupNames),
-                    CafeteriaPermissions.ManagerAuthorize,
-                    cancellationToken);
-                isManager = decision.Allowed;
             }
-            else
-            {
-                // Compatibility for direct unit construction only. The DI runtime
-                // constructor above always uses the database-backed authorization store.
-                isManager = result.IsAdministrative;
-            }
-
-            logger.LogInformation(
-                "Cafeteria operator {UserId} authenticated. Manager={IsManager}",
-                userId,
-                isManager);
-
-            return new OperatorIdentity(
-                userId,
-                displayName,
-                isManager,
-                DateTimeOffset.UtcNow);
+            var roles = new CafeteriaAuthorizationStore(localFactory, options);
+            await roles.EnsureInitializedAsync(cancellationToken);
+            var authorizer = new PermissionAuthorizer(roles);
+            var subject = AuthorizationSubject.Create(account.LoginName, identity.GroupNames);
+            if (!(await authorizer.AuthorizeAsync(subject, CafeteriaPermissions.Access, cancellationToken)).Allowed) return null;
+            bool manager = (await authorizer.AuthorizeAsync(subject, CafeteriaPermissions.ManagerAuthorize, cancellationToken)).Allowed;
+            logger.LogInformation("Cafeteria operator {UserId} authenticated. Manager={IsManager}", account.LoginName, manager);
+            return new OperatorIdentity(account.LoginName, account.DisplayName, manager, identity.AuthenticatedAt,
+                account.Id, account.SessionVersion);
         }
-        catch (Exception ex)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception exception)
         {
-            logger.LogWarning(
-                ex,
-                "Common.Security authentication or authorization failed for {LoginName}",
-                Normalize(loginName));
+            logger.LogWarning(exception, "Cafeteria operator authentication or application authorization failed");
             return null;
         }
     }
-
-    private static string Normalize(string loginName)
-    {
-        string value = loginName.Trim();
-
-        int slash = value.LastIndexOf('\\');
-        if (slash >= 0 && slash < value.Length - 1)
-            value = value[(slash + 1)..];
-
-        int at = value.IndexOf('@');
-        if (at > 0)
-            value = value[..at];
-
-        return value.ToLowerInvariant();
-    }
-
 }

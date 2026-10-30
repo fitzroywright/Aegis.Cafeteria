@@ -1,38 +1,45 @@
 namespace Aegis.Cafeteria.PersistenceTests;
 
-using Aegis.Cafeteria.Application.Security;
 using Aegis.Cafeteria.Infrastructure.Configuration;
 using Aegis.Cafeteria.Infrastructure.Security;
+using Common.Security.Abstractions;
 
 public sealed class ManagerAuthorizationRegistryTests
 {
     [Fact]
-    public void Grant_Manager_AllowsNormalizedIdentity()
+    public void GrantManagerAllowsNormalizedIdentityUntilRevoked()
     {
-        var session = new OperatorSession();
-        var registry = new ManagerAuthorizationRegistry(session, new OperatorSecurityOptions { ManagerAuthorizationMinutes = 2 });
-        registry.Grant(new OperatorIdentity("FFTPJ\\Manager1", "Manager One", true, DateTimeOffset.UtcNow));
-
+        using var fixture = new SecurityAccountFixture();
+        var account = fixture.Approve(fixture.Identity("FFTPJ\\Manager1"));
+        var session = new OperatorSession(fixture.Accounts);
+        var registry = new ManagerAuthorizationRegistry(session, new OperatorSecurityOptions(), fixture.Accounts);
+        registry.Grant(fixture.Session(account));
         Assert.True(registry.IsAuthorized("manager1"));
         Assert.True(registry.IsAuthorized("manager1@fftpj.local"));
+        fixture.Accounts.RevokeSessions(account.Id, "administrator");
+        Assert.False(registry.IsAuthorized("manager1"));
     }
 
     [Fact]
-    public void Grant_NonManager_Throws()
+    public void NonManagerCannotGrantApproval()
     {
-        var registry = new ManagerAuthorizationRegistry(new OperatorSession(), new OperatorSecurityOptions());
-        Assert.Throws<UnauthorizedAccessException>(() =>
-            registry.Grant(new OperatorIdentity("cashier", "Cashier", false, DateTimeOffset.UtcNow)));
+        using var fixture = new SecurityAccountFixture();
+        var account = fixture.Approve(fixture.Identity());
+        var registry = new ManagerAuthorizationRegistry(new OperatorSession(fixture.Accounts), new OperatorSecurityOptions(), fixture.Accounts);
+        Assert.Throws<UnauthorizedAccessException>(() => registry.Grant(fixture.Session(account, manager: false)));
     }
 
     [Fact]
-    public void CurrentManagerSession_IsAuthorizedWithoutSeparateGrant()
+    public void CurrentManagerSessionIsInvalidatedWhenAccountIsDisabled()
     {
-        var session = new OperatorSession();
-        session.SignIn(new OperatorIdentity("manager", "Manager", true, DateTimeOffset.UtcNow));
-        var registry = new ManagerAuthorizationRegistry(session, new OperatorSecurityOptions());
-
+        using var fixture = new SecurityAccountFixture();
+        var account = fixture.Approve(fixture.Identity("manager"));
+        var session = new OperatorSession(fixture.Accounts);session.SignIn(fixture.Session(account));
+        var registry = new ManagerAuthorizationRegistry(session, new OperatorSecurityOptions(), fixture.Accounts);
         Assert.True(registry.IsAuthorized("manager"));
         Assert.False(registry.IsAuthorized("somebody-else"));
+        fixture.Accounts.SetStatus(account.Id, SecurityAccountStatus.Disabled, "administrator");
+        Assert.False(session.IsAuthenticated);
+        Assert.False(registry.IsAuthorized("manager"));
     }
 }

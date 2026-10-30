@@ -18,6 +18,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Common.Security.Abstractions;
+using Common.Security.Integration;
+using Microsoft.Data.Sqlite;
 
 public static class CafeteriaInfrastructure
 {
@@ -80,14 +82,25 @@ public static class CafeteriaInfrastructure
         ArgumentNullException.ThrowIfNull(options);
 
         // IAuthenticator is supplied by the configured Common.Security authentication plugin.
-        services.AddSingleton(options);
-        services.AddSingleton<CommonSecurityOperatorAuthenticator>();
+        services.AddCafeteriaOperatorSecurity(options);
         services.AddSingleton<IOperatorAuthenticator>(serviceProvider =>
             new LocalFirstOperatorAuthenticator(
                 serviceProvider.GetRequiredService<CommonSecurityOperatorAuthenticator>(),
                 serviceProvider.GetService<ServicesOperatorAuthenticator>(),
                 serviceProvider.GetRequiredService<ILogger<LocalFirstOperatorAuthenticator>>()));
 
+        return services;
+    }
+
+    public static IServiceCollection AddCafeteriaOperatorSecurity(this IServiceCollection services, OperatorSecurityOptions options)
+    {
+        services.AddSingleton(options);
+        services.AddCommonAccountStore(provider =>
+        {
+            using var db = provider.GetRequiredService<IDbContextFactory<LocalCafeteriaDbContext>>().CreateDbContext();
+            return new SqliteConnection(db.Database.GetConnectionString());
+        }, "Aegis.Cafeteria");
+        services.AddSingleton<CommonSecurityOperatorAuthenticator>();
         return services;
     }
 

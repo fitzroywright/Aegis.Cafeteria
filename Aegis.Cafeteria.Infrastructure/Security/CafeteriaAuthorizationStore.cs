@@ -87,18 +87,6 @@ public sealed class CafeteriaAuthorizationStore : IAuthorizationStore
         }
     }
 
-    public async Task EnsureDefaultOperatorRoleAsync(string userId, CancellationToken cancellationToken = default)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
-        await EnsureInitializedAsync(cancellationToken);
-        await using LocalCafeteriaDbContext db = await localFactory.CreateDbContextAsync(cancellationToken);
-        await ExecuteAsync(db,
-            "INSERT OR IGNORE INTO CafeteriaSecurityUserRoles(UserId,RoleKey) VALUES($user,$role);",
-            cancellationToken,
-            ("$user", Normalize(userId)),
-            ("$role", CafeteriaRoleNames.Operator));
-    }
-
     public async Task<IReadOnlyCollection<string>> GetDirectRoleKeysAsync(string subjectId, CancellationToken cancellationToken = default)
     {
         await EnsureInitializedAsync(cancellationToken);

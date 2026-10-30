@@ -163,7 +163,8 @@ public sealed class ServicesOperatorAuthenticator
                     exception);
             }
 
-            if (authentication is null || string.IsNullOrWhiteSpace(authentication.Token))
+            if (authentication is null || string.IsNullOrWhiteSpace(authentication.Token) ||
+                string.IsNullOrWhiteSpace(authentication.AccountId) || authentication.SessionVersion < 1)
             {
                 servicesSession.Clear();
                 throw new CafeteriaServicesAuthenticationException(
@@ -184,6 +185,8 @@ public sealed class ServicesOperatorAuthenticator
                 , authentication.DisplayName
                 , authentication.IsManager
                 , DateTimeOffset.UtcNow
+                , authentication.AccountId
+                , authentication.SessionVersion
             );
         }
     }
@@ -216,5 +219,7 @@ public sealed class ServicesOperatorAuthenticator
         , bool IsManager
         , DateTimeOffset ExpiresAt
         , string AuthenticationSource
+        , string AccountId
+        , long SessionVersion
     );
 }
