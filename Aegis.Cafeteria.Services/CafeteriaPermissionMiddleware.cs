@@ -1,46 +1,16 @@
 namespace Aegis.Cafeteria.Services;
-
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 
-public sealed class CafeteriaPermissionStartupFilter : IStartupFilter
+public static class CafeteriaPermissionMiddleware
 {
-    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
+    public static IApplicationBuilder UseCafeteriaPermissions(this IApplicationBuilder app) => app.Use(async(context,next)=>
     {
-        return app =>
-        {
-            app.Use(async (context, proceed) =>
-            {
-                string path = context.Request.Path.Value ?? string.Empty;
-                string? permission = RequiredPermission(context.Request.Method, path);
-
-                if (permission is not null)
-                {
-                    if (context.User.Identity?.IsAuthenticated != true)
-                    {
-                        AuthenticateResult result = await context.AuthenticateAsync();
-                        if (result.Succeeded && result.Principal is not null)
-                        {
-                            context.User = result.Principal;
-                        }
-                    }
-
-                    if (context.User.Identity?.IsAuthenticated == true
-                        && !CafeteriaPermissions.HasPermission(context.User, permission))
-                    {
-                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                        return;
-                    }
-                }
-
-                await proceed();
-            });
-
-            next(app);
-        };
-    }
+        string? permission=RequiredPermission(context.Request.Method,context.Request.Path.Value ?? "");
+        if(permission is not null && context.User.Identity?.IsAuthenticated==true && !CafeteriaPermissions.HasPermission(context.User,permission))
+        {context.Response.StatusCode=StatusCodes.Status403Forbidden;return;}
+        await next(context);
+    });
 
     internal static string? RequiredPermission(string method, string path)
     {

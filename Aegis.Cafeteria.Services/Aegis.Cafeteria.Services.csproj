@@ -12,7 +12,8 @@
     <ProjectReference Include="..\Aegis.Cafeteria.Plugin.Integration\Aegis.Cafeteria.Plugin.Integration.csproj"
                       ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(CommonRoot)\Common.Security\Common.Security.Plugin.ActiveDirectory\Common.Security.Plugin.ActiveDirectory.csproj"
-                      ReferenceOutputAssembly="false" />
+                      AdditionalProperties="Configuration=$(Configuration)" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="$(CommonRoot)\Common.Security\Common.Security.Hosting\Common.Security.Hosting.csproj" />
     <ProjectReference Include="$(CommonRoot)\Common.Diagnostics\Common.Diagnostics.csproj" AdditionalProperties="Configuration=$(Configuration)" />
     <ProjectReference Include="$(CommonRoot)\Common.Secrets\Common.Secrets.csproj" AdditionalProperties="Configuration=$(Configuration)" />
     <ProjectReference Include="$(CommonRoot)\Common.Messaging\Common.Messaging.csproj" AdditionalProperties="Configuration=$(Configuration)" />
@@ -20,7 +21,7 @@
     <ProjectReference Include="$(CommonRoot)\Common.Registration\Common.Registration.csproj" AdditionalProperties="Configuration=$(Configuration)" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.12" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Negotiate" Version="10.0.14" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.3" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.0" />

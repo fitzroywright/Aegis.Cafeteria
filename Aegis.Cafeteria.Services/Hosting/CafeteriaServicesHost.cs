@@ -17,6 +17,9 @@ using Common.Diagnostics;
 using Common.Messaging;
 using Common.Registration;
 using Common.Secrets;
+using Common.Security.Hosting;
+using System.Security.Claims;
+using Aegis.Cafeteria.Infrastructure.Security;
 using Microsoft.AspNetCore.Authentication.Negotiate;
 using Microsoft.EntityFrameworkCore;
 
@@ -218,7 +221,24 @@ internal static class CafeteriaServicesHost
 
     private static void ConfigureAuthentication(WebApplicationBuilder builder, ManagementApiOptions management)
     {
-        builder.Services.AddAuthentication(NegotiateDefaults.AuthenticationScheme).AddNegotiate();
+        builder.Services.AddAuthentication(NegotiateDefaults.AuthenticationScheme).AddNegotiate(options=>
+        {
+            options.Events=new NegotiateEvents();
+            options.Events.OnAuthenticated=async context=>
+            {
+                global::Common.Security.Models.VerifiedIdentity proof;
+                try{proof=WindowsNegotiateIdentity.FromValidatedPrincipal(context.Principal!);}
+                catch(InvalidOperationException){context.Fail("A verified domain Windows identity is required.");return;}
+                var approved=await context.HttpContext.RequestServices.GetRequiredService<CommonSecurityOperatorAuthenticator>()
+                    .AuthorizeVerifiedIdentityAsync(proof,context.HttpContext.RequestAborted);
+                if(approved is null){context.Fail("An active approved operator account and application role are required.");return;}
+                var claims=new List<Claim>{new(ClaimTypes.Name,approved.UserId),new(AccountSecurityHosting.AccountIdClaim,approved.AccountId),
+                    new(AccountSecurityHosting.SessionVersionClaim,approved.SessionVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),new("aegis_authentication_source","Common.Security")};
+                string? role=CafeteriaRoleResolver.ResolveManagementRole(context.HttpContext.RequestServices.GetRequiredService<IConfiguration>(),approved.AccountId,approved.IsManager);
+                if(role is not null)claims.Add(new(ClaimTypes.Role,role));
+                context.Principal=new ClaimsPrincipal(new ClaimsIdentity(claims,NegotiateDefaults.AuthenticationScheme));
+            };
+        });
         builder.Services.AddAuthorization(options =>
         {
             options.AddPolicy("CafeteriaPos", policy =>
@@ -230,17 +250,15 @@ internal static class CafeteriaServicesHost
             {
                 policy.RequireAuthenticatedUser();
                 policy.RequireAssertion(context =>
-                    CafeteriaRoleResolver.HasRole(context.User, CafeteriaRoles.Manager, CafeteriaRoles.Administrator)
-                    || management.AuthorizedGroups.Length == 0
-                    || management.AuthorizedGroups.Any(context.User.IsInRole));
+                    context.User.HasClaim("aegis_authentication_source","Common.Security") &&
+                    CafeteriaRoleResolver.HasRole(context.User, CafeteriaRoles.Manager, CafeteriaRoles.Administrator));
             });
             options.AddPolicy("EngineeringDiagnostics", policy =>
             {
                 policy.RequireAuthenticatedUser();
                 policy.RequireAssertion(context =>
-                    CafeteriaRoleResolver.HasRole(context.User, CafeteriaRoles.Manager, CafeteriaRoles.Administrator)
-                    || management.AuthorizedGroups.Length == 0
-                    || management.AuthorizedGroups.Any(context.User.IsInRole));
+                    context.User.HasClaim("aegis_authentication_source","Common.Security") &&
+                    CafeteriaRoleResolver.HasRole(context.User, CafeteriaRoles.Manager, CafeteriaRoles.Administrator));
             });
         });
     }

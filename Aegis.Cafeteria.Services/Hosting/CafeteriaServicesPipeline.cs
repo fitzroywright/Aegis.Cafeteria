@@ -18,11 +18,17 @@ internal static class CafeteriaServicesPipeline
     internal static void Configure(WebApplication app)
     {
         ConfigureDevelopmentMiddleware(app);
+        app.UseRouting();
+        app.UseRateLimiter();
         app.UseAuthentication();
+        app.UseManagementCommonSecurityAuthentication();
+        global::Common.Security.Hosting.AccountSecurityHosting.UseCommonAccountEnforcement(app,"/api/pos/authenticate");
+        app.UseCafeteriaPermissions();
         app.UseAuthorization();
         app.UseCafeteriaAuditTrail();
         AuditTrailEndpoints.Map(app);
         MapHealth(app);
+        app.MapOperatorSecurity();
     }
 
     private static void ConfigureDevelopmentMiddleware(WebApplication app)

@@ -4,4 +4,6 @@ public sealed record OperatorIdentity(
     string UserId,
     string DisplayName,
     bool IsManager,
-    DateTimeOffset AuthenticatedAt);
+    DateTimeOffset AuthenticatedAt,
+    string AccountId,
+    long SessionVersion);

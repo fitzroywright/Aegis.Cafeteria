@@ -75,7 +75,7 @@ public sealed class ServicesOperatorAuthenticatorTests
         using HttpClient http = new(new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
         {
             Content = new StringContent(
-                $$"""{"token":"ABC123","userName":"fwright","displayName":"Fitzroy Wright","isManager":true,"expiresAt":"{{expiresAt:O}}","authenticationSource":"Common.Security"}""",
+                $$"""{"token":"ABC123","userName":"fwright","displayName":"Fitzroy Wright","isManager":true,"expiresAt":"{{expiresAt:O}}","authenticationSource":"Common.Security","accountId":"approved-account","sessionVersion":1}""",
                 Encoding.UTF8,
                 "application/json")
         }))

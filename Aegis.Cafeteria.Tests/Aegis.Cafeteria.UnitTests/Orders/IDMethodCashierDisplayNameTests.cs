@@ -20,7 +20,7 @@ public sealed class IDMethodCashierDisplayNameTests
             "FFPJM\\fwright",
             "Fitzroy Wright",
             false,
-            DateTimeOffset.UtcNow));
+            DateTimeOffset.UtcNow, "approved-account", 1));
         PosCheckoutService service = new(store, operatorSession: session);
         CustomerAccountView account = new(
             new CustomerIdentityView(42, "Employee", null, true),

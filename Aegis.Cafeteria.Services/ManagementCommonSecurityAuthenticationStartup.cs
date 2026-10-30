@@ -1,7 +1,15 @@
-using System.Collections.Concurrent;
+using Aegis.Cafeteria.Application.Security;
+using Aegis.Cafeteria.Infrastructure;
+using Aegis.Cafeteria.Infrastructure.Security;
+using Aegis.Cafeteria.Infrastructure.Persistence;
+using Aegis.Cafeteria.Infrastructure.Configuration;
+using Common.Security.Services;
+using Common.Security.Hosting;
+using Aegis.Cafeteria.Services;
+using CafeteriaPermissions = Aegis.Cafeteria.Services.CafeteriaPermissions;
+using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Security.Claims;
-using System.Security.Cryptography;
 using Common.Security;
 using Common.Security.Abstractions;
 using Common.Security.Models;
@@ -29,64 +37,51 @@ public sealed class ManagementCommonSecurityAuthenticationStartup : IHostedServi
     }
 }
 
-public sealed class ManagementCommonSecurityAuthenticationRuntime
+public sealed class ManagementCommonSecurityAuthenticationRuntime(
+    CommonSecurityOperatorAuthenticator authenticator,
+    OpaqueAccountSessions<ManagementSessionIdentity> sessions,
+    IConfiguration configuration)
 {
-    private readonly ManagementCommonSecurityAuthenticator authenticator;
-    private readonly ManagementServiceTokenStore tokenStore;
     private volatile bool ready;
-
-    public ManagementCommonSecurityAuthenticationRuntime(
-        ManagementCommonSecurityAuthenticator authenticator,
-        ManagementServiceTokenStore tokenStore)
-    {
-        this.authenticator = authenticator;
-        this.tokenStore = tokenStore;
-    }
-
     public bool Ready => ready;
-
     public void MarkReady() => ready = true;
-
     public void MarkStopped() => ready = false;
-
-    public AuthenticationResult Authenticate(string loginName, string password)
+    public Task<OperatorIdentity?> AuthenticateAsync(string loginName, string password, CancellationToken cancellationToken)
+        => authenticator.AuthenticateAsync(loginName, password, cancellationToken);
+    public ManagementServiceTokenSession CreateSession(OperatorIdentity identity)
     {
-        return authenticator.Authenticate(loginName, password);
+        int minutes = Math.Clamp(configuration.GetValue<int?>("ManagementApi:SessionMinutes") ?? 30, 5, 480);
+        var session = sessions.Create(identity.AccountId, identity.SessionVersion,
+            new ManagementSessionIdentity(identity.UserId, identity.DisplayName, identity.IsManager), TimeSpan.FromMinutes(minutes));
+        return Map(session);
     }
-
-    public ManagementServiceTokenSession CreateSession(string userName, string displayName, bool isManager)
-    {
-        return tokenStore.Create(userName, displayName, isManager);
-    }
-
     public bool TryGetSession(string token, out ManagementServiceTokenSession? session)
     {
-        return tokenStore.TryGet(token, out session);
+        var current = sessions.Find(token);
+        session = current is null ? null : Map(current);
+        return session is not null;
     }
-
-    public void RemoveSession(string token)
-    {
-        tokenStore.Remove(token);
-    }
-
-    public bool IsManager(AuthenticationResult result)
-    {
-        if (result.IsAdministrative)
-        {
-            return true;
-        }
-
-        return result.GroupNames.Any(group => authenticator.AuthorizedGroups.Any(authorized =>
-            group.Equals(authorized, StringComparison.OrdinalIgnoreCase)));
-    }
+    public void RemoveSession(string token) => sessions.Remove(token);
+    private static ManagementServiceTokenSession Map(OpaqueAccountSession<ManagementSessionIdentity> session)
+        => new(session.Token, session.Identity.UserName, session.Identity.DisplayName, session.Identity.IsManager,
+            session.ExpiresAt, session.AccountId, session.SessionVersion);
 }
+
+public sealed record ManagementSessionIdentity(string UserName, string DisplayName, bool IsManager);
 
 public static class ManagementCommonSecurityAuthenticationExtensions
 {
-    public static IServiceCollection AddManagementCommonSecurityAuthentication(this IServiceCollection services)
+    public static IServiceCollection AddManagementCommonSecurityAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddSingleton<ManagementCommonSecurityAuthenticator>();
-        services.AddSingleton<ManagementServiceTokenStore>();
+        string connection = CafeteriaServiceDatabase.ResolveConnectionString(configuration);
+        services.AddSingleton<IDbContextFactory<LocalCafeteriaDbContext>>(new LocalDbContextFactory(
+            new DbContextOptionsBuilder<LocalCafeteriaDbContext>().UseSqlite(connection).Options));
+        services.AddCafeteriaOperatorSecurity(new OperatorSecurityOptions
+        {
+            AdministrativeGroups = configuration.GetSection("ManagementApi:AuthorizedGroups").Get<string[]>() ?? []
+        });
+        services.AddCommonAuthenticationRateLimiting();
+        services.AddSingleton<OpaqueAccountSessions<ManagementSessionIdentity>>();
         services.AddSingleton<ManagementCommonSecurityAuthenticationRuntime>();
         services.AddHostedService<ManagementCommonSecurityAuthenticationStartup>();
         return services;
@@ -99,18 +94,6 @@ public static class ManagementCommonSecurityAuthenticationExtensions
             ManagementCommonSecurityAuthenticationRuntime runtime = context.RequestServices
                 .GetRequiredService<ManagementCommonSecurityAuthenticationRuntime>();
 
-            if (context.Request.Path.Equals("/api/management/authenticate", StringComparison.OrdinalIgnoreCase))
-            {
-                await HandleManagementAuthenticationAsync(context, runtime);
-                return;
-            }
-
-            if (context.Request.Path.Equals("/api/pos/authenticate", StringComparison.OrdinalIgnoreCase))
-            {
-                await HandlePosAuthenticationAsync(context, runtime);
-                return;
-            }
-
             if (TryApplySession(context, runtime, "X-Aegis-Management-Token", requireManager: true)
                 || TryApplySession(context, runtime, "X-Aegis-POS-Token", requireManager: false))
             {
@@ -120,6 +103,37 @@ public static class ManagementCommonSecurityAuthenticationExtensions
 
             await next();
         });
+    }
+
+    public static void MapOperatorSecurity(this WebApplication app)
+    {
+        app.MapPost("/api/management/authenticate", (HttpContext http,ManagementCommonSecurityAuthenticationRuntime runtime)=>HandleManagementAuthenticationAsync(http,runtime))
+            .AllowAnonymous().RequireRateLimiting(AccountSecurityHosting.LoginRateLimit);
+        app.MapPost("/api/pos/authenticate",(HttpContext http,ManagementCommonSecurityAuthenticationRuntime runtime)=>HandlePosAuthenticationAsync(http,runtime))
+            .AllowAnonymous().RequireRateLimiting(AccountSecurityHosting.LoginRateLimit);
+        app.MapCommonAccountAdministration("/api/management/security/accounts",AccountPopulation.Operator,
+            new Dictionary<AuthenticationProviderKind,string>{{AuthenticationProviderKind.ActiveDirectory,"active-directory"}},
+            http=>CafeteriaPermissions.HasPermission(http.User,CafeteriaPermissions.ManageUsers));
+        app.MapPut("/api/management/security/accounts/{id}/role",async (string id,OperatorRoleRequest request,HttpContext http,
+            Common.Security.Integration.RelationalAccountStore accounts,IDbContextFactory<LocalCafeteriaDbContext> factory,OperatorSecurityOptions options)=>
+        {
+            string? actor=http.User.FindFirstValue(AccountSecurityHosting.AccountIdClaim);
+            if(actor is null || !CafeteriaPermissions.HasPermission(http.User,CafeteriaPermissions.ManageUsers) ||
+                !long.TryParse(http.User.FindFirstValue(AccountSecurityHosting.SessionVersionClaim),out var stamp) ||
+                !new AccountProvisioningService(accounts).IsCurrentSession(actor,stamp)) return Results.StatusCode(403);
+            if(request.Role is not (CafeteriaRoleNames.Operator or CafeteriaRoleNames.Manager)) return Results.BadRequest(new {error="Choose Operator or Manager."});
+            if(actor==id) return Results.BadRequest(new {error="Use another approved manager to change your own role."});
+            var account=accounts.Find(id);if(account is null)return Results.NotFound();
+            await new CafeteriaAuthorizationStore(factory,options).EnsureInitializedAsync(http.RequestAborted);
+            accounts.ChangeAuthorization(id,actor,(connection,transaction)=>
+            {
+                using var command=connection.CreateCommand();command.Transaction=transaction;
+                command.CommandText="DELETE FROM CafeteriaSecurityUserRoles WHERE lower(UserId)=lower($user);INSERT INTO CafeteriaSecurityUserRoles(UserId,RoleKey) VALUES($user,$role)";
+                var user=command.CreateParameter();user.ParameterName="$user";user.Value=account.LoginName;command.Parameters.Add(user);
+                var role=command.CreateParameter();role.ParameterName="$role";role.Value=request.Role;command.Parameters.Add(role);command.ExecuteNonQuery();
+            });
+            return Results.NoContent();
+        }).RequireAuthorization();
     }
 
     private static bool TryApplySession(
@@ -140,15 +154,15 @@ public static class ManagementCommonSecurityAuthenticationExtensions
 
         List<Claim> claims =
         [
-              new Claim(ClaimTypes.Name, session.UserName)
+              new Claim(global::Common.Security.Hosting.AccountSecurityHosting.AccountIdClaim,session.AccountId)
+            , new Claim(global::Common.Security.Hosting.AccountSecurityHosting.SessionVersionClaim,session.SessionVersion.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            , new Claim(ClaimTypes.Name, session.UserName)
             , new Claim("aegis_display_name", session.DisplayName)
             , new Claim("aegis_authentication_source", "Common.Security")
         ];
 
-        if (session.IsManager)
-        {
-            claims.Add(new Claim(ClaimTypes.Role, Aegis.Cafeteria.Services.CafeteriaRoles.Manager));
-        }
+        string? role=CafeteriaRoleResolver.ResolveManagementRole(context.RequestServices.GetRequiredService<IConfiguration>(),session.AccountId,session.IsManager);
+        if(role is not null) claims.Add(new Claim(ClaimTypes.Role,role));
 
         context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Common.Security"));
         return true;
@@ -194,10 +208,7 @@ public static class ManagementCommonSecurityAuthenticationExtensions
             return;
         }
 
-        ManagementServiceTokenSession session = runtime.CreateSession(
-            exchange.UserName,
-            exchange.DisplayName,
-            isManager: true);
+        ManagementServiceTokenSession session = runtime.CreateSession(exchange.Operator);
 
         await WriteSessionAsync(context, session, includeManagerFlag: false);
     }
@@ -231,10 +242,7 @@ public static class ManagementCommonSecurityAuthenticationExtensions
             return;
         }
 
-        ManagementServiceTokenSession session = runtime.CreateSession(
-            exchange.UserName,
-            exchange.DisplayName,
-            exchange.IsManager);
+        ManagementServiceTokenSession session = runtime.CreateSession(exchange.Operator);
 
         await WriteSessionAsync(context, session, includeManagerFlag: true);
     }
@@ -287,10 +295,10 @@ public static class ManagementCommonSecurityAuthenticationExtensions
             return null;
         }
 
-        AuthenticationResult result;
+        OperatorIdentity? result;
         try
         {
-            result = runtime.Authenticate(request.LoginName, request.Password);
+            result = await runtime.AuthenticateAsync(request.LoginName, request.Password, context.RequestAborted);
         }
         catch (Exception exception)
         {
@@ -304,7 +312,7 @@ public static class ManagementCommonSecurityAuthenticationExtensions
             return null;
         }
 
-        if (!result.IsAuthenticated || result.UserInfo is null)
+        if (result is null)
         {
             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
             await context.Response.WriteAsJsonAsync(new
@@ -315,14 +323,7 @@ public static class ManagementCommonSecurityAuthenticationExtensions
             return null;
         }
 
-        string userName = NormalizeUserName(request.LoginName);
-        string? displayName = result.UserInfo.DisplayName?.Trim();
-        if (string.IsNullOrWhiteSpace(displayName))
-        {
-            displayName = userName;
-        }
-
-        return new AuthenticationExchange(result, userName, displayName, runtime.IsManager(result));
+        return new AuthenticationExchange(result);
     }
 
     private static Task WriteSessionAsync(
@@ -339,6 +340,8 @@ public static class ManagementCommonSecurityAuthenticationExtensions
                 , isManager = session.IsManager
                 , expiresAt = session.ExpiresAt
                 , authenticationSource = "Common.Security"
+                , accountId = session.AccountId
+                , sessionVersion = session.SessionVersion
             }
             : new
             {
@@ -347,110 +350,16 @@ public static class ManagementCommonSecurityAuthenticationExtensions
                 , displayName = session.DisplayName
                 , expiresAt = session.ExpiresAt
                 , authenticationSource = "Common.Security"
+                , accountId = session.AccountId
+                , sessionVersion = session.SessionVersion
             };
 
         return context.Response.WriteAsJsonAsync(response, context.RequestAborted);
     }
 
-    private static string NormalizeUserName(string loginName)
+    private sealed record AuthenticationExchange(OperatorIdentity Operator)
     {
-        string value = loginName.Trim();
-        int slash = value.LastIndexOf('\\');
-        if (slash >= 0 && slash < value.Length - 1)
-        {
-            value = value[(slash + 1)..];
-        }
-
-        int at = value.IndexOf('@');
-        if (at > 0)
-        {
-            value = value[..at];
-        }
-
-        return value.ToLowerInvariant();
-    }
-
-    private sealed record AuthenticationExchange(
-        AuthenticationResult Result,
-        string UserName,
-        string DisplayName,
-        bool IsManager);
-}
-
-public sealed class ManagementCommonSecurityAuthenticator
-{
-    private readonly IAuthenticator authenticator;
-
-    public ManagementCommonSecurityAuthenticator(
-        IAuthenticator authenticator,
-        IConfiguration configuration)
-    {
-        this.authenticator = authenticator ?? throw new ArgumentNullException(nameof(authenticator));
-
-        string[] configuredGroups = configuration
-            .GetSection("ManagementApi:AuthorizedGroups")
-            .GetChildren()
-            .Select(child => child.Value?.Trim())
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Cast<string>()
-            .ToArray();
-
-        AuthorizedGroups = configuredGroups;
-    }
-
-    public IReadOnlyList<string> AuthorizedGroups { get; }
-
-    public AuthenticationResult Authenticate(string loginName, string password)
-        => authenticator.Authenticate(loginName, password);
-}
-
-public sealed class ManagementServiceTokenStore
-{
-    private readonly ConcurrentDictionary<string, ManagementServiceTokenSession> sessions = new(StringComparer.Ordinal);
-    private readonly TimeSpan lifetime;
-
-    public ManagementServiceTokenStore(IConfiguration configuration)
-    {
-        int configuredMinutes = configuration.GetValue<int?>("ManagementApi:SessionMinutes") ?? 30;
-        lifetime = TimeSpan.FromMinutes(Math.Clamp(configuredMinutes, 5, 480));
-    }
-
-    public ManagementServiceTokenSession Create(string userName, string displayName, bool isManager)
-    {
-        string token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-        ManagementServiceTokenSession session = new
-        (
-              token
-            , userName
-            , displayName
-            , isManager
-            , DateTimeOffset.UtcNow.Add(lifetime)
-        );
-
-        sessions[token] = session;
-        return session;
-    }
-
-    public void Remove(string token)
-    {
-        sessions.TryRemove(token, out _);
-    }
-
-    public bool TryGet(string token, out ManagementServiceTokenSession? session)
-    {
-        if (!sessions.TryGetValue(token, out session))
-        {
-            return false;
-        }
-
-        if (session.ExpiresAt <= DateTimeOffset.UtcNow)
-        {
-            sessions.TryRemove(token, out _);
-            session = null;
-            return false;
-        }
-
-        return true;
+        public bool IsManager => Operator.IsManager;
     }
 }
 
@@ -463,5 +372,9 @@ public sealed record ManagementServiceTokenSession
     , string DisplayName
     , bool IsManager
     , DateTimeOffset ExpiresAt
+    , string AccountId
+    , long SessionVersion
 );
 
+
+public sealed record OperatorRoleRequest(string Role);

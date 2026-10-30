@@ -6,6 +6,7 @@
     <CommonRoot Condition="'$(CommonRoot)' == ''">$(MSBuildThisFileDirectory)..\..\Common</CommonRoot>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
     <ProjectReference Include="..\Aegis.Cafeteria.Domain\Aegis.Cafeteria.Domain.csproj" />
     <ProjectReference Include="..\Aegis.Cafeteria.Application\Aegis.Cafeteria.Application.csproj" />
     <ProjectReference Include="$(CommonRoot)\Common.Security\Common.Security.csproj" AdditionalProperties="Configuration=$(Configuration)" />
@@ -18,7 +19,7 @@
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.3" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.14" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.11" />
   </ItemGroup>
   <ItemGroup>
