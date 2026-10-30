@@ -234,7 +234,8 @@ internal static class CafeteriaServicesHost
                 if(approved is null){context.Fail("An active approved operator account and application role are required.");return;}
                 var claims=new List<Claim>{new(ClaimTypes.Name,approved.UserId),new(AccountSecurityHosting.AccountIdClaim,approved.AccountId),
                     new(AccountSecurityHosting.SessionVersionClaim,approved.SessionVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)),new("aegis_authentication_source","Common.Security")};
-                if(approved.IsManager)claims.Add(new(ClaimTypes.Role,CafeteriaRoles.Manager));
+                string? role=CafeteriaRoleResolver.ResolveManagementRole(context.HttpContext.RequestServices.GetRequiredService<IConfiguration>(),approved.AccountId,approved.IsManager);
+                if(role is not null)claims.Add(new(ClaimTypes.Role,role));
                 context.Principal=new ClaimsPrincipal(new ClaimsIdentity(claims,NegotiateDefaults.AuthenticationScheme));
             };
         });

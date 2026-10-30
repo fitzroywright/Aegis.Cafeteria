@@ -23,6 +23,7 @@ internal static class CafeteriaServicesPipeline
         app.UseAuthentication();
         app.UseManagementCommonSecurityAuthentication();
         global::Common.Security.Hosting.AccountSecurityHosting.UseCommonAccountEnforcement(app,"/api/pos/authenticate");
+        app.UseCafeteriaPermissions();
         app.UseAuthorization();
         app.UseCafeteriaAuditTrail();
         AuditTrailEndpoints.Map(app);

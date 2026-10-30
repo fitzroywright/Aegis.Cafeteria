@@ -6,6 +6,7 @@ using Aegis.Cafeteria.Infrastructure.Configuration;
 using Common.Security.Services;
 using Common.Security.Hosting;
 using Aegis.Cafeteria.Services;
+using CafeteriaPermissions = Aegis.Cafeteria.Services.CafeteriaPermissions;
 using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Security.Claims;
@@ -112,12 +113,12 @@ public static class ManagementCommonSecurityAuthenticationExtensions
             .AllowAnonymous().RequireRateLimiting(AccountSecurityHosting.LoginRateLimit);
         app.MapCommonAccountAdministration("/api/management/security/accounts",AccountPopulation.Operator,
             new Dictionary<AuthenticationProviderKind,string>{{AuthenticationProviderKind.ActiveDirectory,"active-directory"}},
-            http=>http.User.IsInRole(CafeteriaRoles.Manager));
+            http=>CafeteriaPermissions.HasPermission(http.User,CafeteriaPermissions.ManageUsers));
         app.MapPut("/api/management/security/accounts/{id}/role",async (string id,OperatorRoleRequest request,HttpContext http,
             Common.Security.Integration.RelationalAccountStore accounts,IDbContextFactory<LocalCafeteriaDbContext> factory,OperatorSecurityOptions options)=>
         {
             string? actor=http.User.FindFirstValue(AccountSecurityHosting.AccountIdClaim);
-            if(actor is null || !http.User.IsInRole(CafeteriaRoles.Manager) ||
+            if(actor is null || !CafeteriaPermissions.HasPermission(http.User,CafeteriaPermissions.ManageUsers) ||
                 !long.TryParse(http.User.FindFirstValue(AccountSecurityHosting.SessionVersionClaim),out var stamp) ||
                 !new AccountProvisioningService(accounts).IsCurrentSession(actor,stamp)) return Results.StatusCode(403);
             if(request.Role is not (CafeteriaRoleNames.Operator or CafeteriaRoleNames.Manager)) return Results.BadRequest(new {error="Choose Operator or Manager."});
@@ -160,10 +161,8 @@ public static class ManagementCommonSecurityAuthenticationExtensions
             , new Claim("aegis_authentication_source", "Common.Security")
         ];
 
-        if (session.IsManager)
-        {
-            claims.Add(new Claim(ClaimTypes.Role, Aegis.Cafeteria.Services.CafeteriaRoles.Manager));
-        }
+        string? role=CafeteriaRoleResolver.ResolveManagementRole(context.RequestServices.GetRequiredService<IConfiguration>(),session.AccountId,session.IsManager);
+        if(role is not null) claims.Add(new Claim(ClaimTypes.Role,role));
 
         context.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Common.Security"));
         return true;
