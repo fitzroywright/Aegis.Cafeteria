@@ -12,7 +12,7 @@
     <ProjectReference Include="..\Aegis.Cafeteria.Plugin.Integration\Aegis.Cafeteria.Plugin.Integration.csproj"
                       ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(CommonRoot)\Common.Security\Common.Security.Plugin.ActiveDirectory\Common.Security.Plugin.ActiveDirectory.csproj"
-                      ReferenceOutputAssembly="false" />
+                      AdditionalProperties="Configuration=$(Configuration)" ReferenceOutputAssembly="false" />
     <ProjectReference Include="$(CommonRoot)\Common.Security\Common.Security.Hosting\Common.Security.Hosting.csproj" />
     <ProjectReference Include="$(CommonRoot)\Common.Diagnostics\Common.Diagnostics.csproj" AdditionalProperties="Configuration=$(Configuration)" />
     <ProjectReference Include="$(CommonRoot)\Common.Secrets\Common.Secrets.csproj" AdditionalProperties="Configuration=$(Configuration)" />

@@ -14,7 +14,7 @@
     <ProjectReference Include="..\Aegis.Cafeteria.Reporting\Aegis.Cafeteria.Reporting.csproj" />
       <ProjectReference Include="..\Aegis.Cafeteria.Presentation\Aegis.Cafeteria.Presentation.csproj" />
     <ProjectReference Include="$(CommonRoot)\Common.Security\Common.Security.Plugin.ActiveDirectory\Common.Security.Plugin.ActiveDirectory.csproj"
-                      ReferenceOutputAssembly="false" />
+                      AdditionalProperties="Configuration=$(Configuration)" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
