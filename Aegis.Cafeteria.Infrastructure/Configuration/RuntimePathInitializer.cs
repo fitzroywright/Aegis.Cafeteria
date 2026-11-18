@@ -1,5 +1,7 @@
 namespace Aegis.Cafeteria.Infrastructure.Configuration;
 
+using Microsoft.Data.Sqlite;
+
 public static class RuntimePathInitializer
 {
     public static void EnsureDirectories(CafeteriaRuntimeOptions runtime)
@@ -11,13 +13,11 @@ public static class RuntimePathInitializer
 
     private static void EnsureSqliteDirectory(string connectionString)
     {
-        const string prefix = "Data Source=";
-        var part = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries)
-            .FirstOrDefault(x => x.TrimStart().StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
-        if (part is null) return;
-        var path = part[(part.IndexOf('=') + 1)..].Trim().Trim('"');
-        if (string.IsNullOrWhiteSpace(path) || path == ":memory:") return;
-        EnsureParent(path);
+        SqliteConnectionStringBuilder builder = new(connectionString);
+        if (string.IsNullOrWhiteSpace(builder.DataSource) || builder.DataSource == ":memory:"
+            || builder.Mode == SqliteOpenMode.Memory
+            || builder.DataSource.StartsWith("file:", StringComparison.OrdinalIgnoreCase)) return;
+        EnsureParent(builder.DataSource);
     }
 
     private static void EnsureParent(string? path)

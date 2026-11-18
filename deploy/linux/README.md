@@ -1,6 +1,6 @@
 # Aegis.Cafeteria.Services on Linux
 
-Aegis.Cafeteria.Services can run as a normal .NET 10 ASP.NET Core process under systemd. The application keeps the same zero-application-secret model used on Windows.
+Aegis.Cafeteria.Services can run as a normal .NET 11 ASP.NET Core process under systemd. The application keeps the same zero-application-secret model used on Windows.
 
 ## Authentication model
 
@@ -13,7 +13,7 @@ The OS/domain join maintains Kerberos machine credentials. Those are operating-s
 
 ## Recommended host setup
 
-Use Debian 13 or another supported Linux distribution with .NET 10, Kerberos, realmd/SSSD and DNS correctly pointing at the FFTPJ AD DNS servers.
+Use Debian 13 or another supported Linux distribution with .NET 11, Kerberos, realmd/SSSD and DNS correctly pointing at the FFTPJ AD DNS servers.
 
 Create a locked-down local runtime account:
 

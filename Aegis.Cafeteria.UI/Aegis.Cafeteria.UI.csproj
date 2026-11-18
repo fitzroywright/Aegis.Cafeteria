@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net11.0-windows7.0</TargetFramework>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -17,27 +17,17 @@
                       AdditionalProperties="Configuration=$(Configuration)" ReferenceOutputAssembly="false" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.15" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.15" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0" />
   </ItemGroup>
   <ItemGroup>
 <None Update="appsettings.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
     <None Update="appsettings.Development.json"><CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory></None>
   </ItemGroup>
 
-  <Target Name="StageAuthenticationPluginAfterBuild" AfterTargets="Build">
-    <PropertyGroup>
-      <AuthenticationPluginOutput>$(CommonRoot)\Common.Security\Common.Security.Plugin.ActiveDirectory\bin\$(Configuration)\net10.0</AuthenticationPluginOutput>
-    </PropertyGroup>
-    <MakeDir Directories="$(OutDir)plugins" />
-    <ItemGroup>
-      <AuthenticationPluginFiles Include="$(AuthenticationPluginOutput)\**\*" />
-    </ItemGroup>
-    <Copy SourceFiles="@(AuthenticationPluginFiles)"
-          DestinationFiles="@(AuthenticationPluginFiles->'$(OutDir)plugins\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true" />
-    <Error Condition="!Exists('$(OutDir)plugins\Common.Security.Plugin.ActiveDirectory.dll')"
-           Text="Authentication plugin was not staged to $(OutDir)plugins." />
-  </Target>
+  <ItemGroup>
+    <CafeteriaPluginProject Include="$(CommonRoot)\Common.Security\Common.Security.Plugin.ActiveDirectory\Common.Security.Plugin.ActiveDirectory.csproj" />
+  </ItemGroup>
+  <Import Project="..\build\Cafeteria.PluginStaging.targets" />
 </Project>

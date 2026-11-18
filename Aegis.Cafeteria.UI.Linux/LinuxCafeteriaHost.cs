@@ -21,7 +21,11 @@ internal static class LinuxCafeteriaHost
 {
     public static IHost Build(string[] args)
     {
-        HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+        HostApplicationBuilder builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            Args = args,
+            ContentRootPath = AppContext.BaseDirectory
+        });
         ConfigureSources(builder);
         CafeteriaRuntimeOptions runtime = ResolveRuntime(builder);
         ConfigureServices(builder, runtime);

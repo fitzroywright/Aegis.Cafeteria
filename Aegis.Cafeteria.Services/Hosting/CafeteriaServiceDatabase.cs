@@ -1,14 +1,17 @@
 using Aegis.Cafeteria.Services.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Data.Sqlite;
+using Aegis.Cafeteria.Infrastructure.Configuration;
 
 namespace Aegis.Cafeteria.Services;
 
 internal static class CafeteriaServiceDatabase
 {
-    internal static string ResolveConnectionString(IConfiguration configuration)
+    internal static string ResolveConnectionString(IConfiguration configuration, string contentRootPath)
     {
-        string connectionString = configuration["ServicePersistence:ConnectionString"] ?? "Data Source=cafeteria.services.db";
+        string connectionString = SqliteDatabasePath.Resolve(
+            configuration["ServicePersistence:ConnectionString"] ?? "Data Source=cafeteria.services.db",
+            contentRootPath);
         EnsureDatabaseDirectory(connectionString);
         return connectionString;
     }
@@ -25,7 +28,9 @@ internal static class CafeteriaServiceDatabase
     private static void EnsureDatabaseDirectory(string connectionString)
     {
         SqliteConnectionStringBuilder builder = new(connectionString);
-        if (string.IsNullOrWhiteSpace(builder.DataSource) || builder.DataSource == ":memory:") return;
+        if (string.IsNullOrWhiteSpace(builder.DataSource) || builder.DataSource == ":memory:"
+            || builder.Mode == SqliteOpenMode.Memory
+            || builder.DataSource.StartsWith("file:", StringComparison.OrdinalIgnoreCase)) return;
         string fullPath = Path.GetFullPath(builder.DataSource);
         string? directory = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);

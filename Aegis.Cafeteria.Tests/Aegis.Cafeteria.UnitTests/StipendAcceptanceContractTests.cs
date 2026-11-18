@@ -21,7 +21,7 @@ public sealed class StipendAcceptanceContractTests
         Assert.Contains(payload.Reason!, outbound.Description);
         string root = FindRoot();
         string configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
-        string plugin = Path.Combine(root, "Aegis.Cafeteria.Services", "bin", configuration, "net10.0", "plugins", "Aegis.Cafeteria.Plugin.Integration.dll");
+        string plugin = Path.Combine(root, "Aegis.Cafeteria.Services", "bin", configuration, "net11.0", "plugins", "Aegis.Cafeteria.Plugin.Integration.dll");
         var provider = Assembly.LoadFrom(plugin).GetType("Aegis.Cafeteria.Plugin.Integration.FfpManagerIntegrationProvider")!;
         var scanType = provider.GetMethod("ResolveScanType", BindingFlags.Static | BindingFlags.NonPublic)!;
         Assert.Equal(4, (int)scanType.Invoke(null, [outbound.TransactionKind])!);

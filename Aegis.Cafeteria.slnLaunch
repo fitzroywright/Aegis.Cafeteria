@@ -6,7 +6,6 @@
       { "Path": "..\\Aegis.Diagnostics\\Aegis.Diagnostics.csproj", "Action": "Start" },
       { "Path": "..\\Aegis.Operations\\Aegis.Operations.csproj", "Action": "Start" },
       { "Path": "Aegis.Cafeteria.Services\\Aegis.Cafeteria.Services.csproj", "Action": "Start" },
-      { "Path": "Aegis.Cafeteria.Management\\Aegis.Cafeteria.Management.csproj", "Action": "Start" },
       { "Path": "Aegis.Cafeteria.UI\\Aegis.Cafeteria.UI.csproj", "Action": "Start" }
     ]
   },
@@ -21,6 +20,5 @@
     ]
   },
   { "Name": "Development - Services Only", "Projects": [{ "Path": "Aegis.Cafeteria.Services\\Aegis.Cafeteria.Services.csproj", "Action": "Start" }] },
-  { "Name": "Development - Management Only", "Projects": [{ "Path": "Aegis.Cafeteria.Management\\Aegis.Cafeteria.Management.csproj", "Action": "Start" }] },
   { "Name": "Development - Windows POS Only", "Projects": [{ "Path": "Aegis.Cafeteria.UI\\Aegis.Cafeteria.UI.csproj", "Action": "Start" }] }
 ]

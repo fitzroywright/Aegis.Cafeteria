@@ -1,0 +1,24 @@
+<Project>
+  <!-- Ask each project for its actual output; do not infer paths from the host's TFM or RID. -->
+  <Target Name="ResolveCafeteriaPluginFiles">
+    <MSBuild Projects="@(CafeteriaPluginProject)" Targets="GetTargetPath"
+             RemoveProperties="TargetFramework;RuntimeIdentifier;SelfContained" Properties="Configuration=$(Configuration)">
+      <Output TaskParameter="TargetOutputs" ItemName="CafeteriaPluginAssembly" />
+    </MSBuild>
+    <Error Condition="!Exists('%(CafeteriaPluginAssembly.Identity)')"
+           Text="Required plugin output is missing: %(CafeteriaPluginAssembly.Identity). Build the referenced plugin project first." />
+    <ItemGroup>
+      <CafeteriaPluginFiles Include="%(CafeteriaPluginAssembly.RootDir)%(CafeteriaPluginAssembly.Directory)**\*" />
+    </ItemGroup>
+  </Target>
+  <Target Name="StageCafeteriaPluginsAfterBuild" AfterTargets="Build" DependsOnTargets="ResolveCafeteriaPluginFiles">
+    <Copy SourceFiles="@(CafeteriaPluginFiles)"
+          DestinationFiles="@(CafeteriaPluginFiles->'$(OutDir)plugins\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="StageCafeteriaPluginsForPublish" AfterTargets="Publish" DependsOnTargets="ResolveCafeteriaPluginFiles">
+    <Copy SourceFiles="@(CafeteriaPluginFiles)"
+          DestinationFiles="@(CafeteriaPluginFiles->'$(PublishDir)plugins\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+</Project>

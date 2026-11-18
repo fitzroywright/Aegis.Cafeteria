@@ -19,7 +19,7 @@ if (-not $ServicesAssembly) {
         & dotnet build $project --configuration Release --no-restore
         if ($LASTEXITCODE -ne 0) { throw 'Cafeteria Release build failed.' }
     }
-    $ServicesAssembly = Join-Path $repo 'Aegis.Cafeteria.Services/bin/Release/net10.0/Aegis.Cafeteria.Services.dll'
+    $ServicesAssembly = Join-Path $repo 'Aegis.Cafeteria.Services/bin/Release/net11.0/Aegis.Cafeteria.Services.dll'
 }
 if ($SkipBuild -or $PSBoundParameters.ContainsKey('ServicesAssembly')) {
     if (-not $ExpectedRunnerSha256) { throw 'A reviewed acceptance runner SHA256 is required when using a prebuilt assembly.' }

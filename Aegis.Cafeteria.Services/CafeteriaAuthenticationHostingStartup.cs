@@ -26,7 +26,7 @@ public sealed class CafeteriaAuthenticationHostingStartup : IHostingStartup
                     services,
                     context.Configuration,
                     context.HostingEnvironment.ContentRootPath);
-                services.AddManagementCommonSecurityAuthentication(context.Configuration);
+                services.AddManagementCommonSecurityAuthentication(context.Configuration, context.HostingEnvironment.ContentRootPath);
                 
                 services.AddSingleton<IStartupFilter, CafeteriaRuntimeStartupFilter>();
 

@@ -23,7 +23,7 @@ public sealed class CafeteriaServicesStartupTests
         {
             string root = FindRoot();
             string configuration = new DirectoryInfo(AppContext.BaseDirectory).Parent!.Name;
-            string plugin = Path.Combine(root, "Aegis.Cafeteria.Services", "bin", configuration, "net10.0", "plugins", "Aegis.Cafeteria.Plugin.Integration.dll");
+            string plugin = Path.Combine(root, "Aegis.Cafeteria.Services", "bin", configuration, "net11.0", "plugins", "Aegis.Cafeteria.Plugin.Integration.dll");
             var builder = WebApplication.CreateBuilder(new WebApplicationOptions
             {
                 EnvironmentName = environment,

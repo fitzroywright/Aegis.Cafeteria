@@ -31,14 +31,17 @@ internal static class Program
         using StartupSplashController splash = new();
         splash.Update("Loading application configuration...", "Preparing the cafeteria terminal.");
 
-        HostApplicationBuilder builder = Host.CreateApplicationBuilder();
-        builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
-            .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: false)
-            .AddEnvironmentVariables();
-
         CafeteriaRuntimeOptions runtime;
+        HostApplicationBuilder builder;
         try
         {
+            builder = Host.CreateApplicationBuilder(new HostApplicationBuilderSettings
+            {
+                ContentRootPath = AppContext.BaseDirectory
+            });
+            builder.Configuration.AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
+                .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: false)
+                .AddEnvironmentVariables();
             runtime = CafeteriaRuntimeOptionsResolver.ResolvePosAsync(builder.Configuration)
                 .GetAwaiter()
                 .GetResult();

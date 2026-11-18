@@ -71,9 +71,10 @@ public sealed record ManagementSessionIdentity(string UserName, string DisplayNa
 
 public static class ManagementCommonSecurityAuthenticationExtensions
 {
-    public static IServiceCollection AddManagementCommonSecurityAuthentication(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddManagementCommonSecurityAuthentication(
+        this IServiceCollection services, IConfiguration configuration, string contentRootPath)
     {
-        string connection = CafeteriaServiceDatabase.ResolveConnectionString(configuration);
+        string connection = CafeteriaServiceDatabase.ResolveConnectionString(configuration, contentRootPath);
         services.AddSingleton<IDbContextFactory<LocalCafeteriaDbContext>>(new LocalDbContextFactory(
             new DbContextOptionsBuilder<LocalCafeteriaDbContext>().UseSqlite(connection).Options));
         services.AddCafeteriaOperatorSecurity(new OperatorSecurityOptions

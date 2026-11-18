@@ -7,9 +7,9 @@ $ErrorActionPreference = "Stop"
 Write-Host "Cafeteria v47 Windows prerequisites" -ForegroundColor Cyan
 
 $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
-if (-not $dotnet) { throw ".NET SDK was not found. Install .NET 10 SDK." }
+if (-not $dotnet) { throw ".NET SDK was not found. Install .NET 11 SDK." }
 $version = (& dotnet --version).Trim()
-if (-not $version.StartsWith("10.")) { throw "A .NET 10 SDK is required. Found $version." }
+if (-not $version.StartsWith("11.")) { throw "A .NET 11 SDK is required. Found $version." }
 Write-Host "[OK] .NET SDK $version"
 
 if (-not (Test-Path $Config)) { throw "Configuration file not found: $Config" }

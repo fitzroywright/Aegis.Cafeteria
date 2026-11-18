@@ -60,7 +60,7 @@ jobs:
           path: Common/Common.Registration
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          global-json-file: global.json
       - name: Verify shared source revisions
         run: python3 ../Common/Common.Security/scripts/verify-source-baseline.py security-baseline.json --common-root ../Common
       - name: Test application security and business regressions
@@ -130,7 +130,7 @@ jobs:
           path: Common/Common.Registration
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 10.0.x
+          global-json-file: global.json
       - name: Verify shared revisions
         run: python ../Common/Common.Security/scripts/verify-source-baseline.py security-baseline.json --common-root ../Common
       - name: Build Windows POS

@@ -11,4 +11,4 @@ for project in UnitTests PersistenceTests ReportingTests; do
   dotnet test "$repo/Aegis.Cafeteria.Tests/Aegis.Cafeteria.$project/Aegis.Cafeteria.$project.csproj" --configuration Release -m:1 -p:BuildInParallel=false
 done
 export CAFETERIA_ACCEPTANCE_REASON=ReleaseQualification
-dotnet "$repo/Aegis.Cafeteria.Services/bin/Release/net10.0/Aegis.Cafeteria.Services.dll" --cafeteria-acceptance "$1"
+dotnet "$repo/Aegis.Cafeteria.Services/bin/Release/net11.0/Aegis.Cafeteria.Services.dll" --cafeteria-acceptance "$1"

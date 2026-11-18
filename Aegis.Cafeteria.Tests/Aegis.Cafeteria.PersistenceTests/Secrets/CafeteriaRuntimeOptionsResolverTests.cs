@@ -16,7 +16,7 @@ public sealed class CafeteriaRuntimeOptionsResolverTests
         };
         var c = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
         var result = await CafeteriaRuntimeOptionsResolver.ResolveAsync(c, new StubSecrets());
-        Assert.Equal("Data Source=test.db", result.Persistence.LocalSqliteConnectionString);
+        Assert.Equal(Path.Combine(AppContext.BaseDirectory, "test.db"), new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder(result.Persistence.LocalSqliteConnectionString).DataSource);
         Assert.Equal("POS-1", result.Persistence.TerminalId);
         Assert.DoesNotContain(typeof(CafeteriaRuntimeOptions).GetProperties(), x => x.Name == "Policy");
         var props = typeof(CafeteriaPersistenceOptions).GetProperties().Select(x=>x.Name).ToHashSet();

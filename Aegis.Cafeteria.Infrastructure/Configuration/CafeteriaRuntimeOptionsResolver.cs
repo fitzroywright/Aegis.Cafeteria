@@ -92,7 +92,9 @@ public static class CafeteriaRuntimeOptionsResolver
 
         CafeteriaPersistenceOptions persistence = new()
         {
-            LocalSqliteConnectionString = p["LocalSqliteConnectionString"] ?? "Data Source=cafeteria.local.db;Cache=Shared",
+            LocalSqliteConnectionString = SqliteDatabasePath.Resolve(
+                p["LocalSqliteConnectionString"] ?? "Data Source=cafeteria.local.db;Cache=Shared",
+                AppContext.BaseDirectory),
             TerminalId = p["TerminalId"] ?? Environment.MachineName
         };
         CafeteriaLoggingOptions logging = new()

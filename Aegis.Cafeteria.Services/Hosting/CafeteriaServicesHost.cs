@@ -33,7 +33,7 @@ internal static class CafeteriaServicesHost
             new MonthOpeningOptions { Enabled = false }, new ScheduledEmailOptions { Enabled = false }, new ExternalPublicationOptions());
         IntegrationPluginLoader.Register(builder);
         RegisterIntegrationGateways(builder.Services);
-        RegisterApplicationServices(builder.Services, CafeteriaServiceDatabase.ResolveConnectionString(builder.Configuration));
+        RegisterApplicationServices(builder.Services, CafeteriaServiceDatabase.ResolveConnectionString(builder.Configuration, builder.Environment.ContentRootPath));
         RegisterWorkers(builder.Services);
         // Acceptance drives actual workers explicitly. No scheduler or outbound transport starts.
         foreach (var descriptor in builder.Services.Where(x => x.ServiceType == typeof(IHostedService)).ToArray())
@@ -49,7 +49,7 @@ internal static class CafeteriaServicesHost
         MonthOpeningOptions monthOpening = builder.Configuration.GetSection("MonthOpening").Get<MonthOpeningOptions>() ?? new();
         ScheduledEmailOptions scheduledEmail = builder.Configuration.GetSection("ScheduledEmail").Get<ScheduledEmailOptions>() ?? new();
         ExternalPublicationOptions externalPublication = builder.Configuration.GetSection("ExternalPublication").Get<ExternalPublicationOptions>() ?? new();
-        string serviceDb = CafeteriaServiceDatabase.ResolveConnectionString(builder.Configuration);
+        string serviceDb = CafeteriaServiceDatabase.ResolveConnectionString(builder.Configuration, builder.Environment.ContentRootPath);
 
         RegisterOptions(builder.Services, management, monthOpening, scheduledEmail, externalPublication);
         IntegrationPluginLoader.Register(builder);
