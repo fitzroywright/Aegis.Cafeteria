@@ -6,6 +6,7 @@
     <CommonRoot Condition="'$(CommonRoot)' == ''">$(MSBuildThisFileDirectory)..\..\Common</CommonRoot>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="Aegis.Cafeteria.PersistenceTests" />
     <ProjectReference Include="..\Aegis.Cafeteria.Domain\Aegis.Cafeteria.Domain.csproj" />
     <ProjectReference Include="..\Aegis.Cafeteria.Application\Aegis.Cafeteria.Application.csproj" />
     <ProjectReference Include="..\Aegis.Cafeteria.Infrastructure\Aegis.Cafeteria.Infrastructure.csproj" />

@@ -18,6 +18,45 @@ namespace Aegis.Cafeteria.PersistenceTests;
 public sealed class ManagementEventSyncWorkerTests
 {
     [Fact]
+    public async Task ReservedProductImport_IsAcknowledgedWithoutCreatingAProduct()
+    {
+        string file = SqliteTestDatabase.CreatePath("product-import-sync");
+        try
+        {
+            var factory = new LocalDbContextFactory(DbContextOptionsFactory.CreateLocal(
+                new CafeteriaPersistenceOptions { LocalSqliteConnectionString = $"Data Source={file}" }));
+            await using var db = factory.CreateDbContext();
+            await db.Database.EnsureCreatedAsync();
+            var reserved = ProductEvent(1, " \tfFp-JUICE ", "Policy Juice");
+            var saleable = ProductEvent(2, "JUICE", "Juice");
+            using var http = new HttpClient(new Feed(reserved, saleable)) { BaseAddress = new Uri("http://test/") };
+            var worker = new ManagementEventSyncWorker(new CafeteriaServicesClient(http), new(), factory, null!, null!,
+                new CustomerAccountChangeNotifier(NullLogger<CustomerAccountChangeNotifier>.Instance),
+                new ManagementEventWakeSignal(), NullLogger<ManagementEventSyncWorker>.Instance);
+
+            Assert.Equal(2, await worker.PullAndApplyAsync(default));
+            Assert.Equal("Juice", Assert.Single(await new EfProductCatalogQuery(factory).GetAllAsync()).Name);
+            var inbox = await db.ManagementEventInbox.SingleAsync(row => row.OperationId == reserved.OperationId);
+            Assert.NotNull(inbox.ProcessedAt);
+            Assert.Null(inbox.LastError);
+            Assert.Equal(reserved.PayloadJson, inbox.PayloadJson);
+            Assert.Equal(0, await worker.PullAndApplyAsync(default));
+        }
+        finally
+        {
+            SqliteTestDatabase.Delete(file);
+        }
+
+        static CafeteriaServiceEventEnvelope ProductEvent(long sequence, string code, string name)
+        {
+            Guid operation = Guid.NewGuid();
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            ProductCatalogImportServiceEvent import = new(operation, (int)sequence, code, name, 200m, "Manager", now);
+            return new(sequence, operation, CafeteriaServiceEventKind.ProductCatalogImport, 0, now, JsonSerializer.Serialize(import));
+        }
+    }
+
+    [Fact]
     public async Task PosTransactionAcknowledgement_DoesNotBlockMonthlyAllocation_AndReplayIsIdempotent()
     {
         SQLitePCL.Batteries_V2.Init();

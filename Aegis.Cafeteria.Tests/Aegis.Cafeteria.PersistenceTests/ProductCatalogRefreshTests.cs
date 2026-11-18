@@ -24,5 +24,38 @@ public sealed class ProductCatalogRefreshTests
         Assert.Single(catalog.Products); Assert.Equal("LUNCH",catalog.Products[0].Code); Assert.DoesNotContain(catalog.Products,product=>product.Code.StartsWith("FFP",StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task Cache_RejectsReservedProductsBeforeReplacingTheExistingCatalogOrPolicy()
+    {
+        string file = SqliteTestDatabase.CreatePath("reserved-product-cache");
+        try
+        {
+            var factory = new LocalDbContextFactory(DbContextOptionsFactory.CreateLocal(
+                new CafeteriaPersistenceOptions { LocalSqliteConnectionString = $"Data Source={file}" }));
+            await using var db = await factory.CreateDbContextAsync();
+            await db.Database.EnsureCreatedAsync();
+            var cache = new EfProductCatalogCache(factory);
+            var lunch = new ExternalProductSnapshot(10, "LUNCH", "Lunch", 800m, 500m);
+            var catalog = new CafeteriaCatalogSnapshot([lunch], "FFP00", 800m, "FFP00", 250m, DateTimeOffset.UtcNow);
+            await cache.ReplaceCatalogAsync(catalog);
+
+            await Assert.ThrowsAsync<ArgumentException>(() => cache.ReplaceCatalogAsync(catalog with
+            {
+                Products = [new(11, "\t fFp-JUICE ", "Policy Juice", 200m, 100m)],
+                CreditLimitPrice = 999m,
+                SubsidyCost = 999m
+            }));
+
+            Assert.Equal(lunch.ProductId, Assert.Single(await db.Products.ToArrayAsync()).Id);
+            var policy = Assert.Single(await db.CafeteriaRatePolicies.ToArrayAsync());
+            Assert.Equal(800m, policy.CreditLimitPrice);
+            Assert.Equal(250m, policy.SubsidyCost);
+        }
+        finally
+        {
+            SqliteTestDatabase.Delete(file);
+        }
+    }
+
     private sealed class Source(CafeteriaCatalogSnapshot catalog):IProductCatalogSource { public Task<CafeteriaCatalogSnapshot> GetCatalogAsync(CancellationToken cancellationToken=default)=>Task.FromResult(catalog); }
 }

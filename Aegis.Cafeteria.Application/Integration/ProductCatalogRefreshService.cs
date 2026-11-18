@@ -34,7 +34,7 @@ public static class LunchItemRatePolicyDeriver
         // FFP-prefixed LunchItems are reserved system/policy rows.  They must never
         // appear in the cashier sale catalog, including differently-cased variants.
         ExternalProductSnapshot[] saleable = activeLunchItems
-            .Where(item => !item.Code.Trim().StartsWith("FFP", StringComparison.OrdinalIgnoreCase))
+            .Where(item => !LunchItemCode.IsReserved(item.Code))
             .Where(item => item.ProductId > 0 && !string.IsNullOrWhiteSpace(item.Name) && item.Price >= 0m)
             .ToArray();
         if (saleable.Length == 0) throw new InvalidOperationException("FFP LunchItems contains no active saleable cafeteria items.");

@@ -2,7 +2,7 @@
 
 One-time cutover utility for importing legacy cafeteria activity through the configured Cafeteria integration plugin.
 
-The migration executable contains no source-system table, column, transaction-type, or product-policy knowledge. It loads an `ILegacyCafeteriaMigrationSource` implementation from the integration plugin, requests generic migration snapshots, displays dry-run totals, and submits those generic records to Cafeteria Services.
+The migration executable loads an `ILegacyCafeteriaMigrationSource` implementation from the integration plugin. The plugin reads the source tables and supplies generic migration snapshots for dry-run review and submission to Cafeteria Services.
 
 ## Safety
 
@@ -55,7 +55,7 @@ dotnet run --project Aegis.Cafeteria.Migration -- \
 
 ## Product catalog migration
 
-Product bootstrap also goes through the integration plugin. The migration executable does not know the source product table or reserved policy-row rules.
+Product bootstrap excludes codes that start with `FFP` after trimming, regardless of case. The integration plugin and migration executable filter these rows. Cafeteria Services rejects a submitted batch containing any reserved code with HTTP 400 and reports the offending zero-based request indexes.
 
 Dry run:
 
@@ -77,3 +77,11 @@ dotnet run --project Aegis.Cafeteria.Migration -- \
 ```
 
 The integration plugin is responsible for translating its external source into the generic migration contracts.
+
+## Review and remediate prior imports
+
+Use this procedure only for an explicitly approved cleanup of confirmed POS catalog entries. Preserve a backup/export of the affected catalog rows and all historical records. A patched POS records and acknowledges old reserved import events in its inbox without adding a saleable item. That guard applies during replay and cannot identify catalog entries already materialized by older terminals.
+
+1. Review a read-only export of Services `CafeteriaServiceEvents` and each terminal's `ManagementEventInbox` for `Kind = 7` (`ProductCatalogImport`). Inspect `SourceCode` in `PayloadJson` using the trimmed, case-insensitive `FFP` prefix rule. Record the operation ID, source product ID, name, price and event timestamps for each match.
+2. Compare processed inbox events with the terminal's `Products` rows and the catalog's audit or backup evidence. The POS assigns a local product ID and stores the name and price without the source code or ID. An import could also have been skipped because a legitimate product already had that name. A name or price match alone is insufficient proof. Leave ambiguous rows in place for manual investigation.
+3. After confirming ownership of a row and obtaining approval, export its current local catalog values, then remove only that entry through POS Product Maintenance on the affected terminal. Review the current sale catalog afterward. Order lines store their own product name and price and have no foreign key to `Products`. Preserve the Services event stream, the POS inbox and its checkpoint, and all orders, refunds and financial records. Keep the source LunchItems policy rows, including `FFP00`.

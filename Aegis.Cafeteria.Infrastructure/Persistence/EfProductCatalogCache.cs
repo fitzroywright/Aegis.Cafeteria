@@ -8,6 +8,9 @@ public sealed class EfProductCatalogCache(IDbContextFactory<LocalCafeteriaDbCont
 {
     public async Task ReplaceCatalogAsync(CafeteriaCatalogSnapshot catalog, CancellationToken cancellationToken = default)
     {
+        if (catalog.Products.Any(product => LunchItemCode.IsReserved(product.Code)))
+            throw new ArgumentException("The sale catalog contains a reserved product code.", nameof(catalog));
+
         await using var db = await factory.CreateDbContextAsync(cancellationToken);
         await using var tx = await db.Database.BeginTransactionAsync(cancellationToken);
         var now = catalog.RefreshedAt;

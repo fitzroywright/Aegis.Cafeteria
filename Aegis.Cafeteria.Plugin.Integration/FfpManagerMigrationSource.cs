@@ -18,7 +18,9 @@ public sealed class FfpManagerMigrationSource : ILegacyCafeteriaMigrationSource
                 , ISNULL(CONVERT(nvarchar(256), Name), '') AS Name
                 , ISNULL(Price, 0) AS Price
             FROM dbo.LunchItems
-            WHERE ISNULL(CONVERT(nvarchar(64), Code), '') <> 'FFP00'
+            CROSS APPLY (VALUES (ISNULL(CONVERT(nvarchar(max), Code), N'') COLLATE Latin1_General_100_BIN2)) AS source(CodeText)
+            WHERE SUBSTRING(source.CodeText, PATINDEX(@firstNonWhitespace, source.CodeText), 3)
+                NOT LIKE N'[Ff][Ff][Pp]'
             ORDER BY ID;
             """;
 
@@ -28,11 +30,18 @@ public sealed class FfpManagerMigrationSource : ILegacyCafeteriaMigrationSource
         await connection.OpenAsync(cancellationToken);
 
         await using SqlCommand command = new(sql, connection);
+        // Match the first character that .NET Trim would leave in the code.
+        const string whitespace = "\u0009\u000A\u000B\u000C\u000D\u0020\u0085\u00A0\u1680"
+            + "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u2028\u2029\u202F\u205F\u3000";
+        command.Parameters.AddWithValue("@firstNonWhitespace", $"%[^{whitespace}]%");
         await using SqlDataReader reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
         {
             int productId = Convert.ToInt32(reader.GetValue(0));
             string code = Convert.ToString(reader.GetValue(1))?.Trim() ?? string.Empty;
+            if (LunchItemCode.IsReserved(code))
+                continue;
+
             string name = Convert.ToString(reader.GetValue(2))?.Trim() ?? string.Empty;
             decimal price = Convert.ToDecimal(reader.GetValue(3));
 

@@ -1,3 +1,4 @@
+using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Domain.Services;
 using Aegis.Cafeteria.Services.Persistence;
 using System.Security.Cryptography;
@@ -25,6 +26,18 @@ internal static class MigrationEndpoints
         ServiceEventStore store,
         CancellationToken ct)
     {
+        int[] reservedProductIndexes = request.Products
+            .Select((item, index) => (item, index))
+            .Where(entry => LunchItemCode.IsReserved(entry.item?.Code))
+            .Select(entry => entry.index)
+            .ToArray();
+        if (reservedProductIndexes.Length > 0)
+        {
+            return Results.ValidationProblem(reservedProductIndexes.ToDictionary(
+                index => $"products[{index}].code",
+                _ => new[] { "Product codes starting with FFP are reserved." }));
+        }
+
         string actor = CafeteriaActor.Require(http);
         DateTimeOffset importedAt = DateTimeOffset.UtcNow;
 

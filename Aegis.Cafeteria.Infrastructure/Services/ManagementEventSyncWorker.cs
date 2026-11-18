@@ -2,6 +2,7 @@ namespace Aegis.Cafeteria.Infrastructure.Services;
 
 using Aegis.Cafeteria.Application.Abstractions;
 using Aegis.Cafeteria.Application.Accounts;
+using Aegis.Cafeteria.Application.Integration;
 using Aegis.Cafeteria.Application.Reporting;
 using Aegis.Cafeteria.Domain.Accounts;
 using Aegis.Cafeteria.Domain.Services;
@@ -327,6 +328,12 @@ public sealed class ManagementEventSyncWorker : BackgroundService
         , CancellationToken cancellationToken
     )
     {
+        if (LunchItemCode.IsReserved(import.SourceCode))
+        {
+            this.logger.LogWarning("Skipping reserved product import operation {OperationId}", import.OperationId);
+            return;
+        }
+
         await using LocalCafeteriaDbContext database = await this.factory.CreateDbContextAsync(cancellationToken);
 
         string[] existingNames = await database.Products

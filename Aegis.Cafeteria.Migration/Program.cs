@@ -69,10 +69,14 @@ static async Task RunProductBootstrapAsync(
     Console.WriteLine($"Services: {options.ServicesUrl}");
     Console.WriteLine($"Mode: {(options.Execute ? "EXECUTE" : "DRY RUN")}");
 
-    IReadOnlyList<LegacyCafeteriaProductSnapshot> products =
-        await source.ReadProductsAsync(connectionString);
+    IReadOnlyList<LegacyCafeteriaProductSnapshot> sourceProducts = await source.ReadProductsAsync(connectionString);
+    LegacyCafeteriaProductSnapshot[] products = sourceProducts
+        .Where(product => !LunchItemCode.IsReserved(product.Code))
+        .ToArray();
 
-    Console.WriteLine($"Source products: {products.Count}");
+    Console.WriteLine($"Saleable source products: {products.Length}");
+    if (sourceProducts.Count > products.Length)
+        Console.WriteLine($"Reserved source products excluded: {sourceProducts.Count - products.Length}");
 
     if (!options.Execute)
     {
